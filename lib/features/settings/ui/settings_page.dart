@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/motion/motion_controller.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../core/theme/theme_controller.dart';
 import 'daily_square_settings_card.dart';
@@ -172,6 +173,18 @@ class _ThemeModeCard extends StatelessWidget {
   final ThemeMode current;
   final ValueChanged<ThemeMode> onSelect;
 
+  /// The segment's leading icon: chalk glyph in ink mode, Material
+  /// fallback otherwise. Colorless either way — the segment paints its
+  /// own selected foreground.
+  Widget themeSwitchIcon(SketchIconKind kind, IconData fallback) {
+    return Builder(builder: (context) {
+      final useInk = GoldenHourExtension.of(context).enabled;
+      return useInk
+          ? SketchIcon(kind: kind, size: 20, seed: kind.index * 13 + 3)
+          : Icon(fallback, size: 20);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -189,24 +202,33 @@ class _ThemeModeCard extends StatelessWidget {
                 child: Text('Theme', style: theme.textTheme.titleMedium),
               ),
               SegmentedButton<ThemeMode>(
-                segments: const [
+                // Chalk glyphs (sun / crescent / circled-A) matching the
+                // rest of the chrome; Material icons when ink is off.
+                segments: [
                   ButtonSegment(
                     value: ThemeMode.system,
-                    icon: Icon(Icons.brightness_auto_rounded),
-                    label: Text('System'),
+                    icon: themeSwitchIcon(
+                        SketchIconKind.autoA, Icons.brightness_auto_rounded),
+                    label: const Text('System'),
                   ),
                   ButtonSegment(
                     value: ThemeMode.light,
-                    icon: Icon(Icons.light_mode_outlined),
-                    label: Text('Light'),
+                    icon: themeSwitchIcon(
+                        SketchIconKind.sunMark, Icons.light_mode_outlined),
+                    label: const Text('Light'),
                   ),
                   ButtonSegment(
                     value: ThemeMode.dark,
-                    icon: Icon(Icons.dark_mode_outlined),
-                    label: Text('Dark'),
+                    icon: themeSwitchIcon(
+                        SketchIconKind.moonCrescent, Icons.dark_mode_outlined),
+                    label: const Text('Dark'),
                   ),
                 ],
                 selected: {current},
+                // M3 prepends a checkmark to the selected segment, which
+                // shoves the chalk glyph half out of the segment. The
+                // tinted pill + glyph already communicate selection.
+                showSelectedIcon: false,
                 onSelectionChanged: (selection) => onSelect(selection.first),
               ),
             ],

@@ -1,6 +1,7 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../io/platform_io.dart';
 
 /// Full-screen photo viewer for chat attachments: dark backdrop, the
 /// photo centred and letterboxed, pinch to zoom, double-tap to toggle
@@ -53,8 +54,8 @@ class _AttachmentPhotoViewerState extends State<AttachmentPhotoViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final image = Image.file(
-      File(widget.path),
+    final image = Image(
+      image: platformImageProvider(widget.path),
       fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => Column(
         mainAxisAlignment: MainAxisAlignment.center,

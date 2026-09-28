@@ -1,10 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/io/platform_io.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../calls/domain/repositories/calls_repository.dart';
 import '../../calls/data/repositories/mock_calls_repository.dart';
@@ -320,7 +320,8 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                   if (profile.avatarPath != null) {
                     return CircleAvatar(
                       radius: 18,
-                      backgroundImage: FileImage(File(profile.avatarPath!)),
+                      backgroundImage:
+                          platformImageProvider(profile.avatarPath!),
                       onBackgroundImageError: (_, __) {},
                     );
                   }
@@ -350,7 +351,8 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                     icon: SketchGlyph(
                       kind: SketchIconKind.cog,
                       color: _moduleIndex == 4
-                          ? Theme.of(context).colorScheme.primary
+                          ? navSelectedIconColor(
+                              Theme.of(context).colorScheme)
                           : null,
                     ),
                     isSelected: _moduleIndex == 4,
@@ -362,13 +364,15 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
             destinations: [
               for (final (label, kind) in _modules.take(4))
                 NavigationRailDestination(
-                  // Chrome glyphs stay chalk in both states; selection
-                  // reads from the rail's own highlight + label tint.
+                  // Chrome glyphs stay chalk in both states; the selected
+                  // color is contrast-tested against the accent pill (an
+                  // amber accent on its own pale-amber pill washes out,
+                  // so the picker falls back to warm ink per accent).
                   icon: SketchGlyph(kind: kind, seed: label.hashCode & 0x7FFFFFFF),
                   selectedIcon: SketchGlyph(
                     kind: kind,
                     seed: label.hashCode & 0x7FFFFFFF,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: navSelectedIconColor(Theme.of(context).colorScheme),
                   ),
                   label: Text(label),
                 ),

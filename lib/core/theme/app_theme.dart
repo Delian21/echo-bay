@@ -258,6 +258,20 @@ ThemeData buildGoldenHourDarkTheme([Color? accent]) => _theme(
     AppColors._tokensGoldenDark,
     AppColors._goldenDark);
 
+/// The selected nav-glyph color: the accent only when the accent
+/// actually reads against its own indicator pill, otherwise the surface
+/// foreground. Some ink-pot accents (golden-hour amber especially) are
+/// too close in luminance to their own 22%-alpha pill — amber icon on
+/// pale-amber pill washes out. This picks per-accent, per-brightness:
+/// the higher-WCAG-contrast of {accent, onSurface} against the pill's
+/// *composite* color (pill blended over surface), so dark teal keeps
+/// its accent identity while amber falls back to warm ink.
+Color navSelectedIconColor(ColorScheme scheme, {double indicatorAlpha = 0.22}) {
+  final pill = Color.lerp(scheme.surface, scheme.primary, indicatorAlpha)!;
+  return AccentDerivation.higherContrast(
+      pill, scheme.primary, scheme.onSurface);
+}
+
 /// Replaces the primary role with the user's accent and derives its
 /// container colors with contrast-correct math (see [AccentDerivation]).
 ColorScheme _withAccent(ColorScheme scheme, Color? accent) {
@@ -365,6 +379,11 @@ class AccentDerivation {
 
   static Color _higherContrast(Color bg, Color a, Color b) =>
       contrastRatio(a, bg) >= contrastRatio(b, bg) ? a : b;
+
+  /// Public wrapper for feature UI picking between two foregrounds on
+  /// one background (nav pills, custom chips).
+  static Color higherContrast(Color bg, Color a, Color b) =>
+      _higherContrast(bg, a, b);
 }
 
 /// Module-title voice: the AppBar [Text] inherits this via

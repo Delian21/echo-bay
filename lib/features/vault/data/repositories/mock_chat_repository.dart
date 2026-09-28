@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:fpdart/fpdart.dart';
+
+import '../../../../core/io/platform_io.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
@@ -495,30 +496,29 @@ class MockChatRepository implements ChatRepository {
   /// Copy an attachment's source file into the app support directory
   /// (`attachments/<uuid>.<ext>`). Returns the stored form pointing at
   /// the durable copy. Missing source files fail the send (local-first:
-  /// better to error than persist a dead path).
+  /// better to error than persist a dead path). On the web the IO seam
+  /// no-ops the copy and returns a session-only path — the message and
+  /// its metadata still persist through the database.
   Future<MessageAttachment> _storeAttachment(MessageAttachment a) async {
-    final source = File(a.path);
-    if (!await source.exists()) {
+    if (!await fileExists(a.path)) {
       throw StateError('attachment source missing: ${a.path}');
     }
-    final dir = await _attachmentsDir();
+    final dirPath = await _attachmentsDir();
     final ext = a.path.contains('.') ? a.path.split('.').last : 'bin';
-    final dest = File('${dir.path}${Platform.pathSeparator}${_uuid.v4()}.$ext');
-    await source.copy(dest.path);
+    final dest = joinPath(dirPath, '${_uuid.v4()}.$ext');
+    await fileCopy(a.path, dest);
     return MessageAttachment(
       kind: a.kind,
-      path: dest.path,
+      path: dest,
       durationMs: a.durationMs,
     );
   }
 
-  Future<Directory> _attachmentsDir() async {
+  Future<String> _attachmentsDir() async {
     // No path_provider dependency in the mock stack: store in a
     // `.attachments` folder under the working directory (desktop mock
     // stage; the real transport swaps in path_provider later).
-    final dir = Directory('${Directory.current.path}${Platform.pathSeparator}.attachments');
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
+    return dirEnsure(joinPath(currentDirPath, '.attachments'));
   }
 
   Future<void> _deliverPeerMessage(

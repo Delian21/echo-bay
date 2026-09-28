@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../design_system/sketch_kit.dart';
 import '../theme/app_theme.dart';
+import '../io/platform_io.dart';
 import 'attachment.dart';
 import 'attachment_photo_viewer.dart';
 import 'voice_waveform_chip.dart';
@@ -38,8 +37,8 @@ class AttachmentMediaView extends StatelessWidget {
             borderRadius: BorderRadius.circular(useInk ? 4 : 12),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 240, maxHeight: 190),
-              child: Image.file(
-                File(attachment.path),
+              child: Image(
+                image: platformImageProvider(attachment.path),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _brokenTile(
                   context,

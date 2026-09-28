@@ -1,9 +1,9 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/io/platform_io.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
@@ -330,8 +330,8 @@ class _MediaPreview extends StatelessWidget {
                       ],
                     ),
                   )
-                : Image.file(
-                    File(media.path),
+                : Image(
+                    image: platformImageProvider(media.path),
                     fit: BoxFit.cover,
                     width: double.infinity,
                     errorBuilder: (_, __, ___) => ColoredBox(

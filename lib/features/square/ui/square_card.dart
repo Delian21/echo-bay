@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:blurhash_dart/blurhash_dart.dart';
@@ -6,6 +5,7 @@ import 'package:blurhash_dart/blurhash_extensions.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/motion/rewind_scope.dart';
 import '../../../core/theme/app_theme.dart';
@@ -429,8 +429,8 @@ class _LocalMediaTile extends StatelessWidget {
         ),
       );
     }
-    return Image.file(
-      File(path),
+    return Image(
+      image: platformImageProvider(path),
       fit: BoxFit.cover,
       width: double.infinity,
       errorBuilder: (_, __, ___) => const _MediaUnavailableStatic(),

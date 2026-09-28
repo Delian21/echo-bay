@@ -473,6 +473,9 @@ enum SketchIconKind {
   arrowBack,
   closeX,
   brokenImage,
+  sunMark,
+  moonCrescent,
+  autoA,
 }
 
 /// The five icon set (docs/ART_DIRECTION.md §2), drawn as raw paths with
@@ -1026,6 +1029,30 @@ Path _iconPath(SketchIconKind kind, int seed) {
       lineTo(j(14, 19, 0.8));
       moveTo(j(15.5, 8.8, 0.5));
       lineTo(j(15.6, 8.9, 0.5));
+    case SketchIconKind.sunMark:
+      // Light mode: wobbly disc + hand-drawn rays of uneven length.
+      circle(j(12, 12, 0.9), 4.4);
+      for (var i = 0; i < 8; i++) {
+        final a = (2 * math.pi * i) / 8;
+        final inner = 6.6 + rng.next() * 0.6;
+        final outer = 9.6 + rng.next() * 1.4;
+        moveTo(j(12 + inner * math.cos(a), 12 + inner * math.sin(a), 0.6));
+        lineTo(j(12 + outer * math.cos(a), 12 + outer * math.sin(a), 0.7));
+      }
+    case SketchIconKind.moonCrescent:
+      // Dark mode: crescent from two offset arcs.
+      moveTo(j(14.5, 4.5, 1.0));
+      cubicTo(j(8, 6, 1.2), j(7, 17, 1.2), j(14.5, 19.5, 1.0));
+      cubicTo(j(18, 15, 1.2), j(18, 9, 1.1), j(14.5, 4.5, 1.0));
+      path.close();
+    case SketchIconKind.autoA:
+      // System mode: circle with a chalk A — the theme follows the OS.
+      circle(j(12, 12, 0.9), 9.0);
+      moveTo(j(8.5, 16.5, 0.8));
+      lineTo(j(12, 7, 0.9));
+      lineTo(j(15.5, 16.5, 0.8));
+      moveTo(j(9.8, 13.5, 0.6));
+      lineTo(j(14.2, 13.5, 0.6));
   }
   return path;
 }

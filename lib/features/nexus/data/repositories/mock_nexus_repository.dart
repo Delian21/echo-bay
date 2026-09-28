@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:drift/drift.dart' hide Column;
@@ -7,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/attachments/attachment.dart';
+import '../../../../core/io/platform_io.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/nexus.dart';
@@ -158,20 +158,16 @@ class MockNexusRepository implements NexusRepository {
   /// Vault's mock — duplicated on purpose: features may not import each
   /// other, and the shared helper would have to live in core data layer).
   Future<MessageAttachment> _storeAttachment(MessageAttachment a) async {
-    final source = File(a.path);
-    if (!await source.exists()) {
+    if (!await fileExists(a.path)) {
       throw StateError('attachment source missing: ${a.path}');
     }
-    final dir = Directory(
-        '${Directory.current.path}${Platform.pathSeparator}.attachments');
-    if (!await dir.exists()) await dir.create(recursive: true);
+    final dirPath = await dirEnsure(joinPath(currentDirPath, '.attachments'));
     final ext = a.path.contains('.') ? a.path.split('.').last : 'bin';
-    final dest = File(
-        '${dir.path}${Platform.pathSeparator}${_uuid.v4()}.$ext');
-    await source.copy(dest.path);
+    final dest = joinPath(dirPath, '${_uuid.v4()}.$ext');
+    await fileCopy(a.path, dest);
     return MessageAttachment(
       kind: a.kind,
-      path: dest.path,
+      path: dest,
       durationMs: a.durationMs,
     );
   }

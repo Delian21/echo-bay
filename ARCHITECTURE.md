@@ -330,6 +330,27 @@ review:
    already open (feed, Vault, Hallway) — it is never the only reason to
    open it, and never gates any content.
 
+**Theme-mode & nav contrast.** The Settings theme-mode segmented buttons use
+chalk glyphs (`sunMark` / `moonCrescent` / `autoA`) with
+`showSelectedIcon: false` — M3 otherwise prepends a ✓ that shoves the glyph
+aside. The nav rail's selected pill mixes ~22% accent into the surface;
+`navSelectedIconColor(scheme)` computes that composite pill colour and picks
+an icon tint with ≥3:1 contrast against it (the original amber washed out on
+its own pale pill). `test/nav_accent_contrast_test.dart` asserts the ratio
+for all six accents × golden/stock × light/dark, plus a regression test
+proving the pre-fix amber failed.
+
+**Web support.** `flutter build web --release` is a supported target. The
+stack: `drift_flutter`'s `driftDatabase()` with both `native:` and `web:`
+options (`web:` is mandatory on web — omitting it throws at runtime),
+`sqlite3.wasm` + `drift_worker.js` version-locked to `pubspec.lock` and
+served from `web/`. All `dart:io` usage is quarantined behind the
+`lib/core/io/platform_io.dart` conditional-export seam
+(`io_native.dart` / `io_stub.dart`) — nothing else in `lib/` imports
+`dart:io`. Web no-ops: attachment copies and voice-peak persistence are
+session-only in the browser. Known cosmetic issue: seeded pravatar
+avatars are CORS-blocked on web; the errorBuilder renders chalk glyphs.
+
 ## 7. Open items
 
 - Rename the mechanical identifiers (`superapp` package, `superapp.sqlite`,

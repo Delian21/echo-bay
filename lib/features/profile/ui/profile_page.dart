@@ -1,8 +1,8 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/io/platform_io.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/profile/profile_controller.dart';
@@ -240,8 +240,8 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (avatarPath != null && avatarPath!.isNotEmpty) {
       return CircleAvatar(
-        radius: radius,
-        backgroundImage: FileImage(File(avatarPath!)),
+        radius: radius,                        backgroundImage:
+                            platformImageProvider(avatarPath!),
         onBackgroundImageError: (_, __) {},
       );
     }

@@ -1,9 +1,5 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:drift_flutter/drift_flutter.dart';
 
 part 'app_database.g.dart';
 
@@ -673,10 +669,24 @@ class FtsHitRow {
   final double rank;
 }
 
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'superapp.sqlite'));
-    return NativeDatabase.createInBackground(file);
-  });
+/// Platform-appropriate database connection via drift_flutter: on native
+/// platforms a background-isolate SQLite file in the documents directory
+/// (unchanged behavior); on the web, drift's WasmDatabase backed by
+/// sqlite3.wasm + drift_worker.js served from `web/` (IndexedDB / OPFS
+/// storage) — Netlify deploys get real local persistence in the browser.
+QueryExecutor _openConnection() {
+  return driftDatabase(
+    name: 'echo_bay',
+    native: DriftNativeOptions(
+      // Same file the manual LazyDatabase opened before (renamed from
+      // superapp.sqlite — a fresh file; old dev databases are disposable).
+      databasePath: () async => 'echo_bay.sqlite',
+    ),
+    // Web: the wasm module + worker served from web/ (fetched from the
+    // drift & sqlite3.dart releases, versions matching pubspec.lock).
+    web: DriftWebOptions(
+      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+      driftWorker: Uri.parse('drift_worker.js'),
+    ),
+  );
 }

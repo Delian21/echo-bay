@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../design_system/sketch_kit.dart';
+import '../io/platform_io.dart';
 import '../motion/motion_scope.dart';
 import '../theme/app_theme.dart';
 import 'attachment.dart';
@@ -69,9 +69,9 @@ class _VoiceWaveformChipState extends State<VoiceWaveformChip> {
   Future<void> _loadPeaks() async {
     List<double>? loaded;
     try {
-      final f = File('${widget.attachment.path}.wave');
-      if (await f.exists()) {
-        loaded = (await f.readAsString())
+      final raw = await fileReadString('${widget.attachment.path}.wave');
+      if (raw != null) {
+        loaded = raw
             .split(',')
             .where((s) => s.isNotEmpty)
             .map(double.parse)

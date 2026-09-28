@@ -56,12 +56,21 @@ error handling, and get_it as the single composition root. Full details,
 schema history, and the normative decisions live in
 [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+New here? Start with [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) — a
+plain-language guide that traces real flows (sending a message, drawing a
+chalk icon, switching the accent) through the actual code.
+
 ## Running it
 
 ```bash
 flutter pub get
 flutter run -d windows   # or -d chrome / your device
 ```
+
+The same code runs in the browser: `flutter build web --release` produces
+`build/web` (a static folder you can host anywhere — it runs SQLite via
+WASM through `drift_flutter`). The file-touching seam in `lib/core/io/`
+keeps `dart:io` out of `lib/`, so no per-platform forks.
 
 First Windows build needs the C++ ATL component (see `ARCHITECTURE.md`
 §1a — two plugins in the tree link against it).

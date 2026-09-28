@@ -1,9 +1,10 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
+
+import '../io/platform_io.dart';
 
 import 'attachment.dart';
 
@@ -47,11 +48,11 @@ class AttachmentPicker {
       // Haptic acknowledgment — recording started.
       await HapticFeedback.mediumImpact();
       final recorder = AudioRecorder();
-      final dir = Directory(
-          '${Directory.current.path}${Platform.pathSeparator}.attachments');
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final path =
-          '${dir.path}${Platform.pathSeparator}voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+      final dirPath =
+          await dirEnsure(joinPath(currentDirPath, '.attachments'));
+      final path = joinPath(
+          dirPath,
+          'voice_${DateTime.now().microsecondsSinceEpoch}.m4a');
 
       var live = false;
       final peaks = <double>[];
@@ -128,12 +129,11 @@ class VoiceRecording {
         await _recorder.dispose();
         // The encoder reports its own path; trust it when present.
         final written = finalPath ?? _path;
-        final file = File(written);
-        if (await file.exists() && await file.length() > 0) {
+        if (await fileExists(written) && await fileLength(written) > 0) {
           // Sidecar waveform: real mic peaks as comma-separated values.
           // Chips load it to draw the true speech contour.
           if (_peaks.isNotEmpty) {
-            await File('$written.wave').writeAsString(_peaks.join(','));
+            await fileWriteString('$written.wave', _peaks.join(','));
           }
           return MessageAttachment(
             kind: AttachmentKind.voice,
@@ -150,12 +150,12 @@ class VoiceRecording {
 
     // Fallback capture: a tiny placeholder file so the pipeline (persist,
     // render, play-chip) stays real even without a microphone.
-    final file = File('$_path.txt');
-    await file.writeAsString('voice note placeholder ($durationMs ms)');
+    await fileWriteString(
+        '$_path.txt', 'voice note placeholder ($durationMs ms)');
 
     return MessageAttachment(
       kind: AttachmentKind.voice,
-      path: file.path,
+      path: '$_path.txt',
       durationMs: durationMs,
     );
   }
@@ -172,8 +172,7 @@ class VoiceRecording {
         await _recorder.dispose();
       } on Object catch (_) {}
       try {
-        final f = File(_path);
-        if (await f.exists()) await f.delete();
+        await fileDelete(_path);
       } on Object catch (_) {}
     });
   }
