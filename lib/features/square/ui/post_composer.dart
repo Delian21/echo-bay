@@ -1,0 +1,373 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/prompt/prompt.dart';
+import '../../../core/prompt/prompt_repository.dart';
+import '../domain/repositories/feed_repository.dart';
+
+/// Per-shape composer hint, mirroring the Daily Square prompt rotation
+/// (drift_prompt_repository). Shared by the composer and the FAB
+/// long-press quick actions so both speak the same vocabulary.
+String promptShapeHint(String shape) => switch (shape) {
+      'photo' => 'One photo of what is in front of you.',
+      'sentence' => 'One sentence about today. Just one.',
+      'sound' => 'What are you listening to right now?',
+      'desk' => 'Show your desk as it actually is.',
+      _ => "What's happening on the Square?",
+    };
+
+/// Compose-and-publish sheet for the Square. Returns the created post's
+/// body when published, null when cancelled/failed (failure surfaces as a
+/// snackbar here so callers stay one-liners).
+///
+/// Daily Square E2E (§6c): pass [prompt] (the active prompt from the
+/// notification tap or app-bar entry point) and the sheet pre-seeds the
+/// field with the prompt's own copy and, on publish, records the answer
+/// so the prompt retires (rule 2 — acted on, never shown again).
+Future<void> showPostComposer(
+  BuildContext context, {
+  required FeedRepository repository,
+  required String authorName,
+  String? promptShape,
+  Prompt? prompt,
+  PromptRepository? promptRepository,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => _PostComposer(
+      repository: repository,
+      authorName: authorName,
+      hint: prompt != null
+          ? prompt.body
+          : promptShape == null
+              ? null
+              : promptShapeHint(promptShape),
+      prompt: prompt,
+      promptRepository: promptRepository,
+    ),
+  );
+}
+
+class _PostComposer extends StatefulWidget {
+  const _PostComposer({
+    required this.repository,
+    required this.authorName,
+    this.hint,
+    this.prompt,
+    this.promptRepository,
+  });
+
+  final FeedRepository repository;
+  final String authorName;
+
+  /// Prompt-shape hint ('One photo of what is in front of you.') shown
+  /// as the field's hint text; null falls back to the generic ask.
+  final String? hint;
+
+  /// Active Daily Square prompt, when the composer was opened from the
+  /// notification tap or the prompt-aware entry point. Pre-seeds the
+  /// field with the prompt copy and retires the prompt on publish.
+  final Prompt? prompt;
+  final PromptRepository? promptRepository;
+
+  @override
+  State<_PostComposer> createState() => _PostComposerState();
+}
+
+class _PostComposerState extends State<_PostComposer> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+
+  /// Picked local media. One attachment per post (the card renders a
+  /// single media slot); re-picking replaces it. Stored as an absolute
+  /// file path — the mock cache persists the row, and [FeedCard] paints
+  /// local files directly. A real backend swaps this for an upload +
+  /// remote URL without touching the UI contract.
+  XFile? _media;
+  bool _mediaIsVideo = false;
+
+  final _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? picked;
+    try {
+      picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        imageQuality: 85,
+      );
+    } catch (_) {
+      return; // picker unavailable/cancelled — keep the sheet usable
+    }
+    if (picked == null || !mounted) return;
+    setState(() {
+      _media = picked;
+      _mediaIsVideo = false;
+    });
+  }
+
+  Future<void> _pickVideo() async {
+    final XFile? picked;
+    try {
+      picked = await _picker.pickVideo(source: ImageSource.gallery);
+    } catch (_) {
+      return;
+    }
+    if (picked == null || !mounted) return;
+    setState(() {
+      _media = picked;
+      _mediaIsVideo = true;
+    });
+  }
+
+  void _clearMedia() => setState(() {
+        _media = null;
+        _mediaIsVideo = false;
+      });
+
+  bool get _canPublish => !_sending && (_controller.text.trim().isNotEmpty || _media != null);
+
+  Future<void> _publish() async {
+    if (!_canPublish) return;
+    setState(() => _sending = true);
+
+    final result = await widget.repository.createPost(
+      body: _controller.text.trim(),
+      authorName: widget.authorName,
+      mediaUrl: _media?.path,
+    );
+    if (!mounted) return;
+
+    await result.fold(
+      (failure) async {
+        setState(() => _sending = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(failure.message ?? 'Could not publish'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      (post) async {
+        // Prompt E2E: answering retires the prompt (§6c rule 2). Best
+        // effort — a bookkeeping failure never blocks the post.
+        final prompt = widget.prompt;
+        final prompts = widget.promptRepository;
+        if (prompt != null && prompts != null) {
+          await prompts.recordPosted(
+            promptId: prompt.id,
+            postId: post.id,
+          );
+        }
+        if (mounted) Navigator.of(context).pop();
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      // Keyboard inset: the sheet floats above the composer keyboard.
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Golden Hour: the composer's title is a handwritten page
+          // heading, not a Material label.
+          Builder(builder: (context) {
+            final useInk = GoldenHourExtension.of(context).enabled;
+            return Text(
+              'New post',
+              style: useInk
+                  ? kHandwrittenTextStyle.copyWith(
+                      fontSize: 24,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    )
+                  : theme.textTheme.titleMedium,
+            );
+          }),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: 4,
+            minLines: 2,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _publish(),
+            decoration: InputDecoration(
+              hintText: widget.hint ?? "What's happening on the Square?",
+            ),
+          ),
+          if (_media != null) ...[
+            const SizedBox(height: 12),
+            // Attached media rides in a wobbly notebook frame — the
+            // sketch language follows content everywhere it goes.
+            Builder(
+              builder: (context) => GoldenHourExtension.of(context).enabled
+                  ? SketchBox(
+                      seed: _media!.path.hashCode & 0x7FFFFFFF,
+                      radius: 8,
+                      color: SketchInk.of(context),
+                      child: _MediaPreview(
+                        media: _media!,
+                        isVideo: _mediaIsVideo,
+                        onRemove: _clearMedia,
+                      ),
+                    )
+                  : _MediaPreview(
+                      media: _media!,
+                      isVideo: _mediaIsVideo,
+                      onRemove: _clearMedia,
+                    ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              // Media attachment: photo + video pickers, desktop-friendly
+              // (file dialogs on Windows). Attach without text — the
+              // publish gate accepts caption-or-media.
+              IconButton.filledTonal(
+                tooltip: 'Attach photo',
+                onPressed: _sending ? null : _pickImage,
+                icon: const SketchIcon(
+                    kind: SketchIconKind.photoFrame, size: 22, seed: 47),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: 'Attach video',
+                onPressed: _sending ? null : _pickVideo,
+                icon: const SketchIcon(
+                    kind: SketchIconKind.videoCam, size: 22, seed: 53),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: _sending ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _canPublish ? _publish : null,
+                child: _sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Publish'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Attached-media preview inside the composer: photo thumbnail or video
+/// icon tile, with a remove affordance. Videos are not thumbnailed here —
+/// generating one needs video_player; the badge communicates the type.
+class _MediaPreview extends StatelessWidget {
+  const _MediaPreview({
+    required this.media,
+    required this.isVideo,
+    required this.onRemove,
+  });
+
+  final XFile media;
+  final bool isVideo;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 160,
+            child: isVideo
+                ? ColoredBox(
+                    color: scheme.surfaceContainerHighest,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SketchIcon(
+                          kind: SketchIconKind.videoCam,
+                          size: 32,
+                          color: scheme.onSurfaceVariant,
+                          seed: 59,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          media.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  )
+                : Image.file(
+                    File(media.path),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, __, ___) => ColoredBox(
+                      color: scheme.surfaceContainerHighest,
+                      child: SketchIcon(
+                        kind: SketchIconKind.brokenImage,
+                        color: scheme.onSurfaceVariant,
+                        seed: 61,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        Positioned(
+          top: 6,
+          right: 6,
+          child: Material(
+            color: scheme.surface.withValues(alpha: 0.85),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onRemove,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child:
+                    SketchIcon(
+                      kind: SketchIconKind.closeX,
+                      size: 18,
+                      color: scheme.onSurface,
+                      seed: 19,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
