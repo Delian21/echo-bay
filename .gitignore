@@ -50,3 +50,6 @@ app.*.map.json
 # Echo Bay local artifacts
 .attachments/
 .freebuff/
+
+# Local Netlify folder
+.netlify
