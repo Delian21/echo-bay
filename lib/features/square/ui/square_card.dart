@@ -70,6 +70,7 @@ class SquareFeedCard extends StatelessWidget {
                   mediaUrl: post.mediaUrl!,
                   blurhash: post.blurhash,
                   onLike: onLike,
+                  isLiked: post.isLiked,
                 ),
               _CardFooter(
                 post: post,
@@ -455,11 +456,16 @@ class _CardMedia extends StatefulWidget {
   const _CardMedia({
     required this.mediaUrl,
     required this.onLike,
+    required this.isLiked,
     this.blurhash,
   });
 
   final String mediaUrl;
   final VoidCallback onLike;
+
+  /// Current like state, read when the double-tap burst plays: a like
+  /// double-tap inks the burst heart scribble-filled in red.
+  final bool isLiked;
 
   /// Blurhash placeholder: decoded synchronously and painted behind the
   /// network image while it loads (or while offline) — the media slot
@@ -671,23 +677,29 @@ class _CardMediaState extends State<_CardMedia> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            // Double-tap heart burst.
+            // Double-tap heart burst — the chalk scribbleHeart, not a
+            // Material glyph. Warm chalk ink over the photo (dark-mode
+            // ink colour reads on both light and dark images); when the
+            // post ends up liked, the heart renders scribble-filled in
+            // Graffiti Red per the scribble-fill rule (ART_DIRECTION §1).
             IgnorePointer(
               child: AnimatedBuilder(
                 animation: _burst,
                 builder: (context, _) {
                   if (_burst.isDismissed) return const SizedBox.shrink();
+                  final liked = widget.isLiked;
                   return Opacity(
                     opacity: _opacity.value,
                     child: Transform.scale(
                       scale: _scale.value,
-                      child: const Icon(
-                        Icons.favorite_rounded,
-                        color: Colors.white,
+                      child: SketchIcon(
+                        kind: SketchIconKind.scribbleHeart,
                         size: 96,
-                        shadows: [
-                          Shadow(blurRadius: 24, color: Colors.black38),
-                        ],
+                        seed: 41,
+                        color: liked
+                            ? const Color(0xFFE0245E)
+                            : const Color(0xFFE8E4D8),
+                        filled: liked,
                       ),
                     ),
                   );

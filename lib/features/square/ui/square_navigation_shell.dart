@@ -388,12 +388,14 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   // -- mobile: hybrid bottom bar (compose FAB + 4 destinations) --------------
 
   /// Mobile shows four destinations; Settings moves to the Square app bar
-  /// (gear icon) so the compose FAB can own the bar's center.
+  /// (gear icon) so the compose FAB can own the bar's center. Labels use
+  /// the short forms — the 64dp bar clips "The Hallway"/"The Landline"
+  /// at phone widths; full names live on the desktop rail and mastheads.
   static const _mobileModules = [
-    ('The Square', SketchIconKind.slateGrid),
-    ('The Vault', SketchIconKind.padlock),
-    ('The Hallway', SketchIconKind.spiralHub),
-    ('The Landline', SketchIconKind.handset),
+    ('Square', SketchIconKind.slateGrid),
+    ('Vault', SketchIconKind.padlock),
+    ('Hallway', SketchIconKind.spiralHub),
+    ('Landline', SketchIconKind.handset),
   ];
 
   Widget _buildBottomNavScaffold() {

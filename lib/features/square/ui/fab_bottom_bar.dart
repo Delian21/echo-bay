@@ -52,8 +52,9 @@ class FabBottomBar extends StatelessWidget {
     final tintDuration =
         reduced ? Duration.zero : const Duration(milliseconds: 200);
 
-    // Reserve the center gap for the docked FAB.
-    const gapWidth = 72.0;
+    // Reserve the center gap for the docked FAB (FAB is 56dp; 64 gives
+    // the notch breathing room without starving the label columns).
+    const gapWidth = 64.0;
 
     Widget destination(int index) {
       final (label, kind) = modules[index];

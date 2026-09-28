@@ -62,10 +62,12 @@ class MockCallsRepository implements CallsRepository {
 
   static final Random _rng = Random(7);
   static const _peers = [
-    ('Kai Meridian', 'https://i.pravatar.cc/150?img=13'),
-    ('Rune Virtanen', 'https://i.pravatar.cc/150?img=32'),
-    ('Ada Okafor', 'https://i.pravatar.cc/150?img=47'),
-    ('Mira Solheim', 'https://i.pravatar.cc/150?img=25'),
+    // Unsplash face crops: same host as post media (CORS * — pravatar
+    // sends no Access-Control-Allow-Origin and is blocked on web).
+    ('Kai Meridian', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=faces&q=80'),
+    ('Rune Virtanen', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&h=150&fit=crop&crop=faces&q=80'),
+    ('Ada Okafor', 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&h=150&fit=crop&crop=faces&q=80'),
+    ('Mira Solheim', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=faces&q=80'),
   ];
 
   void _emit() {

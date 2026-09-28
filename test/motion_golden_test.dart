@@ -164,7 +164,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       // Switch Square -> Calls and catch the incoming body mid fade-through.
-      await tester.tap(find.text('The Landline'));
+      // Mobile bar labels are the short forms (rail keeps "The Landline").
+      await tester.tap(find.text('Landline'));
       await tester.pump(const Duration(milliseconds: 120));
       await expectLater(
         find.byType(SquareNavigationShell),

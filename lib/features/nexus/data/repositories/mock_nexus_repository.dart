@@ -338,10 +338,10 @@ class MockNexusRepository implements NexusRepository {
         await _local.insertChannelPost(ChannelPostsCompanion.insert(
           id: _uuid.v4(),
           channelId: c.id,
-          authorName: c.id == 'chan-ann' ? 'The Team' : 'Build Bot',
+          authorName: c.id == 'chan-ann' ? 'The Team' : 'R. Virtanen',
           body: c.id == 'chan-ann'
-              ? 'Welcome to the Nexus. Channels broadcast, groups discuss.'
-              : 'Nightly build green. Cache layer verified offline-first.',
+              ? 'Welcome to the Hallway. The Board is for announcements — the Dorms are where the talking happens.'
+              : 'Pier repair finished Thursday, two days early. Ferry timetable unchanged.',
           createdAt: now.subtract(const Duration(minutes: 10)),
         ));
       }
@@ -408,6 +408,34 @@ class MockNexusRepository implements NexusRepository {
     });
   }
 
+  /// In-character Board + Dorms content — a town bulletin, not a wire log.
+  String _channelBody(int n) {
+    const announcements = [
+      'Farmers market moves to the pier lot starting Saturday, 8am.',
+      'Library extended hours through October: open until 8pm weekdays.',
+      'Autumn clean-up day is the 14th. Gloves and bags provided at the hall.',
+    ];
+    const engineeringLog = [
+      'Streetlights on the north bank fixed — thanks to whoever reported the flicker.',
+      'Bus 12 detours via Bay Road all week; the underpass floods at high tide.',
+      'Water main work on Alder Street done. Pressure may sputter today.',
+    ];
+    return n.isEven
+        ? announcements[(n ~/ 2) % announcements.length]
+        : engineeringLog[(n ~/ 2) % engineeringLog.length];
+  }
+
+  String _groupBody(int n) {
+    const bodies = [
+      'anyone else hear that owl last night? huge.',
+      'study session sunday at the cafe with the good window seats?',
+      'the ferry was late again so I sketched the whole queue',
+      'found a used bookshop two streets past the laundromat. how did I not know this',
+      'soup night friday. bring bread, I clearly have that covered',
+    ];
+    return bodies[n % bodies.length];
+  }
+
   Future<void> _pushChannelPosts({required int count}) async {
     if (!_online) return;
     final now = DateTime.now();
@@ -416,8 +444,8 @@ class MockNexusRepository implements NexusRepository {
       await _local.insertChannelPost(ChannelPostsCompanion.insert(
         id: _uuid.v4(),
         channelId: target,
-        authorName: 'Broadcast Bot',
-        body: 'Channel push (tick $_channelTick). The cache mirrors the wire.',
+        authorName: target == 'chan-ann' ? 'The Team' : 'R. Virtanen',
+        body: _channelBody(_channelTick),
         createdAt: now.subtract(Duration(seconds: i)),
         // Retention demo: broadcast posts expire after 1 hour in the mock.
         expiresAt: Value(now.add(const Duration(hours: 1))),
@@ -442,7 +470,7 @@ class MockNexusRepository implements NexusRepository {
       id: _uuid.v4(),
       groupId: target.id,
       senderId: peer,
-      body: 'peer ping from the mock transport (tick $_groupTick)',
+      body: _groupBody(_groupTick),
       syncStatus: MsgSyncStatus.sent, // inbound: already "delivered"
       createdAt: now,
     ));

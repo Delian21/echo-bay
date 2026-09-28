@@ -631,13 +631,15 @@ class MockChatRepository implements ChatRepository {
 
   String _inboundBody(int n) {
     const bodies = [
-      'ping from the mock transport — ratchet advanced, all green',
-      'received your last one. Vault holds.',
-      'this arrived through the fake socket; nobody could tell',
-      'offline test: did this queue while the ticker was stopped?',
-      'keys rotated (simulated). conversation integrity nominal.',
+      'just saw your last message — yes, tomorrow works',
+      'ok that photo you sent lives in my head now',
+      'walking home, the sky is doing that orange thing again',
+      'did you ever find that notebook you lost?',
+      'making soup. too much soup. come over.',
+      'sent you the thing. check when you can',
+      'the herons are back at the bay early this year, someone said',
     ];
-    return '${bodies[n % bodies.length]} (tick $n)';
+    return bodies[n % bodies.length];
   }
 
   /// Test/teardown hook. Not part of the repository contract.

@@ -309,7 +309,10 @@ class _SquareFeedViewState extends State<SquareFeedView> {
   SquarePost _toModel(Post p) => SquarePost(
         id: p.id,
         username: p.authorName,
-        userAvatarUrl: 'https://i.pravatar.cc/150?u=${p.authorId}',
+        // Unsplash face crop — pravatar has no CORS header and is
+        // blocked on web; images.unsplash.com sends Access-Control-Allow-Origin: *.
+        userAvatarUrl:
+            'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=faces&q=80',
         timestamp: p.createdAt,
         caption: p.body,
         mediaUrl: p.mediaUrl,
@@ -401,7 +404,7 @@ class SquareDayViewPage extends StatelessWidget {
                           id: p.id,
                           username: p.authorName,
                           userAvatarUrl:
-                              'https://i.pravatar.cc/150?u=${p.authorId}',
+                              'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=faces&q=80',
                           timestamp: p.createdAt,
                           caption: p.body,
                           mediaUrl: p.mediaUrl,

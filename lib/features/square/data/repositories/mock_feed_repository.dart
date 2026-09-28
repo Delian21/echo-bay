@@ -254,10 +254,12 @@ class MockFeedRepository implements FeedRepository {
       ('a-2', 'Nova Okafor'),
       ('a-3', 'Rune Virtanen'),
     ];
+    // Seed captions are matched to _photoIds[0..2] (cat / mountain ridge /
+    // forest light) so caption and image read as one person's day.
     const seedBodies = [
-      'Shipped the first architecture cut today. Feels structural, not decorative.',
-      'Hot take: offline-first is not a feature, it is a posture.',
-      'The feed is just a river. You are all standing in it.',
+      'He sat on my keyboard for an hour. The deadline can wait, apparently.',
+      'Ridge trail before sunrise. Worth every alarm I hit snooze through.',
+      'Walked the long way through the woods today. No reason. Best decision I made all week.',
     ];
 
     for (var i = 0; i < seedAuthors.length; i++) {
@@ -298,14 +300,30 @@ class MockFeedRepository implements FeedRepository {
     return names[n % names.length];
   }
 
+  /// In-character remote bodies — a small-town journal, not a dev log.
+  /// Index-aligned with the photo ids where media exists (n even →
+  /// _photoIds[3 + n]); text-only posts rotate through the tail pool.
   String _remoteBody(int n) {
-    const bodies = [
-      'Live from the mock transport: post incoming on the wire.',
-      'Ticker says hello — this one arrived without a refresh.',
-      'Simulated server push #. The cache never sleeps.',
-      'If you can read this offline, the architecture held.',
+    const mediaBodies = [
+      'Golden hour found me on the bridge. I did not find it — it waited.',
+      'Fog sat in the valley all morning like it paid rent.',
+      'City lights tonight. The whole street smelled like rain and pretzels.',
+      'Wiped out twice, stood up three times. The water was undefeated.',
+      'Sun came through the trees for maybe a minute. Everyone stopped walking.',
+      'Lake was so still the mountains were showing off.',
+      'This is Pudge. He owns the bench by the pier and he knows it.',
+      'Cold coffee, warm desk, half a page written. A perfect morning.',
     ];
-    return '${bodies[n % bodies.length]} (tick $n)';
+    const textBodies = [
+      'Made bread for the first time. It came out flat and it came out mine.',
+      'Note to self: the long way home is the point.',
+      'Someone left a pencil sketch on the bus stop bench. I kept it.',
+      'Rain on the window all afternoon. Got nothing done and feel great about it.',
+      'Old man at the market says the herons came back early this year.',
+      'Fixed the squeaky gate. Day: made.',
+    ];
+    if (n.isEven) return mediaBodies[(n ~/ 2) % mediaBodies.length];
+    return textBodies[(n ~/ 2) % textBodies.length];
   }
 
   /// Test/teardown hook. Not part of the repository contract.

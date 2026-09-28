@@ -208,17 +208,18 @@ void main() {
         expect(find.text('Theme'), findsOneWidget);
 
         // Settings is a module body swap (not a pushed route): return by
-        // selecting The Square on the bar (scoped: the app bar title also
-        // reads "The Square"), then move on to Calls.
+        // selecting Square on the bar (bar labels are the short forms;
+        // scoped because the app bar title reads "The Square"), then
+        // move on to the Landline.
         await tester.tap(
           find.descendant(
             of: find.byKey(const ValueKey('fab-bottom-bar')),
-            matching: find.text('The Square'),
+            matching: find.text('Square'),
           ),
         );
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
-        await tester.tap(find.text('The Landline'));
+        await tester.tap(find.text('Landline'));
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.text('Kai Meridian'), findsOneWidget);

@@ -273,16 +273,17 @@ void main() {
         await tester.pumpWidget(const SuperApp());
         await tester.pump(const Duration(milliseconds: 500));
 
-        // Bottom bar: Square, Vault, Nexus, Calls + center compose FAB
-        // (hybrid M3 bar; Settings is the Square app-bar gear on mobile).
+        // Bottom bar: Square, Vault, Hallway, Landline + center compose
+        // FAB (hybrid M3 bar; Settings is the Square app-bar gear on
+        // mobile). Bar labels use the short forms — full names clip.
         expect(find.byKey(const ValueKey('fab-bottom-bar')), findsOneWidget);
-        expect(find.text('The Square'), findsWidgets);
-        expect(find.text('The Vault'), findsOneWidget);
+        expect(find.text('Square'), findsWidgets);
+        expect(find.text('Vault'), findsOneWidget);
         // Settings is no longer a bottom destination — it's the Square
         // app-bar gear (label lives only in the app bar, no bar label).
         expect(find.text('Settings'), findsNothing);
-        expect(find.text('The Hallway'), findsOneWidget);
-        expect(find.text('The Landline'), findsOneWidget);
+        expect(find.text('Hallway'), findsOneWidget);
+        expect(find.text('Landline'), findsOneWidget);
       });
     });
   });

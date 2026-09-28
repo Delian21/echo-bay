@@ -10,7 +10,24 @@ class SquareMockService {
 
   /// Unsplash source endpoints resolve to stable, high-quality photos.
   static const _mediaBase = 'https://images.unsplash.com/photo-';
-  static const _avatarBase = 'https://i.pravatar.cc/150?img=';
+  // pravatar has no CORS header (blocked on web); Unsplash face crops do.
+  static const _avatarBase = 'https://images.unsplash.com/photo-';
+
+  /// Face-crop portrait ids, index-aligned with [_authors].
+  static const _avatarIds = [
+    '1494790108377-be9c29b29330',
+    '1507003211169-0a1dd7228f2d',
+    '1438761681033-6461ffad8d80',
+    '1500648767791-00dcc994a43e',
+    '1534528741775-53994a69daeb',
+    '1506794778202-cad84cf45f1d',
+    '1517841905240-472988babdf9',
+    '1524504388940-b1c1722653e1',
+  ];
+
+  static String _avatarUrl(int i) =>
+      '$_avatarBase${_avatarIds[i % _avatarIds.length]}'
+      '?w=150&h=150&fit=crop&crop=faces&q=80';
 
   /// Curated Unsplash photo ids — known-good, landscape/portrait mix.
   static const _photoIds = [
@@ -69,7 +86,7 @@ class SquareMockService {
       return SquarePost(
         id: 'sq-${(i + 1).toString().padLeft(2, '0')}',
         username: author.name,
-        userAvatarUrl: '$_avatarBase${i + 1}',
+        userAvatarUrl: _avatarUrl(i),
         timestamp: now.subtract(Duration(minutes: 7 * (i + 1))),
         caption: author.caption,
         mediaUrl: '$_mediaBase$photoId?w=1080&q=80&auto=format&fit=crop',
