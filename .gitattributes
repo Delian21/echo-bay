@@ -1,0 +1,4 @@
+# Keep generated deploy output out of GitHub's language bar.
+# The files stay in the repo (Netlify serves build/web directly);
+# linguist just stops counting them as "JavaScript".
+build/web/** linguist-generated
