@@ -1,0 +1,39 @@
+# Netlify config for Echo Bay's web build.
+#
+# The built app lives in build/web (committed to this repo), so Netlify
+# needs no build command — it just publishes the folder. These settings
+# override the dashboard's Build & deploy configuration on every deploy,
+# keeping the site config version-controlled.
+
+[build]
+  publish = "build/web"
+  command = "echo 'Skipping build: build/web is committed. Run flutter build web --release locally and commit it to update the site.'"
+
+# Flutter web is a single-page app: any deep link (e.g. /vault/conv-1)
+# must fall back to index.html so the router can take over after boot.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Long-cache the immutable build artifacts (hashed filenames); never cache
+# the entry documents so new deploys are picked up immediately.
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/flutter_bootstrap.js"
+  [headers.values]
+    Cache-Control = "no-cache"
