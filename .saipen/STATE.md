@@ -1,9 +1,9 @@
 ---
-phase: PLAN
+phase: DONE
 task: none
-next_action: "RUN: flutter test re-run (E-011 fixes applied statically, user ordered no builds) — expect green or near-green"
+next_action: "verify remaining Landline icons in fresh build (dialpad/handset/video badge may be stale screenshots); option to swap pravatar seeds for CORS-friendly avatars"
 task: none
-phase: PLAN
+phase: DONE
 blocker: none
 agent: buffy
 saipen_version: 7
@@ -13,5 +13,5 @@ saipen_home: "C:\\Users\\USER\\saipen"
 mode: full
 execution_intent: normal
 transition_from: INIT
-updated: 2026-09-22T22:55:00Z
+updated: 2026-09-28T12:00:00Z
 ---

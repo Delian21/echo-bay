@@ -127,7 +127,7 @@ The building blocks:
 - **`SketchRng`** — a seeded random number generator. Same seed → same
   wobble, every rebuild. Nothing is ever `Random()` unseeded, so nothing
   re-randomises when Flutter rebuilds a widget.
-- **`SketchIconKind`** — an enum of ~38 icon shapes (hearts, spirals,
+- **`SketchIconKind`** — an enum of 38 icon shapes (hearts, spirals,
   handset, dialPad, sunMark, moonCrescent…).
 - **`SketchIcon`** — takes a `kind:` and a `seed:` and paints the shape
   with two jittered passes of charcoal (or chalk in dark mode), so the
@@ -140,14 +140,20 @@ The building blocks:
 When the Settings page shows the light-mode toggle, it does:
 
 ```dart
-// settings_page.dart
-SketchIcon(kind: themeSwitchIcon(kind, fallback), seed: kind.index * 13 + 3)
+// settings_page.dart — helper (inside the theme-mode card state class)
+Widget themeSwitchIcon(SketchIconKind kind, IconData fallback) {
+  // In "ink" mode draw the chalk glyph; otherwise fall back to Material.
+  return GoldenHourExtension.enabled
+      ? SketchIcon(kind: kind, size: 20, seed: kind.index * 13 + 3)
+      : Icon(fallback);
+}
 ```
 
 `SketchIcon` builds a `CustomPaint` whose painter walks the shape's path
 definition, feeding each point through the seeded `SketchRng` to offset it
 by ≤1dp, then strokes the path twice. Identical pixels on every rebuild —
-the icon does not "shiver".
+the icon does not "shiver". The segments also set `showSelectedIcon: false`,
+because Material 3 otherwise prepends a ✓ that shoves the glyph aside.
 
 To add an icon: add an enum value to `SketchIconKind`, write its painter
 case, and use it with a stable seed.
