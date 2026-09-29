@@ -7,7 +7,6 @@ import '../../../core/settings/app_settings_store.dart';
 import '../../../core/timetravel/time_travel_scope.dart';
 import '../../../core/timetravel/time_travel_scrubber.dart';
 import '../../../core/io/platform_io.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_controller.dart';
@@ -36,7 +35,6 @@ import '../../../core/motion/rewind_scope.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/profile/profile_controller.dart';
 import '../../../core/profile/user_profile.dart';
 import '../../../core/search/search_page.dart';
@@ -48,10 +46,10 @@ import 'square_feed_view.dart';
 /// Navigation shell for all modules.
 ///
 /// Wide (>= 600 logical px): [NavigationRail] with the module body swapped
-/// in place; Settings lives in the rail's trailing slot.
-/// Narrow (mobile): bottom [NavigationBar] — five destinations, the
-/// Material-recommended max. The old drawer scaffold is gone; the bottom
-/// bar covers module switching and Settings.
+/// in place; Settings lives in the Square app bar (single gear, every
+/// platform).
+/// Narrow (mobile): bottom bar with the compose FAB docked in the notch;
+/// Settings again from the Square app bar gear.
 class SquareNavigationShell extends StatefulWidget {
   const SquareNavigationShell({
     super.key,
@@ -85,9 +83,10 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     with SingleTickerProviderStateMixin {
   int _moduleIndex = 0;
 
-  /// Settings lives outside the rail destinations (trailing slot), so the
-  /// rail's selectedIndex must stay within 0..3 — passing 4 trips
-  /// NavigationRail's assertion and paints the whole shell red.
+  /// Settings is index 4 but not a rail destination (the app-bar gear
+  /// selects it), so the rail's selectedIndex must stay within 0..3 —
+  /// passing 4 trips NavigationRail's assertion and paints the whole
+  /// shell red.
   static const _railDestinationCount = 4;
 
   late final AnimationController _fadeController = AnimationController(
@@ -544,26 +543,9 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                 },
               ),
             ),
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: IconButton(
-                    tooltip: 'Settings',
-                    icon: SketchGlyph(
-                      kind: SketchIconKind.cog,
-                      color: _moduleIndex == 4
-                          ? navSelectedIconColor(
-                              Theme.of(context).colorScheme)
-                          : null,
-                    ),
-                    isSelected: _moduleIndex == 4,
-                    onPressed: () => _selectModule(4),
-                  ),
-                ),
-              ),
-            ),
+            // No trailing Settings cog here: the Square app bar already
+            // carries the gear on every platform, and two cogs in one
+            // window read as two different destinations.
             destinations: [
               for (final (i, (label, kind)) in _modules.take(4).indexed)
                 NavigationRailDestination(
@@ -633,23 +615,24 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         modules: _mobileModules,
         selectedIndex: _moduleIndex,
         onSelected: _selectModule,
-        onCompose: () => context.push(AppRoutes.squareCompose),
+        onCompose: _openComposer,
         // Vault badge (index 1); hidden while the Vault is open — a badge
         // that persists on the screen you're looking at is noise.
         badgedIndexes: _totalUnread > 0 && _moduleIndex != 1
             ? const <int>{1}
             : const <int>{},
       ),
-      // The FAB docks into the bar's notch (centerDocked). It navigates
-      // via the '/square/compose' deep link — the same route notification
-      // taps use — so it lands on the Square with the composer open and
-      // Back returns to the originating module.
+      // The FAB docks into the bar's notch (centerDocked). It opens the
+      // composer sheet IN PLACE — pushing '/square/compose' stacked a
+      // second shell on top, forcing a Back press for no reason. The
+      // route remains for deep links (notification taps), where a
+      // navigable destination is correct.
       //
       // Long-press quick actions open the composer directly with the
       // matching prompt shape (photo / sentence / sound), same hint as
       // the Daily Square notification tap path.
       floatingActionButton: ComposeFab(
-        onPressed: () => context.push(AppRoutes.squareCompose),
+        onPressed: _openComposer,
         onQuickAction: (shape) => _openComposer(promptShape: shape),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
