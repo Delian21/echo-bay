@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+import 'package:stream_transform/stream_transform.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:uuid/uuid.dart';
 
@@ -16,6 +17,28 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
 
   final AppDatabase _db;
   final _uuid = const Uuid();
+
+  /// Time-travel instant (null = present). Board reads show only items
+  /// pinned by then; writes are refused (read-only past).
+  DateTime? _asOf;
+
+  final _asOfTick = StreamController<DateTime?>.broadcast();
+
+  /// Sets the time-travel instant (null = present). NOTE: unpins and
+  /// hard-delete the row, so a past board cannot show an item that was
+  /// later unpinned — see the schema constraint note in the feature
+  /// summary. Everything else (drags, strings) survives.
+  void setAsOf(DateTime? moment) {
+    if (_asOf == moment) return;
+    _asOf = moment;
+    _asOfTick.add(_asOf);
+  }
+
+  void _assertWritable() {
+    if (_asOf != null) {
+      throw StateError('writes are refused while time traveling');
+    }
+  }
 
   KeepsakeItem _toItem(KeepsakeItemRow r) => KeepsakeItem(
         id: r.id,
@@ -38,9 +61,21 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
               mode: OrderingMode.asc,
             ),
       ]);
-    return query.watch().map(
-          (rows) => Right(rows.map(_toItem).toList()),
-        );
+    // Time travel: re-run when the as-of instant moves; show only items
+    // pinned by then. switchMap tears down the previous watch when the
+    // instant moves, so exactly one live query per screen.
+    return _asOfTick.stream
+        .startWith(null)
+        .switchMap((_) => query.watch().map((rows) {
+              final moment = _asOf;
+              final visible = moment == null
+                  ? rows.map(_toItem).toList()
+                  : rows
+                      .where((r) => !r.pinnedAt.isAfter(moment))
+                      .map(_toItem)
+                      .toList();
+              return Right<Failure, List<KeepsakeItem>>(visible);
+            }));
   }
 
   @override
@@ -50,6 +85,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
     required double posY,
     double? rotation,
   }) async {
+    _assertWritable();
     try {
       final item = KeepsakeItem(
         id: _uuid.v4(),
@@ -73,6 +109,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
     required double posX,
     required double posY,
   }) async {
+    _assertWritable();
     try {
       final item = KeepsakeItem(
         id: _uuid.v4(),
@@ -110,6 +147,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
     required double posY,
     double? rotation,
   }) async {
+    _assertWritable();
     try {
       await (_db.update(_db.keepsakeItems)
             ..where((t) => t.id.equals(itemId)))
@@ -129,6 +167,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
     required String fromItemId,
     required String toItemId,
   }) async {
+    _assertWritable();
     try {
       if (fromItemId == toItemId) return right(unit);
       await (_db.update(_db.keepsakeItems)
@@ -142,6 +181,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
 
   @override
   Future<Either<Failure, Unit>> unpin({required String itemId}) async {
+    _assertWritable();
     try {
       // Also drop any string that pointed at this item.
       await (_db.update(_db.keepsakeItems)

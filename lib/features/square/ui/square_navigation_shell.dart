@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/settings/app_settings_store.dart';
+import '../../../core/timetravel/time_travel_scope.dart';
+import '../../../core/timetravel/time_travel_scrubber.dart';
 import '../../../core/io/platform_io.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +18,7 @@ import '../../nexus/domain/repositories/nexus_repository.dart';
 import '../../nexus/ui/nexus_module_view.dart';
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
 import '../../keepsake/ui/keepsake_board_page.dart';
+import '../../square/data/datasources/square_local_datasource.dart';
 import '../../profile/ui/profile_page.dart';
 import '../../social/domain/repositories/social_repository.dart';
 import '../../social/ui/notifications_page.dart';
@@ -29,6 +32,7 @@ import '../../vault/ui/vault_conversation_list.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/design_system/breakpoints.dart';
 import '../../../core/motion/motion_controller.dart';
+import '../../../core/motion/rewind_scope.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
@@ -105,13 +109,49 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         _openComposer();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final travel = TimeTravelScope.maybeOf(context);
+      if (travel == null || _timeTravel != null) return;
+      _timeTravel = travel;
+      travel.addListener(_pushTravelToDatasources);
+      _pushTravelToDatasources();
+    });
+  }
+
+  TimeTravelController? _timeTravel;
+
+  /// Fan the as-of instant out to every time-travel-aware datasource.
+  /// The scope (above MaterialApp) owns the state; datasources own the
+  /// query filtering — this listener is the only bridge.
+  void _syncTimeTravelToDatasources(DateTime? moment) {
+    if (sl.isRegistered<SquareLocalDatasource>()) {
+      sl<SquareLocalDatasource>().setAsOf(moment);
+    }
+    if (sl.isRegistered<VaultLocalDatasource>()) {
+      sl<VaultLocalDatasource>().setAsOf(moment);
+    }
+    if (sl.isRegistered<SocialRepository>()) {
+      (sl<SocialRepository>() as dynamic).setAsOf(moment);
+    }
+    if (sl.isRegistered<KeepsakeRepository>()) {
+      (sl<KeepsakeRepository>() as dynamic).setAsOf(moment);
+    }
   }
 
   @override
   void dispose() {
     _unreadSub?.cancel();
     _fadeController.dispose();
+    _timeTravel?.removeListener(_pushTravelToDatasources);
     super.dispose();
+  }
+
+  void _pushTravelToDatasources() {
+    final travel = _timeTravel;
+    if (travel == null) return;
+    _syncTimeTravelToDatasources(travel.asOf);
+    if (mounted) setState(() {}); // scrubber + aged wash follow the state
   }
 
   /// Aggregate unread total for the Vault badge. Late-final stream (see
@@ -258,7 +298,29 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= AppBreakpoints.wide;
-      return wide ? _buildRailScaffold() : _buildBottomNavScaffold();
+      final scaffold = wide ? _buildRailScaffold() : _buildBottomNavScaffold();
+      // Time travel: scrubber docks on top, aged-paper wash over all,
+      // writes refused by the datasources themselves.
+      return Stack(
+        children: [
+          Positioned.fill(child: scaffold),
+          if (TimeTravelScope.maybeOf(context)?.isActive ?? false) ...[
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(
+                  color: Color(0x14201A10),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: TimeTravelScrubber(
+                controller: TimeTravelScope.of(context),
+              ),
+            ),
+          ],
+        ],
+      );
     });
   }
 
@@ -396,6 +458,22 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
               context,
               repository: sl<KeepsakeRepository>(),
             ),
+          ),
+          // Time travel: flip through the sketchbook's past days.
+          // Read-only — the datasources refuse writes while active.
+          IconButton(
+            tooltip: 'Time travel',
+            icon: const SketchGlyph(kind: SketchIconKind.rewindSpiral),
+            onPressed: () {
+              final travel = TimeTravelScope.of(context);
+              if (travel.isActive) {
+                RewindScope.rewind(context, travel.exit);
+              } else {
+                travel.enter(
+                  DateTime.now().subtract(const Duration(days: 1)),
+                );
+              }
+            },
           ),
           IconButton(
             tooltip: 'New post',

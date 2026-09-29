@@ -10,6 +10,7 @@ import 'core/profile/profile_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
+import 'core/timetravel/time_travel_scope.dart';
 
 /// Duration + curve of the light/dark cross-fade on theme change.
 const _themeTransitionDuration = Duration(milliseconds: 350);
@@ -106,6 +107,10 @@ class _SuperAppState extends State<SuperApp> {
       ? sl<MotionController>()
       : MotionController();
 
+  // Time travel: one controller above the router; feature screens and
+  // datasources read the as-of instant from here.
+  final TimeTravelController _timeTravel = TimeTravelController();
+
   @override
   Widget build(BuildContext context) {
     // theme/darkTheme: _displayed carries the resolved mode; themeMode stays
@@ -118,15 +123,18 @@ class _SuperAppState extends State<SuperApp> {
     // MaterialApp so every motion widget reads the same preference.
     return MotionScope(
       controller: _motion,
-      child: MaterialApp.router(
-        title: 'Super App',
-        debugShowCheckedModeBanner: false,
-        theme: _displayed,
-        themeMode: ThemeMode.light,
-        themeAnimationDuration:
-            _motion.reducedMotion ? Duration.zero : _themeTransitionDuration,
-        themeAnimationCurve: _themeTransitionCurve,
-        routerConfig: appRouter,
+      child: TimeTravelScope(
+        controller: _timeTravel,
+        child: MaterialApp.router(
+          title: 'Super App',
+          debugShowCheckedModeBanner: false,
+          theme: _displayed,
+          themeMode: ThemeMode.light,
+          themeAnimationDuration:
+              _motion.reducedMotion ? Duration.zero : _themeTransitionDuration,
+          themeAnimationCurve: _themeTransitionCurve,
+          routerConfig: appRouter,
+        ),
       ),
     );
   }

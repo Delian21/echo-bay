@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
+import 'package:stream_transform/stream_transform.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../domain/entities/post.dart';
@@ -31,6 +34,12 @@ abstract class SquareLocalDatasource {
   /// Injectable clock for expiry checks — tests pass a fixed [DateTime]
   /// factory so boundary behaviour is deterministic.
   DateTime Function() get clock;
+
+  /// Sets the time-travel instant for every subsequent read (null =
+  /// present). While set, all reads filter to rows that existed at that
+  /// moment; writes are refused (time travel is read-only).
+  void setAsOf(DateTime? moment);
+
   /// Feed, newest first, with like flags and like counts.
   Stream<List<Post>> watchFeed();
 
@@ -82,16 +91,69 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   @override
   final DateTime Function() clock;
 
+  /// Time-travel instant (null = present). Affects every read path.
+  DateTime? _asOf;
+
+  /// True while a write lands during time travel — the UI must never
+  /// trigger one (read-only constraint); this backstop keeps honest
+  /// failures local instead of silently corrupting the past.
+  void _assertWritable() {
+    if (_asOf != null) {
+      throw StateError('writes are refused while time traveling');
+    }
+  }
+
+  @override
+  void setAsOf(DateTime? moment) {
+    if (_asOf == moment) return;
+    _asOf = moment;
+    // Re-emit every live stream so screens redraw as-of immediately.
+    _asOfTick.add(_asOf);
+  }
+
+  /// Broadcast that the as-of instant changed; merged into read streams
+  /// so watchFeed()/watchPostsByAuthor() re-run their queries.
+  final _asOfTick = StreamController<DateTime?>.broadcast();
+
+  Stream<DateTime?> get _asOfChanges => _asOfTick.stream.startWith(null);
+
   /// Expiry visibility clause: ephemeral posts survive only while
-  /// [expiresAt] is in the future. Applied at query time on every read
-  /// path so correctness never depends on the lazy purge.
+  /// [expiresAt] is in the future **of the traveled instant** — an
+  /// ephemeral post that had not expired yet on the visited day shows,
+  /// one that had already expired does not.
   Expression<bool> get _notExpiredExpr =>
       _db.posts.expiresAt.isNull() |
-      _db.posts.expiresAt.isBiggerThanValue(clock());
+      _db.posts.expiresAt.isBiggerThanValue(_asOf ?? clock());
+
+  /// Rows that existed as of the traveled instant (or all rows in the
+  /// present): created by then, not tombstoned by then.
+  Expression<bool> get _existedAsOfExpr {
+    final moment = _asOf;
+    if (moment == null) {
+      return const Constant(true);
+    }
+    return _db.posts.createdAt.isSmallerOrEqualValue(moment) &
+        (_db.posts.deletedAt.isNull() |
+            _db.posts.deletedAt.isBiggerThanValue(moment));
+  }
 
   /// One-shot expired purge used by app-start cleanup; visible here so
   /// the repository can orchestrate without reaching into the db.
   Future<int> purgeExpired() => _db.purgeExpiredPosts(clock());
+
+  /// Like-count enrichment shared by all three watch paths (the grouped
+  /// aggregate — groupBy is load-bearing, see the note in watchFeed).
+  Future<Map<String, int>> _likeCounts() async {
+    final countRows = await (_db.selectOnly(_db.postLikes)
+          ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
+          ..groupBy([_db.postLikes.postId]))
+        .get();
+    return {
+      for (final row in countRows)
+        if (row.read(_db.postLikes.postId) case final postId?)
+          postId: row.read(_db.postLikes.postId.count()) ?? 0,
+    };
+  }
 
   @override
   Stream<List<Post>> watchFeed() {
@@ -102,7 +164,8 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
       // Soft-deleted posts are invisible everywhere in the feed; the row
       // itself survives for the undo window (see deletePost/restorePost).
       // Expired ephemeral posts are filtered at query time (clock-seamed).
-      ..where(_db.posts.deletedAt.isNull() & _notExpiredExpr)
+      // Time travel: only rows that existed as of the visited instant.
+      ..where(_existedAsOfExpr & _notExpiredExpr)
       ..orderBy([
         OrderingTerm(
           expression: _db.posts.createdAt,
@@ -110,38 +173,34 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
         ),
       ]);
 
-    return query.watch().asyncMap((rows) async {
-      if (rows.isEmpty) return const <Post>[];
+    // Time travel: rebuild the query when the as-of instant moves (the
+    // where-clauses read _asOf at query build time).
+    return _asOfChanges.switchMap((_) => query.watch().asyncMap((rows) async {
+          if (rows.isEmpty) return const <Post>[];
 
-      // One grouped count for the whole page — cheaper than a correlated
-      // subquery per row, and drift re-runs it on every table change.
-      // groupBy is load-bearing: without it the aggregate collapses to ONE
-      // global row whose arbitrary postId value made random posts display
-      // the whole table's like total instead of their own count.
-      final countRows = await (_db.selectOnly(_db.postLikes)
-            ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
-            ..groupBy([_db.postLikes.postId]))
-          .get();
-      final countByPost = <String, int>{
-        for (final row in countRows)
-          if (row.read(_db.postLikes.postId) case final postId?)
-            postId: row.read(_db.postLikes.postId.count()) ?? 0,
-      };
+          // One grouped count for the whole page — cheaper than a correlated
+          // subquery per row, and drift re-runs it on every table change.
+          // groupBy is load-bearing: without it the aggregate collapses to ONE
+          // global row whose arbitrary postId value made random posts display
+          // the whole table's like total instead of their own count.
+          final countByPost = await _likeCounts();
 
-      return rows.map((row) {
-        final post = row.readTable(_db.posts);
-        final liked = row.readTableOrNull(likes) != null;
-        return post.toEntity(
-          isLiked: liked,
-          likesCount: countByPost[post.id] ?? 0,
-        );
-      }).toList();
-    });
+          return rows.map((row) {
+            final post = row.readTable(_db.posts);
+            final liked = row.readTableOrNull(likes) != null;
+            return post.toEntity(
+              isLiked: liked,
+              likesCount: countByPost[post.id] ?? 0,
+            );
+          }).toList();
+        }));
   }
 
   @override
-  Future<void> insertPost(PostsCompanion entry) =>
-      _db.into(_db.posts).insertOnConflictUpdate(entry);
+  Future<void> insertPost(PostsCompanion entry) {
+    _assertWritable();
+    return _db.into(_db.posts).insertOnConflictUpdate(entry);
+  }
 
   @override
   Future<List<Post>> postsOnDay(DateTime day) async {
@@ -151,8 +210,8 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     final query = _db.select(_db.posts).join([
       leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
     ])
-      ..where(_db.posts.deletedAt.isNull() &
-          _db.posts.createdAt.isBetweenValues(start, end) &
+      ..where(_db.posts.createdAt.isBetweenValues(start, end) &
+          _existedAsOfExpr &
           _notExpiredExpr)
       ..orderBy([
         OrderingTerm(
@@ -161,16 +220,7 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
         ),
       ]);
     final rows = await query.get();
-
-    final countRows = await (_db.selectOnly(_db.postLikes)
-          ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
-          ..groupBy([_db.postLikes.postId]))
-        .get();
-    final countByPost = <String, int>{
-      for (final row in countRows)
-        if (row.read(_db.postLikes.postId) case final postId?)
-          postId: row.read(_db.postLikes.postId.count()) ?? 0,
-    };
+    final countByPost = await _likeCounts();
 
     return rows.map((row) {
       final post = row.readTable(_db.posts);
@@ -188,7 +238,7 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     final query = _db.select(_db.posts).join([
       leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
     ])
-      ..where(_db.posts.deletedAt.isNull() &
+      ..where(_existedAsOfExpr &
           _db.posts.authorName.equals(authorName) &
           _notExpiredExpr)
       ..orderBy([
@@ -198,26 +248,18 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
         ),
       ]);
 
-    return query.watch().asyncMap((rows) async {
-      if (rows.isEmpty) return const <Post>[];
-      final countRows = await (_db.selectOnly(_db.postLikes)
-            ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
-            ..groupBy([_db.postLikes.postId]))
-          .get();
-      final countByPost = <String, int>{
-        for (final row in countRows)
-          if (row.read(_db.postLikes.postId) case final postId?)
-            postId: row.read(_db.postLikes.postId.count()) ?? 0,
-      };
-      return rows.map((row) {
-        final post = row.readTable(_db.posts);
-        final liked = row.readTableOrNull(likes) != null;
-        return post.toEntity(
-          isLiked: liked,
-          likesCount: countByPost[post.id] ?? 0,
-        );
-      }).toList();
-    });
+    return _asOfChanges.switchMap((_) => query.watch().asyncMap((rows) async {
+          if (rows.isEmpty) return const <Post>[];
+          final countByPost = await _likeCounts();
+          return rows.map((row) {
+            final post = row.readTable(_db.posts);
+            final liked = row.readTableOrNull(likes) != null;
+            return post.toEntity(
+              isLiked: liked,
+              likesCount: countByPost[post.id] ?? 0,
+            );
+          }).toList();
+        }));
   }
 
   @override
@@ -241,6 +283,7 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     required String userId,
     required bool liked,
   }) async {
+    _assertWritable();
     if (liked) {
       await _db.into(_db.postLikes).insertOnConflictUpdate(PostLikesCompanion(
             postId: Value(postId),
@@ -257,24 +300,28 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
 
   @override
   Future<void> deletePost(String postId) async {
+    _assertWritable();
     await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
         .write(PostsCompanion(deletedAt: Value(DateTime.now())));
   }
 
   @override
   Future<void> restorePost(String postId) async {
+    _assertWritable();
     await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
         .write(const PostsCompanion(deletedAt: Value(null)));
   }
 
   @override
   Future<void> keepPost(String postId) async {
+    _assertWritable();
     await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
         .write(const PostsCompanion(expiresAt: Value(null)));
   }
 
   @override
   Future<void> purgePost(String postId) async {
+    _assertWritable();
     await (_db.delete(_db.postLikes)
           ..where((tbl) => tbl.postId.equals(postId)))
         .go();

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
+import 'package:stream_transform/stream_transform.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
@@ -79,6 +82,10 @@ abstract class VaultLocalDatasource {
 
   Stream<List<Message>> watchMessages({required String conversationId});
 
+  /// Sets the time-travel instant for message reads (null = present).
+  /// Read-only: writes throw while active.
+  void setAsOf(DateTime? moment);
+
   Future<Conversation?> findConversation(String id);
 
   Future<Message?> findMessage(String id);
@@ -152,6 +159,28 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
 
   final AppDatabase _db;
 
+  /// Time-travel instant (null = present). Affects message reads: the
+  /// visited moment shows the body as it was (pre-edit text is not
+  /// retained, so edits show the current body only if the edit had
+  /// already happened) and hides messages deleted after that moment.
+  DateTime? _asOf;
+
+  /// Broadcast that the as-of instant changed so live streams re-run.
+  final _asOfTick = StreamController<DateTime?>.broadcast();
+
+  @override
+  void setAsOf(DateTime? moment) {
+    if (_asOf == moment) return;
+    _asOf = moment;
+    _asOfTick.add(_asOf);
+  }
+
+  void _assertWritable() {
+    if (_asOf != null) {
+      throw StateError('writes are refused while time traveling');
+    }
+  }
+
   @override
   Stream<List<Conversation>> watchConversations() {
     final query = _db.select(_db.conversations)
@@ -185,6 +214,21 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
     });
   }
 
+  /// As-of semantics for one page of message rows: only messages that
+  /// existed by the traveled moment; a delete-for-everyone tombstone
+  /// hides the row from that moment on; an edit is visible only once it
+  /// had happened (the edited body shows — the original pre-edit text
+  /// was overwritten at write time; see the schema-constraint note).
+  List<MessageRow> _applyAsOf(List<MessageRow> rows) {
+    final moment = _asOf;
+    if (moment == null) return rows;
+    return rows
+        .where((r) =>
+            !r.createdAt.isAfter(moment) &&
+            (r.deletedAt == null || r.deletedAt!.isAfter(moment)))
+        .toList();
+  }
+
   @override
   Stream<List<Message>> watchMessages({required String conversationId}) {
     final query = _db.select(_db.messages)
@@ -195,7 +239,14 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
               mode: OrderingMode.asc,
             ),
       ]);
-    return query.watch().map((rows) => rows.map((r) => r.toEntity()).toList());
+    // Time travel: re-run the query when the as-of instant moves.
+    return _asOfTick.stream
+        .startWith(null)
+        .switchMap((_) => query.watch().map(
+              (rows) => _applyAsOf(rows)
+                  .map((r) => r.toEntity())
+                  .toList(),
+            ));
   }
 
   @override
@@ -213,35 +264,43 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
   }
 
   @override
-  Future<void> insertConversation(ConversationsCompanion entry) =>
-      _db.into(_db.conversations).insertOnConflictUpdate(entry);
+  Future<void> insertConversation(ConversationsCompanion entry) {
+    _assertWritable();
+    return _db.into(_db.conversations).insertOnConflictUpdate(entry);
+  }
 
   @override
-  Future<void> insertMessage(MessagesCompanion entry) =>
-      _db.into(_db.messages).insertOnConflictUpdate(entry);
+  Future<void> insertMessage(MessagesCompanion entry) {
+    _assertWritable();
+    return _db.into(_db.messages).insertOnConflictUpdate(entry);
+  }
 
   @override
   Future<void> updateMessageBody({
     required String messageId,
     required String body,
     required DateTime editedAt,
-  }) =>
-      (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
-          .write(MessagesCompanion(
-        body: Value(body),
-        editedAt: Value(editedAt),
-      ));
+  }) {
+    _assertWritable();
+    return (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
+        .write(MessagesCompanion(
+      body: Value(body),
+      editedAt: Value(editedAt),
+    ));
+  }
 
   @override
   Future<void> markDeleted({
     required String messageId,
     required DateTime deletedAt,
-  }) =>
-      (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
-          .write(MessagesCompanion(
-        deletedAt: Value(deletedAt),
-        body: const Value(''),
-      ));
+  }) {
+    _assertWritable();
+    return (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
+        .write(MessagesCompanion(
+      deletedAt: Value(deletedAt),
+      body: const Value(''),
+    ));
+  }
 
   @override
   Future<List<Message>> pendingMessages() async {

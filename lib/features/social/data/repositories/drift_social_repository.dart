@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:fpdart/fpdart.dart';
+import 'package:stream_transform/stream_transform.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
@@ -21,6 +22,25 @@ class DriftSocialRepository implements SocialRepository {
   final PeerPlanner _planner;
   final _uuid = const Uuid();
 
+  /// Time-travel instant (null = present). Comment/notification reads
+  /// show only rows that existed by then; writes are refused.
+  DateTime? _asOf;
+
+  final _asOfTick = StreamController<DateTime?>.broadcast();
+
+  /// Sets the time-travel instant (null = present). Read-only.
+  void setAsOf(DateTime? moment) {
+    if (_asOf == moment) return;
+    _asOf = moment;
+    _asOfTick.add(_asOf);
+  }
+
+  void _assertWritable() {
+    if (_asOf != null) {
+      throw StateError('writes are refused while time traveling');
+    }
+  }
+
   @override
   Stream<Either<Failure, List<PostComment>>> watchComments(String postId) {
     final query = _db.select(_db.postComments)
@@ -31,9 +51,16 @@ class DriftSocialRepository implements SocialRepository {
               mode: OrderingMode.asc,
             ),
       ]);
-    return query.watch().map(
-          (rows) => Right(
-            rows
+    // Time travel: re-run when the as-of instant moves; only comments
+    // that existed by then.
+    return _asOfTick.stream.startWith(null).switchMap((_) =>
+        query.watch().map((rows) {
+          final moment = _asOf;
+          final visible = moment == null
+              ? rows
+              : rows.where((r) => !r.createdAt.isAfter(moment)).toList();
+          return Right<Failure, List<PostComment>>(
+            visible
                 .map((r) => PostComment(
                       id: r.id,
                       postId: r.postId,
@@ -43,8 +70,8 @@ class DriftSocialRepository implements SocialRepository {
                       createdAt: r.createdAt,
                     ))
                 .toList(),
-          ),
-        );
+          );
+        }));
   }
 
   @override
@@ -52,6 +79,7 @@ class DriftSocialRepository implements SocialRepository {
     required String postId,
     required String body,
   }) async {
+    _assertWritable();
     try {
       final comment = PostComment(
         id: _uuid.v4(),
@@ -105,6 +133,7 @@ class DriftSocialRepository implements SocialRepository {
 
   @override
   Timer onOwnPostPublished({required String postId, required String body}) {
+    _assertWritable();
     final events = _planner.planForPost();
     // One timer for the first event; each event schedules the next, so
     // spacing stays honest even if the zone's clock is virtual.
@@ -131,9 +160,15 @@ class DriftSocialRepository implements SocialRepository {
               mode: OrderingMode.desc,
             ),
       ]);
-    return query.watch().map(
-          (rows) => Right(
-            rows
+    // Time travel: only notifications created by the visited moment.
+    return _asOfTick.stream.startWith(null).switchMap((_) =>
+        query.watch().map((rows) {
+          final moment = _asOf;
+          final visible = moment == null
+              ? rows
+              : rows.where((r) => !r.createdAt.isAfter(moment)).toList();
+          return Right<Failure, List<SocialNotification>>(
+            visible
                 .map((r) => SocialNotification(
                       id: r.id,
                       kind: r.kind,
@@ -144,21 +179,30 @@ class DriftSocialRepository implements SocialRepository {
                       readAt: r.readAt,
                     ))
                 .toList(),
-          ),
-        );
+          );
+        }));
   }
 
   @override
   Stream<int> watchUnreadCount() {
-    final count = _db.socialNotifications.id.count();
-    final query = _db.selectOnly(_db.socialNotifications)
-      ..addColumns([count])
-      ..where(_db.socialNotifications.readAt.isNull());
-    return query.watchSingle().map((row) => row.read(count) ?? 0);
+    // Time travel: the badge reflects the visited moment (unread = not
+    // yet read as of then; readAt after the moment counts as unread).
+    return _asOfTick.stream.startWith(null).switchMap((_) {
+      final moment = _asOf;
+      final count = _db.socialNotifications.id.count();
+      final query = _db.selectOnly(_db.socialNotifications)
+        ..addColumns([count])
+        ..where(moment == null
+            ? _db.socialNotifications.readAt.isNull()
+            : _db.socialNotifications.readAt.isNull() |
+                _db.socialNotifications.readAt.isBiggerThanValue(moment));
+      return query.watchSingle().map((row) => row.read(count) ?? 0);
+    });
   }
 
   @override
   Future<Either<Failure, int>> markAllRead() async {
+    _assertWritable();
     try {
       final touched = await (_db.update(_db.socialNotifications)
             ..where((t) => t.readAt.isNull()))
