@@ -70,6 +70,11 @@ abstract class ChatRepository {
     required String conversationId,
   });
 
+  /// Live total unread across all conversations — the shell-level badge
+  /// on the Vault nav destination. Emits on every message/cursor change;
+  /// opening a conversation (markConversationRead) drives it down.
+  Stream<int> watchTotalUnread();
+
   /// One-shot sync of undelivered (pending/failed) messages — the outbox
   /// flush the background worker would call.
   Future<Either<Failure, Unit>> syncOutbox();

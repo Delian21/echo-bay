@@ -283,10 +283,15 @@ class _ModuleEmptyState extends StatelessWidget {
 
 /// Simulated connect flow: spinner -> connected -> user taps "Join".
 class _CallConnectingDialog extends StatefulWidget {
-  const _CallConnectingDialog({required this.entry, required this.repo});
+  const _CallConnectingDialog({
+    required this.entry,
+    required this.repo,
+    this.video = false,
+  });
 
   final CallLogEntry entry;
   final CallsRepository repo;
+  final bool video;
 
   @override
   State<_CallConnectingDialog> createState() => _CallConnectingDialogState();
@@ -303,6 +308,7 @@ class _CallConnectingDialogState extends State<_CallConnectingDialog> {
         .placeCall(
       peerName: widget.entry.peerName,
       peerAvatarUrl: widget.entry.peerAvatarUrl,
+      video: widget.video,
     )
         .then((result) {
       if (!mounted) return;
@@ -319,7 +325,8 @@ class _CallConnectingDialogState extends State<_CallConnectingDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Calling ${widget.entry.peerName}'),
+      title: Text(
+          '${widget.video ? 'Video call' : 'Calling'} — ${widget.entry.peerName}'),
       content: _connecting
           ? const Row(
               mainAxisSize: MainAxisSize.min,
@@ -486,5 +493,42 @@ class _CallControlButton extends StatelessWidget {
         Text(label, style: theme.textTheme.labelSmall),
       ],
     );
+  }
+}
+
+/// Launch the mock call flow for a peer from anywhere — the Landline's
+/// connecting dialog + call screen, shared with the Vault chat app bar
+/// (calls belong in the conversation). Records the call in the Landline
+/// log through [CallsRepository.placeCall].
+Future<void> placeCallToPeer(
+  BuildContext context, {
+  required CallsRepository repository,
+  required String peerName,
+  required String peerAvatarUrl,
+  bool video = false,
+}) async {
+  final entry = CallLogEntry(
+    id: 'outbound-${DateTime.now().microsecondsSinceEpoch}',
+    peerName: peerName,
+    peerAvatarUrl: peerAvatarUrl,
+    direction: CallDirection.outgoing,
+    at: DateTime.now(),
+    duration: Duration.zero,
+    wasVideo: video,
+  );
+  final connected = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _CallConnectingDialog(
+      entry: entry,
+      repo: repository,
+      video: video,
+    ),
+  );
+  if (connected ?? false) {
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MockCallScreen(entry: entry),
+    ));
   }
 }

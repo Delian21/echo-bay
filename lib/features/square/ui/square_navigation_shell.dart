@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
@@ -102,8 +104,30 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
 
   @override
   void dispose() {
+    _unreadSub?.cancel();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  /// Aggregate unread total for the Vault badge. Late-final stream (see
+  /// the stream-rebind gotcha in ARCHITECTURE.md §8): created once, never
+  /// in build. Anti-chore rule: the badge hides the moment the Vault is
+  /// open — opening a conversation marks it read through the cursors and
+  /// this count falls to zero live.
+  Stream<int>? _unreadStream;
+  StreamSubscription<int>? _unreadSub;
+  int _totalUnread = 0;
+
+  Stream<int> get _totalUnreadStream {
+    if (_unreadStream == null && _hasVaultBadgeSource) {
+      _unreadStream = _vaultRepository.watchTotalUnread();
+      _unreadSub = _unreadStream!.listen((total) {
+        if (mounted && total != _totalUnread) {
+          setState(() => _totalUnread = total);
+        }
+      });
+    }
+    return _unreadStream ?? const Stream<int>.empty();
   }
 
   void _openProfile() {
@@ -174,9 +198,17 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
       // sqlite file (two background isolates) trips "database is locked"
       // under concurrent reads. The private fallback exists only for
       // standalone tests that pump the shell without full DI.
-      (sl.isRegistered<ChatRepository>()
+      (_vaultRepoInstance ??= sl.isRegistered<ChatRepository>()
           ? sl<ChatRepository>()
           : _buildMockChatRepository());
+
+  ChatRepository? _vaultRepoInstance;
+
+  /// Whether a badge source exists without constructing a fallback mock
+  /// (tests that pump the shell DI-less must not spin up a database just
+  /// to watch unread counts — that leaks drift timers into flutter_test).
+  bool get _hasVaultBadgeSource =>
+      widget.vaultRepository != null || sl.isRegistered<ChatRepository>();
 
   CallsRepository get _callsRepository =>
       widget.callsRepository ?? MockCallsRepository();
@@ -296,6 +328,8 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   // -- desktop: NavigationRail + body swap ------------------------------------
 
   Widget _buildRailScaffold() {
+    // Subscribe lazily on first build; see _totalUnreadStream.
+    _totalUnreadStream;
     return Scaffold(
       body: Row(
         children: [
@@ -362,18 +396,15 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
               ),
             ),
             destinations: [
-              for (final (label, kind) in _modules.take(4))
+              for (final (i, (label, kind)) in _modules.take(4).indexed)
                 NavigationRailDestination(
                   // Chrome glyphs stay chalk in both states; the selected
                   // color is contrast-tested against the accent pill (an
                   // amber accent on its own pale-amber pill washes out,
                   // so the picker falls back to warm ink per accent).
-                  icon: SketchGlyph(kind: kind, seed: label.hashCode & 0x7FFFFFFF),
-                  selectedIcon: SketchGlyph(
-                    kind: kind,
-                    seed: label.hashCode & 0x7FFFFFFF,
-                    color: navSelectedIconColor(Theme.of(context).colorScheme),
-                  ),
+                  icon: _railIcon(kind, label, i, selected: false),
+                  selectedIcon:
+                      _railIcon(kind, label, i, selected: true),
                   label: Text(label),
                 ),
             ],
@@ -382,6 +413,32 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           Expanded(child: _buildModuleBody()),
         ],
       ),
+    );
+  }
+
+  /// Rail destination glyph with the Vault unread dot stacked on it.
+  /// Selected state colors via navSelectedIconColor (accent-pill contrast).
+  Widget _railIcon(SketchIconKind kind, String label, int index,
+      {required bool selected}) {
+    final glyph = SketchGlyph(
+      kind: kind,
+      seed: label.hashCode & 0x7FFFFFFF,
+      color: selected
+          ? navSelectedIconColor(Theme.of(context).colorScheme)
+          : null,
+    );
+    final badged = index == 1 && _totalUnread > 0 && _moduleIndex != 1;
+    if (!badged) return glyph;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        glyph,
+        const Positioned(
+          right: -3,
+          top: -2,
+          child: CustomPaint(size: Size(7, 7), painter: UnreadScribbleDot()),
+        ),
+      ],
     );
   }
 
@@ -399,6 +456,8 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   ];
 
   Widget _buildBottomNavScaffold() {
+    // Subscribe lazily on first build; see _totalUnreadStream.
+    _totalUnreadStream;
     return Scaffold(
       body: _buildModuleBody(),
       bottomNavigationBar: FabBottomBar(
@@ -406,6 +465,11 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         selectedIndex: _moduleIndex,
         onSelected: _selectModule,
         onCompose: () => context.push(AppRoutes.squareCompose),
+        // Vault badge (index 1); hidden while the Vault is open — a badge
+        // that persists on the screen you're looking at is noise.
+        badgedIndexes: _totalUnread > 0 && _moduleIndex != 1
+            ? const <int>{1}
+            : const <int>{},
       ),
       // The FAB docks into the bar's notch (centerDocked). It navigates
       // via the '/square/compose' deep link — the same route notification

@@ -426,6 +426,11 @@ class MockChatRepository implements ChatRepository {
   }
 
   @override
+  Stream<int> watchTotalUnread() {
+    return _local.watchTotalUnread(userId: localUserId);
+  }
+
+  @override
   Future<Either<Failure, Unit>> syncOutbox() async {
     try {
       final pending = await _local.pendingMessages();

@@ -12,6 +12,10 @@ import '../../../core/error/failures.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/motion/rewind_scope.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../injection.dart';
+import '../../calls/data/repositories/mock_calls_repository.dart';
+import '../../calls/domain/repositories/calls_repository.dart';
+import '../../calls/ui/calls_module_view.dart' show placeCallToPeer;
 import '../data/repositories/mock_chat_repository.dart';
 import '../domain/entities/message.dart';
 import '../domain/repositories/chat_repository.dart';
@@ -151,6 +155,22 @@ class _VaultChatPageState extends State<VaultChatPage> {
     );
   }
 
+  /// Landline mock call flow, launched from the conversation header.
+  /// The chat repository seam doesn't know calls, so the calls repository
+  /// is resolved through DI (registered with the shell's mock stack).
+  void _placeCall({required bool video}) {
+    final CallsRepository calls = sl.isRegistered<CallsRepository>()
+        ? sl<CallsRepository>()
+        : MockCallsRepository();
+    placeCallToPeer(
+      context,
+      repository: calls,
+      peerName: widget.conversation.title,
+      peerAvatarUrl: '',
+      video: video,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -212,6 +232,27 @@ class _VaultChatPageState extends State<VaultChatPage> {
                   ),
                 ],
               ),
+            ),
+            // Call actions live in the conversation (the convention the
+            // Landline-as-island was missing): voice and video, both
+            // chalk glyphs. They launch the Landline's shared mock call
+            // flow and land in its log — calls belong to the person
+            // you're talking to.
+            IconButton(
+              tooltip: 'Voice call',
+              icon: SketchGlyph(
+                kind: SketchIconKind.handset,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              onPressed: () => _placeCall(video: false),
+            ),
+            IconButton(
+              tooltip: 'Video call',
+              icon: SketchGlyph(
+                kind: SketchIconKind.videoCam,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              onPressed: () => _placeCall(video: true),
             ),
           ],
         ),

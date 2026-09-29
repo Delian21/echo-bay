@@ -25,6 +25,7 @@ class FabBottomBar extends StatelessWidget {
     required this.onSelected,
     required this.onCompose,
     this.showNotch = true,
+    this.badgedIndexes = const {},
   });
 
   /// Exactly four destinations: two docked left of the FAB, two right.
@@ -33,6 +34,11 @@ class FabBottomBar extends StatelessWidget {
   final List<(String, SketchIconKind)> modules;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+
+  /// Indexes currently showing the unread scribble-dot (e.g. the Vault
+  /// when unread messages exist). Anti-chore rule: the dot must clear
+  /// the moment the module opens — a permanent badge is a chore machine.
+  final Set<int> badgedIndexes;
 
   /// Compose action — the shell wires this to the '/square/compose'
   /// deep link so it lands on the Square with the composer open and back
@@ -59,6 +65,7 @@ class FabBottomBar extends StatelessWidget {
     Widget destination(int index) {
       final (label, kind) = modules[index];
       final selected = index == selectedIndex;
+      final badged = badgedIndexes.contains(index) && !selected;
       return Expanded(
         child: InkWell(
           onTap: () => onSelected(index),
@@ -79,6 +86,15 @@ class FabBottomBar extends StatelessWidget {
                     size: 24,
                     color: selected ? scheme.primary : scheme.onSurfaceVariant,
                   ),
+                ),
+                // Unread scribble-dot: a pen-drawn filled blob, not a
+                // Material badge pill — chrome carries the sketch identity.
+                SizedBox(
+                  height: 5,
+                  child: badged
+                      ? const CustomPaint(
+                          size: Size(6, 5), painter: UnreadScribbleDot())
+                      : null,
                 ),
                 const SizedBox(height: 4),
                 AnimatedDefaultTextStyle(
@@ -116,6 +132,38 @@ class FabBottomBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The unread dot: a small hand-pressed blob of Graffiti Red ink —
+/// slightly irregular, denser at one edge, like a pen pressed to paper.
+/// Shared by the bottom-bar destinations and the desktop rail.
+class UnreadScribbleDot extends CustomPainter {
+  const UnreadScribbleDot();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()
+      ..color = const Color(0xFFE0245E)
+      ..style = PaintingStyle.fill;
+    // The blob: a wobbly filled circle plus a denser core, so it reads
+    // as ink soaking into paper rather than a vector badge.
+    final blob = Path()
+      ..addOval(Rect.fromCenter(
+        center: c,
+        width: size.width * 0.9,
+        height: size.height * 1.05,
+      ));
+    canvas.drawPath(blob, paint);
+    canvas.drawCircle(
+      c.translate(-0.4, 0.3),
+      size.width * 0.22,
+      paint..color = const Color(0xFFB01A4B),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant UnreadScribbleDot oldDelegate) => false;
 }
 
 /// Compose FAB for the hybrid bar. Kept beside [FabBottomBar] so the

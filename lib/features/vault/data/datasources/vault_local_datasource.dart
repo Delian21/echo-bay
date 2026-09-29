@@ -73,6 +73,10 @@ String encodeParticipants(List<String> ids) =>
 abstract class VaultLocalDatasource {
   Stream<List<Conversation>> watchConversations();
 
+  /// Live total of unread inbound messages across ALL conversations —
+  /// drives the shell-level badge on the Vault destination.
+  Stream<int> watchTotalUnread({required String userId});
+
   Stream<List<Message>> watchMessages({required String conversationId});
 
   Future<Conversation?> findConversation(String id);
@@ -160,6 +164,25 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
     return query
         .watch()
         .map((rows) => rows.map((r) => r.toEntity()).toList());
+  }
+
+  @override
+  Stream<int> watchTotalUnread({required String userId}) {
+    // Reactive per-conversation unread counts summed in the stream layer:
+    // conversations.watch() re-emits on conversation changes while each
+    // unreadCount future re-runs on messages/cursor changes (drift watches
+    // the tables those selects touch). Cursor inserts fire through the
+    // same table set, so opening a chat clears the badge live.
+    return _db.select(_db.conversations).watch().asyncMap((conversations) async {
+      var total = 0;
+      for (final c in conversations) {
+        total += await unreadCount(
+          conversationId: c.id,
+          userId: userId,
+        );
+      }
+      return total;
+    });
   }
 
   @override
