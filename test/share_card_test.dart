@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/error/failures.dart';
-import 'package:superapp/features/square/domain/entities/post.dart';
-import 'package:superapp/features/square/domain/usecases/share_post_as_image.dart';
+import 'package:echo_bay/core/error/failures.dart';
+import 'package:echo_bay/features/square/domain/entities/post.dart';
+import 'package:echo_bay/features/square/domain/usecases/share_post_as_image.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

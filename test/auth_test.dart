@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/auth/auth_repository.dart';
-import 'package:superapp/core/auth/session_store.dart';
-import 'package:superapp/core/error/failures.dart';
+import 'package:echo_bay/core/auth/auth_repository.dart';
+import 'package:echo_bay/core/auth/session_store.dart';
+import 'package:echo_bay/core/error/failures.dart';
 
 /// #6 identity posture: opaque, device-stable, non-derivable session.
 void main() {

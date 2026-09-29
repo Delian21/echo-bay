@@ -30,10 +30,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/*
-!/build/web/
-/build/web/canvaskit/
-/build/web/flutter_service_worker.js
+/build/
 /coverage/
 
 # Symbolication related

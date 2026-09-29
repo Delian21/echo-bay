@@ -1,8 +1,8 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/keepsake/data/repositories/drift_keepsake_repository.dart';
-import 'package:superapp/features/keepsake/domain/entities/keepsake_item.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/keepsake/data/repositories/drift_keepsake_repository.dart';
+import 'package:echo_bay/features/keepsake/domain/entities/keepsake_item.dart';
 
 // Repository tests are pure drift — fast, no timers, no pumping.
 void main() {

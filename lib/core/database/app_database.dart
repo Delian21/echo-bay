@@ -855,7 +855,7 @@ QueryExecutor _openConnection() {
     name: 'echo_bay',
     native: DriftNativeOptions(
       // Same file the manual LazyDatabase opened before (renamed from
-      // superapp.sqlite — a fresh file; old dev databases are disposable).
+      // echo_bay.sqlite — a fresh file; old dev databases are disposable).
       databasePath: () async => 'echo_bay.sqlite',
     ),
     // Web: the wasm module + worker served from web/ (fetched from the

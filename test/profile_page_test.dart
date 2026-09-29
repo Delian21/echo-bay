@@ -1,14 +1,14 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/profile/profile_controller.dart';
-import 'package:superapp/core/profile/user_profile.dart';
-import 'package:superapp/core/settings/app_settings_store.dart';
-import 'package:superapp/features/profile/ui/profile_page.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/domain/repositories/feed_repository.dart'
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/profile/profile_controller.dart';
+import 'package:echo_bay/core/profile/user_profile.dart';
+import 'package:echo_bay/core/settings/app_settings_store.dart';
+import 'package:echo_bay/features/profile/ui/profile_page.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/features/square/domain/repositories/feed_repository.dart'
     show FeedRepository;
 
 // Every test here carries a hard timeout: a stuck drift watch or a

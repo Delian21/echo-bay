@@ -60,8 +60,8 @@ a hallway wall.
 |---|---|---|
 | Display name | superapp / Prism / Golden Hour | **Echo Bay** |
 | Tagline | — | *"Capture the day before it fades."* |
-| Package id | `superapp` | `echo_bay` (follow-up) |
-| Exe / binary | `superapp.exe` | `echo_bay.exe` (follow-up) |
+| Package id | `superapp` | `echo_bay` ✅ (mechanical rename done) |
+| Exe / binary | `superapp.exe` | `echo_bay.exe` ✅ (mechanical rename done) |
 
 Not renamed in this pass (deliberately): the Dart package name (`superapp`
 in pubspec + every import), the DB filename (`superapp.sqlite`), and the

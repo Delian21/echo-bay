@@ -2,11 +2,11 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/design_system/breakpoints.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/ui/vault_conversation_list.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/design_system/breakpoints.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/ui/vault_conversation_list.dart';
 
 /// The Vault's responsive contract: embedded mode is necessary but not
 /// sufficient for master-detail. Regression for the "Select a

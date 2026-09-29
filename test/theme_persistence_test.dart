@@ -2,9 +2,9 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/settings/app_settings_store.dart';
-import 'package:superapp/core/theme/theme_controller.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/settings/app_settings_store.dart';
+import 'package:echo_bay/core/theme/theme_controller.dart';
 
 /// Theme persistence: the mode chosen in settings must survive a full
 /// app restart (new controller + new store over the same database).

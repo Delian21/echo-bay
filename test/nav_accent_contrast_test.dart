@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/profile/user_profile.dart';
-import 'package:superapp/core/theme/app_theme.dart';
+import 'package:echo_bay/core/profile/user_profile.dart';
+import 'package:echo_bay/core/theme/app_theme.dart';
 
 /// The nav-pill contrast invariant: whatever accent the user picks, the
 /// *selected* nav glyph must read against the indicator pill it sits on.

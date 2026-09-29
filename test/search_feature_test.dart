@@ -2,10 +2,10 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/search/drift_search_repository.dart';
-import 'package:superapp/core/search/search_hit.dart';
-import 'package:superapp/core/settings/app_settings_store.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/search/drift_search_repository.dart';
+import 'package:echo_bay/core/search/search_hit.dart';
+import 'package:echo_bay/core/settings/app_settings_store.dart';
 
 /// Part B: search matching, module grouping, expired-post exclusion and
 /// delete-for-everyone tombstone exclusion. Runs against an in-memory

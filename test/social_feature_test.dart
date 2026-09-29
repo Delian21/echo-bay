@@ -1,9 +1,9 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/social/data/repositories/drift_social_repository.dart';
-import 'package:superapp/features/social/domain/entities/social_entities.dart';
-import 'package:superapp/features/social/domain/services/peer_planner.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/social/data/repositories/drift_social_repository.dart';
+import 'package:echo_bay/features/social/domain/entities/social_entities.dart';
+import 'package:echo_bay/features/social/domain/services/peer_planner.dart';
 
 // Fast, deterministic: in-memory drift, no real timers — peer events
 // are applied directly via the planner, and scheduling rules are

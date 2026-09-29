@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/motion/motion_controller.dart';
-import 'package:superapp/core/motion/motion_scope.dart';
-import 'package:superapp/core/motion/rewind_scope.dart';
-import 'package:superapp/core/theme/app_theme.dart';
-import 'package:superapp/features/square/ui/square_card.dart';
-import 'package:superapp/features/square/ui/square_post_model.dart';
+import 'package:echo_bay/core/motion/motion_controller.dart';
+import 'package:echo_bay/core/motion/motion_scope.dart';
+import 'package:echo_bay/core/motion/rewind_scope.dart';
+import 'package:echo_bay/core/theme/app_theme.dart';
+import 'package:echo_bay/features/square/ui/square_card.dart';
+import 'package:echo_bay/features/square/ui/square_post_model.dart';
 
 void main() {
   group('Golden Hour theme', () {

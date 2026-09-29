@@ -51,10 +51,19 @@ section then.
 
 | Module | Purpose | Read/write model | Source of truth |
 |---|---|---|---|
-| **The Square** (`features/square`) | Public text-and-media chronological feed | Read-mostly; network-first | Remote (mocked for now); drift is a cache |
+| **The Square** (`features/square`) | Public text-and-media chronological feed; posts can be **ephemeral** ("fades in 24h") | Read-mostly; network-first | Remote (mocked for now); drift is a cache |
 | **The Vault** (`features/vault`) | Secure offline-first E2EE messaging | Write-heavy; local-first | **Local (drift)**; remote is a dumb sync transport |
 | **The Hallway** (`features/nexus`) | Community hub: the **Board** (broadcast channels) + the **Dorms** (group chats) | Hybrid | Board: remote-first like Square. Dorms: local-first outbox like Vault minus E2EE |
 | **The Landline** (`features/calls`) | Voice & video call log + mock call flow | Read-mostly | Local log; transport mocked |
+| **Social** (`features/social`) | Comments on Square posts + the notices feed; mock peers (Rune, Mila, Ops) react to your posts on a capped, spaced schedule | Read-mostly; writes only in the present | Local (drift) |
+| **Keepsake wall** (`features/keepsake`) | Corkboard of pinned own-posts and handwritten notes; drag/tilt/string | Write-local; geometry stored as board-relative fractions | Local (drift); unpin is a soft tombstone (v14) |
+| **Profile** (`features/profile`) | Display name, bio, avatar, accent + a grid of your own squares | Local KV (settings table) + author-matched watch | Local (drift) |
+
+**Time travel** (`core/timetravel`) is a cross-cutting read mode, not a
+module: one `TimeTravelController` above `MaterialApp` holds the as-of
+instant; the shell fans it to the Square/Vault/social/keepsake
+datasources, which filter every read by timestamp and refuse writes
+while active.
 
 Display names follow the small-town rule (`docs/NAMING.md`): the Dart
 feature directories and class names keep their code names
@@ -165,7 +174,7 @@ else. Contract semantics — `Either`, streams, local-first writes — were
 frozen in the contracts before the mocks existed, which is the whole point
 of Interface-Driven Development here.
 
-## 5. Schema notes (drift, v1)
+## 5. Schema notes (drift, v14)
 
 **Migration rules (normative, learned the hard way on Windows):**
 
@@ -180,10 +189,19 @@ of Interface-Driven Development here.
 
 | Table | Module | Purpose |
 |---|---|---|
-| `posts` | Square | feed cache; `mediaUrl`/`blurhash` nullable for text-only posts |
+| `posts` | Square | feed cache; `mediaUrl`/`blurhash` nullable; `deleted_at` tombstone (v8); `expires_at` ephemeral expiry (v11) |
 | `post_likes` | Square | offline like state; sync direction later: local → server |
 | `conversations` | Vault | participants as JSON array (schema already multi-party) |
-| `messages` | Vault | source of truth; `ciphertext` column present from day one so real E2EE changes no schema; `editedAt`/`deletedAt` tombstones (v4) |
+| `messages` | Vault | source of truth; `ciphertext` column present from day one so real E2EE changes no schema; `editedAt`/`deletedAt` tombstones (v4); attachment kind/path/duration (v9/v10) |
+| `post_comments` | Social | comments on Square posts (v13) |
+| `social_notifications` | Social | peer notices: kind/peer/body/deepLink + `readAt` unread tracking (v13) |
+| `keepsake_items` | Keepsake | pinned posts + notes; board-relative posX/posY/rotation; `strungTo` string link; `pinnedAt`; `unpinned_at` soft-unpin tombstone (v14) |
+
+Schema versions v1→v14 all shipped through the idempotent migration
+chain; see `onUpgrade` in `app_database.dart`. v12 added the Hallway
+board FTS index (`channel_posts_fts`) — the boards had been missed in
+v5. FTS5 is confirmed compiled into the pinned `web/sqlite3.wasm`
+(bm25/snippet symbols present), so search works on web too.
 
 Hallway (Nexus) additions (pending T-004, still schema v1 since nothing
 shipped): `channels`, `channel_messages` (with `expiresAt` for retention
@@ -353,9 +371,9 @@ avatars are CORS-blocked on web; the errorBuilder renders chalk glyphs.
 
 ## 7. Open items
 
-- Rename the mechanical identifiers (`superapp` package, `superapp.sqlite`,
-  Windows runner strings) to `echo_bay` — display name is already
-  updated; the mechanical rename is a follow-up (`docs/NAMING.md`).
+- ~~Rename the mechanical identifiers~~ Done: the Dart package is
+  `echo_bay` (all imports), the database file `echo_bay.sqlite`, and the
+  Windows runner `OriginalFilename` `echo_bay.exe`.
 - T-002: blocs + pages wiring widgets to repositories.
 - T-003: `main.dart`, `go_router` shell, DI bootstrap, theme switching.
 - T-004: Hallway implementation (contracts + schema + mock) — layout
@@ -363,6 +381,13 @@ avatars are CORS-blocked on web; the errorBuilder renders chalk glyphs.
 - Auth module: identity is now device-stable and opaque (see "Identity
   posture" below); what remains is the real credential/token flow at
   backend integration.
+- Time travel limits: keepsake unpin is soft (v14), but post hard-purge
+  (the 10s undo window) and pre-edit Vault message bodies overwrite
+  history — reconstructing those needs append-only rows (deliberately
+  deferred).
+- The social layer's peer engine is mock-only; a real backend replaces
+  `DriftSocialRepository.onOwnPostPublished` with server push without
+  touching the UI.
 - Daily Square: settings UI (opt-in, window, pause) shipped in the
   Settings page (§6c rules encoded in `daily_square_settings_card.dart`);
   what remains is the payoff view (rule 4: collated recent squares on
@@ -455,3 +480,48 @@ Hallway Board + Dorms tiles + bulletin masthead, composer sheet (title
 + media frame), Landline masthead (handwriting only, no boxes), empty
 states in Landline/Hallway/search, and the rewind-spiral icon in the
 undo snackbar.
+
+**Social layer** (`features/social`, schema v13). Comments on Square
+posts (`post_comments`) plus a notices feed (`social_notifications`,
+kind ∈ {comment, reaction, reply}, `readAt` unread tracking, `deepLink`
+navigation). The **peer engine** lives in the domain: `PeerPlanner`
+(injectable RNG) plans 0–2 events per own post — distinct peers,
+first ≥20s out, ≥25s spacing, ~1-in-6 posts draw silence (the no-chore
+rule). The drift repository schedules real timers per plan and inserts
+comment/notification rows; the UI consumes only the `SocialRepository`
+contract. Unread badge = live count query on the shell.
+
+**Keepsake wall** (`features/keepsake`, schema v13/v14). A corkboard of
+pinned own-posts and freehand notes. Geometry is stored as
+**board-relative fractions** (posX/posY 0..1 + rotation), so the same
+row renders correctly at any viewport — positions are never screen
+pixels. Items string together (`strungTo`, one outgoing string each,
+drawn as a stable seeded wobbly ink line). Unpin is a **soft tombstone**
+(`unpinned_at`, v14): the present board filters unpinned rows query-side,
+and time travel can reconstruct a past board exactly.
+
+**Time travel** (`core/timetravel`, no schema change). A read-only
+"as of" mode. One `TimeTravelController` above `MaterialApp` holds the
+instant; the shell fans it to the four time-aware datasources
+(`setAsOf`), which re-run their live streams via a tick stream +
+`switchMap` and timestamp-filter in memory or in the where-clause:
+Square (created-by / tombstone-after / expiry-at), Vault (existing-by /
+deleted-after), Social (created-by; `readAt`-after counts unread),
+Keepsake (pinned-by, not-unpinned-by). While active every write path
+throws `StateError` — the past cannot be modified. Exit rides the
+existing rewind animation.
+
+**Ephemeral posts** (schema v11). `posts.expires_at` nullable; visibility
+is a query-time filter on every Square read path so correctness never
+depends on the lazy purge (`purgeExpiredPosts` on app start reclaims
+storage). The card fades (opacity floored at 0.2) with a hand-drawn
+clock-tick strip; "keep it" clears the column. All expiry checks use an
+injectable clock (`DateTime Function()`) for deterministic tests.
+
+**Post share-as-image** (`features/square/domain/services/
+post_share_card.dart`). A pure `dart:ui` `PictureRecorder` composition
+(no widget/RepaintBoundary path — that failed to work on web), rendering
+the polaroid card with handwritten date and the "made with Echo Bay"
+corner mark. `SharePostAsImage` returns `Either<Failure, Uint8List>`;
+delivery goes through the IO seam (`core/io`): share sheet on native,
+anchor-download on web. No `dart:io` under `lib/`.

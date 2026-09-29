@@ -2,13 +2,13 @@ import 'package:drift/drift.dart' hide Column, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/nexus/data/datasources/nexus_local_datasource.dart';
-import 'package:superapp/features/nexus/data/repositories/mock_nexus_repository.dart';
-import 'package:superapp/features/nexus/domain/entities/nexus.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/domain/entities/message.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/nexus/data/datasources/nexus_local_datasource.dart';
+import 'package:echo_bay/features/nexus/data/repositories/mock_nexus_repository.dart';
+import 'package:echo_bay/features/nexus/domain/entities/nexus.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/domain/entities/message.dart';
 
 /// #3 message lifecycle + #1 membership sync entity — the contracts
 /// frozen in ARCHITECTURE.md §5, verified against the mocks.

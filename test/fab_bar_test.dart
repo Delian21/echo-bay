@@ -4,12 +4,12 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/design_system/sketch_kit.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/ui/fab_bottom_bar.dart';
-import 'package:superapp/features/square/ui/post_composer.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/design_system/sketch_kit.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/features/square/ui/fab_bottom_bar.dart';
+import 'package:echo_bay/features/square/ui/post_composer.dart';
 
 /// Tests run with real async gesture timing disabled; the long-press
 /// recognizer needs the 500ms hold to actually elapse.

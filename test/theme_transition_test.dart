@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/theme/theme_controller.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/domain/repositories/feed_repository.dart';
-import 'package:superapp/features/square/ui/square_navigation_shell.dart';
-import 'package:superapp/injection.dart' as di;
-import 'package:superapp/main.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/theme/theme_controller.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/features/square/domain/repositories/feed_repository.dart';
+import 'package:echo_bay/features/square/ui/square_navigation_shell.dart';
+import 'package:echo_bay/injection.dart' as di;
+import 'package:echo_bay/main.dart';
 
 /// Animated theme cross-fade: the lerp must run without throwing.
 ///

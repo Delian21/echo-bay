@@ -4,19 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/injection.dart' as di;
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/injection.dart' as di;
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/domain/repositories/feed_repository.dart';
-import 'package:superapp/features/square/ui/square_card.dart';
-import 'package:superapp/features/square/ui/square_feed_view.dart';
-import 'package:superapp/features/square/ui/square_navigation_shell.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/ui/vault_chat_page.dart';
-import 'package:superapp/features/vault/ui/vault_conversation_list.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/features/square/domain/repositories/feed_repository.dart';
+import 'package:echo_bay/features/square/ui/square_card.dart';
+import 'package:echo_bay/features/square/ui/square_feed_view.dart';
+import 'package:echo_bay/features/square/ui/square_navigation_shell.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/ui/vault_chat_page.dart';
+import 'package:echo_bay/features/vault/ui/vault_conversation_list.dart';
 
 /// In-memory drift stacks per test: no disk, tickers off so no periodic
 /// timer trips flutter_test's pending-timer invariant.

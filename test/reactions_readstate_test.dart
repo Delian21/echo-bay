@@ -2,9 +2,9 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
 
 /// #2 lightweight interaction layer: reactions are outbox rows, read
 /// state is a per-conversation cursor (Discord/WhatsApp lessons).

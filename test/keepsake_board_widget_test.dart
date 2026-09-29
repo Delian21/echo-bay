@@ -1,10 +1,10 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/keepsake/data/repositories/drift_keepsake_repository.dart';
-import 'package:superapp/features/keepsake/domain/entities/keepsake_item.dart';
-import 'package:superapp/features/keepsake/ui/keepsake_board_page.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/keepsake/data/repositories/drift_keepsake_repository.dart';
+import 'package:echo_bay/features/keepsake/domain/entities/keepsake_item.dart';
+import 'package:echo_bay/features/keepsake/ui/keepsake_board_page.dart';
 
 // One fast widget test: pin a post, drag its card, verify the new
 // board-relative position landed in drift.

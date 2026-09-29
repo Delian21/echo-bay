@@ -1,14 +1,14 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/profile/user_profile.dart';
-import 'package:superapp/core/settings/app_settings_store.dart';
-import 'package:superapp/core/usecase/usecase.dart';
-import 'package:superapp/features/profile/data/repositories/drift_profile_repository.dart';
-import 'package:superapp/features/profile/domain/usecases/profile_usecases.dart';
-import 'package:superapp/features/profile/domain/usecases/watch_own_posts.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/profile/user_profile.dart';
+import 'package:echo_bay/core/settings/app_settings_store.dart';
+import 'package:echo_bay/core/usecase/usecase.dart';
+import 'package:echo_bay/features/profile/data/repositories/drift_profile_repository.dart';
+import 'package:echo_bay/features/profile/domain/usecases/profile_usecases.dart';
+import 'package:echo_bay/features/profile/domain/usecases/watch_own_posts.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
 
 void main() {
   late AppDatabase db;

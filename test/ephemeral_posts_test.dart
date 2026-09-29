@@ -1,9 +1,9 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
 
 void main() {
   late AppDatabase db;

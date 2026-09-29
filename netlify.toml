@@ -1,15 +1,16 @@
 # Netlify config for Echo Bay's web build.
 #
-# The built app lives in build/web (committed to this repo), so Netlify
-# needs no build command — it just publishes the folder. These settings
-# override the dashboard's Build & deploy configuration on every deploy,
-# keeping the site config version-controlled.
+# Netlify runs the Flutter web build itself; the repo no longer carries
+# build output (build/ is gitignored). Every push to the linked branch
+# deploys a fresh build. The base image ships a stable Flutter SDK with
+# Flutter on PATH; the web assets (sqlite3.wasm, drift_worker.js) are
+# committed in web/ so no extra download step is needed.
 
 [build]
   publish = "build/web"
-  command = "echo 'Skipping build: build/web is committed. Run flutter build web --release locally and commit it to update the site.'"
+  command = "flutter build web --release"
 
-# Flutter web is a single-page app: any deep link (e.g. /vault/conv-1)
+# Flutter web is a single-page app: any deep link (e.g. /vault/conversation/1)
 # must fall back to index.html so the router can take over after boot.
 [[redirects]]
   from = "/*"

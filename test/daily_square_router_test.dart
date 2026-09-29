@@ -1,15 +1,15 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/auth/auth_repository.dart';
-import 'package:superapp/core/auth/session_store.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/notifications/prompt_notifier.dart';
-import 'package:superapp/core/prompt/drift_prompt_repository.dart';
-import 'package:superapp/core/prompt/prompt.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/ui/vault_conversation_list.dart';
+import 'package:echo_bay/core/auth/auth_repository.dart';
+import 'package:echo_bay/core/auth/session_store.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/notifications/prompt_notifier.dart';
+import 'package:echo_bay/core/prompt/drift_prompt_repository.dart';
+import 'package:echo_bay/core/prompt/prompt.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/ui/vault_conversation_list.dart';
 
 /// #5 Daily Square (anti-chore rules §6c), #8 deep-link routes, and the
 /// unread-badge read-cursor surface.

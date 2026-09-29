@@ -1,10 +1,9 @@
-name: superapp
+name: echo_bay
 description: >-
   Echo Bay — capture the day before it fades. A local-first life-logging
   social app: The Square (photo journal), The Vault (secure offline-first
   messaging), The Hallway (community Board and Dorms), The Landline
-  (calls). Display name per docs/NAMING.md; the Dart package name stays
-  `superapp` until the mechanical rename follow-up.
+  (calls), plus comments, notices, a keepsake wall, and time travel.
 publish_to: "none"
 version: 0.1.0
 

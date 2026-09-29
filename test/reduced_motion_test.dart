@@ -2,11 +2,11 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/design_system/staggered_entrance.dart';
-import 'package:superapp/core/motion/motion_controller.dart';
-import 'package:superapp/core/motion/motion_scope.dart';
-import 'package:superapp/core/settings/app_settings_store.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/design_system/staggered_entrance.dart';
+import 'package:echo_bay/core/motion/motion_controller.dart';
+import 'package:echo_bay/core/motion/motion_scope.dart';
+import 'package:echo_bay/core/settings/app_settings_store.dart';
 
 /// Reduced-motion accessibility: the motion system must render content
 /// instantly when the preference is on.

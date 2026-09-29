@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 
-import 'package:superapp/core/auth/auth_repository.dart';
-import 'package:superapp/core/auth/session_store.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/error/failures.dart';
-import 'package:superapp/core/prompt/drift_prompt_repository.dart';
-import 'package:superapp/core/prompt/prompt.dart';
-import 'package:superapp/core/prompt/prompt_repository.dart';
-import 'package:superapp/features/settings/ui/daily_square_settings_card.dart';
+import 'package:echo_bay/core/auth/auth_repository.dart';
+import 'package:echo_bay/core/auth/session_store.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/error/failures.dart';
+import 'package:echo_bay/core/prompt/drift_prompt_repository.dart';
+import 'package:echo_bay/core/prompt/prompt.dart';
+import 'package:echo_bay/core/prompt/prompt_repository.dart';
+import 'package:echo_bay/features/settings/ui/daily_square_settings_card.dart';
 
 /// Daily Square settings card (§6c). Locks the anti-chore rules in UI
 /// terms: opt-in defaults off, window is user-picked, pause/resume is

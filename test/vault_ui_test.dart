@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/core/design_system/sketch_kit.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/domain/entities/message.dart';
-import 'package:superapp/features/vault/ui/vault_chat_page.dart';
-import 'package:superapp/features/vault/ui/vault_conversation_list.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/design_system/sketch_kit.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/domain/entities/message.dart';
+import 'package:echo_bay/features/vault/ui/vault_chat_page.dart';
+import 'package:echo_bay/features/vault/ui/vault_conversation_list.dart';
 
 import 'package:drift/native.dart';
 

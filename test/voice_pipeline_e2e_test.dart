@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superapp/core/attachments/attachment.dart';
-import 'package:superapp/core/attachments/voice_note_player.dart';
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/vault/data/datasources/vault_local_datasource.dart';
-import 'package:superapp/features/vault/data/repositories/mock_chat_repository.dart';
-import 'package:superapp/features/vault/domain/entities/message.dart';
+import 'package:echo_bay/core/attachments/attachment.dart';
+import 'package:echo_bay/core/attachments/voice_note_player.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
+import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
+import 'package:echo_bay/features/vault/domain/entities/message.dart';
 
 /// End-to-end voice-note pipeline (unit level — widget pumps drag in the
 /// audio-player platform channels and drift stream timers, which

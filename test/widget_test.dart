@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 
-import 'package:superapp/core/database/app_database.dart';
-import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
-import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/domain/repositories/feed_repository.dart';
-import 'package:superapp/features/square/ui/square_card.dart';
-import 'package:superapp/features/square/ui/square_feed_view.dart';
-import 'package:superapp/features/square/ui/square_post_model.dart';
-import 'package:superapp/injection.dart' as di;
-import 'package:superapp/main.dart';
+import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/features/square/data/datasources/square_local_datasource.dart';
+import 'package:echo_bay/features/square/data/repositories/mock_feed_repository.dart';
+import 'package:echo_bay/features/square/domain/repositories/feed_repository.dart';
+import 'package:echo_bay/features/square/ui/square_card.dart';
+import 'package:echo_bay/features/square/ui/square_feed_view.dart';
+import 'package:echo_bay/features/square/ui/square_post_model.dart';
+import 'package:echo_bay/injection.dart' as di;
+import 'package:echo_bay/main.dart';
 
 // -- helpers -----------------------------------------------------------------
 
