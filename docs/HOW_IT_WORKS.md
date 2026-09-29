@@ -1,10 +1,12 @@
 # How Echo Bay Works — a plain-language developer guide
 
 This is the "explain it like I'm new" document. It covers what the app is,
-how the code is organised, then traces three real flows through the actual
-code: **sending a Vault message**, **drawing a chalk icon**, and
-**switching the theme accent**. Written for someone new to Flutter or to
-this codebase — no prior context assumed.
+how the code is organised, then traces several real flows through the
+actual code: **sending a Vault message**, **drawing a chalk icon**,
+**switching the theme accent**, **posting an ephemeral Square post**,
+**commenting and getting a peer notification**, **pinning to the keepsake
+wall**, and **travelling to a past day**. Written for someone new to
+Flutter or to this codebase — no prior context assumed.
 
 ---
 
@@ -14,14 +16,17 @@ A **local-first** life-logging social app. "Local-first" means your data
 lives in a SQLite database **on your device first**; a server (currently
 mocked) only ever syncs on top of that. You can use the whole app offline.
 
-It has four modules, each a folder under `lib/features/`:
+It has four mainline modules plus social and keepsake layers, each a
+folder under `lib/features/`:
 
 | Module | Folder | What it does |
 |---|---|---|
-| **The Square** | `features/square` | A photo-and-sentence journal feed |
+| **The Square** | `features/square` | A photo-and-sentence journal feed. Posts can be **ephemeral** ("fades in 24h") or permanent. |
 | **The Vault** | `features/vault` | Private messaging (mock E2EE-ready) |
 | **The Hallway** | `features/nexus` | Community: the Board (broadcast) + Dorms (group chats) |
 | **The Landline** | `features/calls` | Call log and a mock call screen |
+| **Social** | `features/social` | Comments on Square posts + a notices feed. Mock peers (Rune, Mila, Ops) may comment or react after a realistic delay — capped and spaced, never spammy. |
+| **Keepsake wall** | `features/keepsake` | A corkboard where you pin your own posts and handwritten notes. Items drag, tilt, and can be strung together with an inked line. |
 
 The look is "Golden Hour, Inked" — sepia paper, charcoal ink, wobbly
 hand-drawn borders and chalk icons. See `docs/ART_DIRECTION.md`.
@@ -36,9 +41,10 @@ Code lives in three layers, with a one-way dependency rule:
 presentation (widgets, pages)  →  domain (entities, contracts)  ←  data (drift, mocks)
 ```
 
-- **domain** — plain Dart. Entities (`Post`, `Message`) and abstract
-  repository *contracts* (`ChatRepository` = "someone who can send a
-  message", without saying how). Imports no Flutter, no database.
+- **domain** — plain Dart. Entities (`Post`, `Message`, `KeepsakeItem`)
+  and abstract repository *contracts* (`ChatRepository` = "someone who
+  can send a message", without saying how). Imports no Flutter, no
+  database.
 - **data** — implements the contracts. Today the implementations are
   **mocks** that write through to the real local database, so the app
   behaves like a real backed app offline.
@@ -62,10 +68,12 @@ polls.
 
 ## 3. The database: drift + SQLite
 
-`lib/core/database/app_database.dart` declares the schema (10 versions so
+`lib/core/database/app_database.dart` declares the schema (14 versions so
 far — posts, messages, group messages, reactions, read cursors, FTS5
-search tables, tombstone columns, `attachment_duration_ms`). Drift
-generates type-safe code from it (`app_database.g.dart` — never edit).
+search tables, tombstone columns, attachment columns, post comments,
+social notifications, keepsake items, and the `unpinned_at` soft-unpin
+column). Drift generates type-safe code from it (`app_database.g.dart` —
+never edit).
 
 Key rule: **migrations must be idempotent.** Each `onUpgrade` step checks
 whether a column/table already exists before acting, because a crash
@@ -209,7 +217,78 @@ when it's off (e.g. plain `MaterialApp` in tests), stock Material renders.
 
 ---
 
-## 8. Running it
+## 8. Ephemeral posts ("fades in 24h")
+
+When composing, the "Fades in 24h" toggle sets `posts.expires_at` (schema
+v11). The rules:
+
+- **Visibility is a query-time filter** (`expiresAt IS NULL OR
+  expiresAt > now`) applied in every Square read path — feed, day view,
+  profile grid, search. Correctness never depends on a background job.
+- The card **fades visually** as expiry approaches (opacity keyed to time
+  remaining, floored at 0.2) and carries a hand-drawn clock-tick strip.
+- A **"keep it"** action on your own ephemeral post clears `expires_at` —
+  the post becomes permanent instantly (the stream re-emits).
+- **Purge is lazy**: `purgeExpiredPosts(now)` hard-deletes expired rows
+  (and their likes) once per app start. Expired-but-unpurged rows are
+  already invisible; the purge only reclaims storage and search-index
+  entries.
+- All expiry checks go through an **injectable clock** (`DateTime
+  Function()` on the datasource, `AppDatabase.clock` for search/purge) so
+  tests pin a fixed instant and the boundary (`expiresAt == now` counts as
+  expired) is deterministic.
+
+## 9. Comments, peer notifications (Social)
+
+- Comments live in `post_comments` (v13); the composer is an inked note
+  box under each post.
+- After **you** publish, the feed calls
+  `SocialRepository.onOwnPostPublished`. The **`PeerPlanner`** (pure
+  domain, injectable RNG) decides whether anybody responds: at most **2
+  events per post**, distinct peers, first event ≥20s out, ≥25s between
+  events, and roughly **1-in-6 posts draw silence** — the no-chore,
+  no-guilt rule from the Daily Square.
+- Each event lands as a comment row and/or a `social_notifications` row;
+  the app-bar bell shows a live unread count (`watchUnreadCount`), and
+  the notices page deep-links to the context and marks everything read
+  on the way out.
+
+## 10. The keepsake wall
+
+`keepsake_items` (v13/v14) stores items as **board-relative fractions**
+(posX/posY in 0..1) plus a small rotation — so the same layout scales
+across phone and desktop. Drag ends persist the new fraction; a thumbtack
+handle strings two items together (`strungTo`), drawn as a wobbly 2-pass
+ink line. **Unpin is a soft tombstone** (`unpinned_at`, v14): the row
+survives so time travel can rebuild past boards; the present board simply
+filters `unpinned_at IS NULL`.
+
+## 11. Time travel (read-only past)
+
+One `TimeTravelController` lives above `MaterialApp`
+(`core/timetravel/time_travel_scope.dart`); the shell fans the as-of
+instant out to the Square, Vault, social, and keepsake datasources, which
+filter every read by timestamp:
+
+- Square: `createdAt <= asOf` AND (`deletedAt` null or > asOf) AND
+  ephemeral expiry evaluated **at the visited instant**.
+- Vault: messages existing by then; delete-for-everyone tombstones hidden
+  from the moment they happened.
+- Social: comments/notifications created by then; the unread badge
+  counts `readAt`-after-the-moment as still unread.
+- Keepsake: pinned by then, not yet unpinned by then.
+
+While active, **every write path throws** (`writes are refused while time
+traveling`) — the past is read-only. The scrubber is a hand-drawn film
+strip; "Return to today" exits through the app-wide rewind animation.
+
+Honest limits: post hard-purge (the 10s undo window) and pre-edit Vault
+bodies are not reconstructible — those writes overwrite history. Making
+them historical needs append-only rows, which we judged not worth it.
+
+---
+
+## 12. Running it
 
 ```bash
 flutter pub get

@@ -126,7 +126,7 @@ class _SuperAppState extends State<SuperApp> {
       child: TimeTravelScope(
         controller: _timeTravel,
         child: MaterialApp.router(
-          title: 'Super App',
+          title: 'Echo Bay',
           debugShowCheckedModeBanner: false,
           theme: _displayed,
           themeMode: ThemeMode.light,
