@@ -15,6 +15,8 @@ class SquarePost {
     this.blurhash,
     required this.likesCount,
     required this.isLiked,
+    this.expiresAt,
+    this.clock,
   });
 
   final String id;
@@ -31,6 +33,35 @@ class SquarePost {
   final int likesCount;
   final bool isLiked;
 
+  /// Ephemeral expiry ("fades in 24h"); null = permanent.
+  final DateTime? expiresAt;
+
+  /// Injectable clock for fade math; production passes DateTime.now.
+  final DateTime Function()? clock;
+
+  /// Whether this post is ephemeral and already past its expiry.
+  bool get isExpired {
+    final expiry = expiresAt;
+    if (expiry == null) return false;
+    final now = clock?.call() ?? DateTime.now();
+    return !now.isBefore(expiry);
+  }
+
+  /// 1.0 (fresh) -> 0.0 (expiry): how far the polaroid has faded.
+  /// Permanent posts never fade.
+  double fadeFactor({DateTime? now}) {
+    final expiry = expiresAt;
+    if (expiry == null) return 1.0;
+    final current = now ?? clock?.call() ?? DateTime.now();
+    final created = timestamp;
+    if (!current.isBefore(expiry)) return 0.0;
+    if (!current.isAfter(created)) return 1.0;
+    final total = expiry.difference(created).inMilliseconds;
+    if (total <= 0) return 0.0;
+    final remaining = expiry.difference(current).inMilliseconds;
+    return remaining / total;
+  }
+
   bool get hasMedia => mediaUrl != null && mediaUrl!.isNotEmpty;
 
   SquarePost copyWith({int? likesCount, bool? isLiked}) => SquarePost(
@@ -42,6 +73,8 @@ class SquarePost {
         mediaUrl: mediaUrl,
         likesCount: likesCount ?? this.likesCount,
         isLiked: isLiked ?? this.isLiked,
+        expiresAt: expiresAt,
+        clock: clock,
       );
 
   /// Compact age for the card header: "4m", "3h", "2d".

@@ -102,6 +102,11 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<SquareLocalDatasource>(
     () => DriftSquareLocalDatasource(sl()),
   );
+  // Lazy cleanup of expired ephemeral posts ("fades in 24h"): rows are
+  // purged on app start. Visibility never depends on this — reads
+  // filter expired rows at query time — this only reclaims storage and
+  // drops search-index entries (via the FTS delete trigger).
+  unawaited(_purgeExpiredPosts());
   sl.registerLazySingleton<FeedRepository>(
     () => MockFeedRepository(
       localDatasource: sl(),
@@ -140,6 +145,18 @@ Future<void> configureDependencies() async {
       groupMessageInterval: const Duration(seconds: 18),
     ),
   );
+}
+
+/// One-shot lazy purge of expired ephemeral posts. Fire-and-forget: a
+/// failure here must never block boot (the feed is already correct
+/// without it).
+Future<void> _purgeExpiredPosts() async {
+  try {
+    final db = sl<AppDatabase>();
+    await db.purgeExpiredPosts(DateTime.now());
+  } catch (_) {
+    // Cleanup is best-effort; query-time filters keep reads correct.
+  }
 }
 
 /// Restores persisted preferences into the live controllers. Runs after

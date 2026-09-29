@@ -13,6 +13,7 @@ class Post extends Equatable {
     this.isLiked = false,
     this.likesCount = 0,
     this.deletedAt,
+    this.expiresAt,
   });
 
   final String id;
@@ -30,6 +31,11 @@ class Post extends Equatable {
   /// Soft-delete tombstone (undo window). Non-null = hidden from the
   /// feed, still restorable until the repository purges it.
   final DateTime? deletedAt;
+
+  /// Ephemeral expiry ("fades in 24h"). Non-null = temporary; the feed
+  /// and profile hide the post once [now] passes it, and the row is
+  /// purged lazily. Null = permanent.
+  final DateTime? expiresAt;
   final bool isLiked;
 
   /// Total like count. In the mock stage the transport synthesizes a
@@ -50,6 +56,8 @@ class Post extends Equatable {
     int? likesCount,
     DateTime? deletedAt,
     bool clearDeleted = false,
+    DateTime? expiresAt,
+    bool clearExpiry = false,
   }) {
     return Post(
       id: id ?? this.id,
@@ -61,6 +69,8 @@ class Post extends Equatable {
       isLiked: isLiked ?? this.isLiked,
       likesCount: likesCount ?? this.likesCount,
       deletedAt: clearDeleted ? null : (deletedAt ?? this.deletedAt),
+      // Keep-forever conversion clears the expiry.
+      expiresAt: clearExpiry ? null : (expiresAt ?? this.expiresAt),
     );
   }
 
@@ -74,6 +84,7 @@ class Post extends Equatable {
         blurhash,
         createdAt,
         deletedAt,
+        expiresAt,
         isLiked,
         likesCount,
       ];

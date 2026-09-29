@@ -83,6 +83,10 @@ class _PostComposerState extends State<_PostComposer> {
   final _controller = TextEditingController();
   bool _sending = false;
 
+  /// "Fades in 24h": the post is ephemeral. It disappears from feed and
+  /// profile after a day; a keep-it action on the card makes it stay.
+  bool _ephemeral = false;
+
   /// Picked local media. One attachment per post (the card renders a
   /// single media slot); re-picking replaces it. Stored as an absolute
   /// file path — the mock cache persists the row, and [FeedCard] paints
@@ -146,6 +150,7 @@ class _PostComposerState extends State<_PostComposer> {
       body: _controller.text.trim(),
       authorName: widget.authorName,
       mediaUrl: _media?.path,
+      ephemeral: _ephemeral,
     );
     if (!mounted) return;
 
@@ -240,7 +245,25 @@ class _PostComposerState extends State<_PostComposer> {
                     ),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          // "Fades in 24h": hand-drawn toggle row. The post prints like a
+          // polaroid left in the sun — gone by tomorrow unless kept.
+          Row(
+            children: [
+              const SketchIcon(
+                kind: SketchIconKind.clockTick,
+                size: 20,
+                seed: 71,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Fades in 24h')),
+              Switch.adaptive(
+                value: _ephemeral,
+                onChanged: _sending ? null : (v) => setState(() => _ephemeral = v),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               // Media attachment: photo + video pickers, desktop-friendly

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/settings/app_settings_store.dart';
 import '../../../core/io/platform_io.dart';
 import 'package:go_router/go_router.dart';
 
@@ -329,6 +330,7 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
               Navigator.of(context).push(MaterialPageRoute<void>(
                 builder: (_) => SearchPage(
                   searchRepository: sl<SearchRepository>(),
+                  settingsStore: sl<AppSettingsStore>(),
                 ),
               ));
             },

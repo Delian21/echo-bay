@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
-
-import '../design_system/sketch_kit.dart';
 import 'package:go_router/go_router.dart';
 
 import '../design_system/loading_skeletons.dart';
+import '../design_system/sketch_kit.dart';
 import '../error/failures.dart';
+import '../settings/app_settings_store.dart';
 import '../theme/app_theme.dart';
 import 'search_hit.dart';
 import 'search_repository.dart';
@@ -15,13 +16,20 @@ import 'search_repository.dart';
 /// page queries [SearchRepository] which reads the FTS5 indexes over the
 /// drift cache; no network, no backend.
 ///
-/// Debounced as-you-type search: 250ms quiet period per keystroke, then a
-/// single ranked query. Snippets carry FTS5 `[..]` markers which render
-/// as highlighted spans.
+/// Debounced as-you-type search (250ms quiet period), results grouped by
+/// module (Square / Vault / Hallway boards and dorms), recent searches
+/// persisted in the settings KV, and an empty state in the app's voice.
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key, required this.searchRepository});
+  const SearchPage({
+    super.key,
+    required this.searchRepository,
+    this.settingsStore,
+  });
 
   final SearchRepository searchRepository;
+
+  /// Recents persistence; null disables recents (tests, older callers).
+  final AppSettingsStore? settingsStore;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -36,6 +44,9 @@ class _SearchPageState extends State<SearchPage> {
   List<SearchHit>? _hits;
   Failure? _failure;
   String _lastQuery = '';
+  List<String> _recents = [];
+
+  static const _maxRecents = 5;
 
   @override
   void initState() {
@@ -44,6 +55,43 @@ class _SearchPageState extends State<SearchPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
+    _loadRecents();
+  }
+
+  Future<void> _loadRecents() async {
+    final store = widget.settingsStore;
+    if (store == null) return;
+    final raw = await store.readString(AppSettingsStore.searchRecentsKey);
+    if (!mounted || raw == null) return;
+    try {
+      final list = (jsonDecode(raw) as List<dynamic>).cast<String>();
+      setState(() => _recents = list.take(_maxRecents).toList());
+    } on Object {
+      // Corrupt recents are disposable — start clean.
+    }
+  }
+
+  Future<void> _rememberQuery(String query) async {
+    setState(() {
+      _recents
+        ..remove(query)
+        ..insert(0, query);
+      if (_recents.length > _maxRecents) {
+        _recents = _recents.sublist(0, _maxRecents);
+      }
+    });
+    final store = widget.settingsStore;
+    if (store == null) return;
+    await store.writeString(
+      AppSettingsStore.searchRecentsKey,
+      jsonEncode(_recents),
+    );
+  }
+
+  Future<void> _clearRecents() async {
+    setState(() => _recents = []);
+    await widget.settingsStore
+        ?.deleteKey(AppSettingsStore.searchRecentsKey);
   }
 
   @override
@@ -86,6 +134,11 @@ class _SearchPageState extends State<SearchPage> {
       _failure = result.fold((f) => f, (_) => null);
       _hits = result.fold((_) => null, (h) => h);
     });
+    // A finished search with actual matches becomes a recent entry.
+    final hits = _hits;
+    if (hits != null && hits.isNotEmpty) {
+      await _rememberQuery(query);
+    }
   }
 
   @override
@@ -140,19 +193,41 @@ class _SearchPageState extends State<SearchPage> {
     }
     final hits = _hits;
     if (hits == null) {
-      return const _SearchHint();
+      if (_recents.isEmpty) return const _SearchHint();
+      return _RecentsList(
+        recents: _recents,
+        onSelected: (q) {
+          _controller.text = q;
+          _debounce?.cancel();
+          _runSearch(q);
+        },
+        onClear: _clearRecents,
+      );
     }
     if (hits.isEmpty) {
+      // Empty results in the app's voice — nothing found, warmly said.
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off_rounded,
-                size: 44, color: theme.colorScheme.onSurfaceVariant),
+            const SketchIcon(
+              kind: SketchIconKind.searchGlass,
+              size: 40,
+              seed: 37,
+            ),
             const SizedBox(height: 12),
             Text(
-              'No matches for "$_lastQuery"',
-              style: theme.textTheme.bodyMedium?.copyWith(
+              'Nothing on the boards for "$_lastQuery".',
+              textAlign: TextAlign.center,
+              style: kHandwrittenTextStyle.copyWith(
+                fontSize: 19,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try another word or two.',
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
@@ -160,10 +235,145 @@ class _SearchPageState extends State<SearchPage> {
         ),
       );
     }
+    return _GroupedResults(hits: hits);
+  }
+}
+
+/// Results grouped by module: Square posts, Vault messages, Hallway
+/// board and dorm messages — each section with a handwritten heading.
+class _GroupedResults extends StatelessWidget {
+  const _GroupedResults({required this.hits});
+
+  final List<SearchHit> hits;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = <(String, List<SearchHit>)>[
+      ('SQUARE POSTS',
+          hits.where((h) => h.source == SearchSource.squarePost).toList()),
+      ('VAULT MESSAGES',
+          hits.where((h) => h.source == SearchSource.vaultMessage).toList()),
+      (
+        'HALLWAY',
+        hits
+            .where((h) =>
+                h.source == SearchSource.boardPost ||
+                h.source == SearchSource.groupMessage)
+            .toList()
+      ),
+    ].where((g) => g.$2.isNotEmpty).toList();
+
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: hits.length,
-      itemBuilder: (context, index) => _HitTile(hit: hits[index]),
+      itemCount: groups.fold<int>(0, (sum, g) => sum + g.$2.length + 1),
+      itemBuilder: (context, index) {
+        var cursor = index;
+        for (final (title, rows) in groups) {
+          if (cursor == 0) return _SectionHeading(title: title);
+          cursor--;
+          if (cursor < rows.length) {
+            return _HitTile(
+              hit: rows[cursor],
+              showSourceBadge: title == 'HALLWAY',
+            );
+          }
+          cursor -= rows.length;
+        }
+        throw StateError('index out of grouped range');
+      },
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final golden = GoldenHourExtension.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      child: Text(
+        title,
+        style: golden.enabled
+            ? kHandwrittenTextStyle.copyWith(
+                fontSize: 15,
+                letterSpacing: 1.2,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              )
+            : Theme.of(context).textTheme.labelMedium?.copyWith(
+                  letterSpacing: 1.2,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+      ),
+    );
+  }
+}
+
+/// Recent searches, persisted in the settings KV. Tapping re-runs; the
+/// eraser clears the whole list.
+class _RecentsList extends StatelessWidget {
+  const _RecentsList({
+    required this.recents,
+    required this.onSelected,
+    required this.onClear,
+  });
+
+  final List<String> recents;
+  final ValueChanged<String> onSelected;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'RECENT SEARCHES',
+                      style: kHandwrittenTextStyle.copyWith(
+                        fontSize: 15,
+                        letterSpacing: 1.2,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Clear recent searches',
+                    icon: const SketchIcon(
+                      kind: SketchIconKind.closeX,
+                      size: 18,
+                      seed: 19,
+                    ),
+                    onPressed: onClear,
+                  ),
+                ],
+              ),
+            ),
+            for (final q in recents)
+              ListTile(
+                leading: const SketchIcon(
+                  kind: SketchIconKind.searchGlass,
+                  size: 20,
+                  seed: 37,
+                ),
+                title: Text(q, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => onSelected(q),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -204,9 +414,13 @@ class _SearchHint extends StatelessWidget {
 }
 
 class _HitTile extends StatelessWidget {
-  const _HitTile({required this.hit});
+  const _HitTile({required this.hit, this.showSourceBadge = true});
 
   final SearchHit hit;
+
+  /// In grouped lists the section already names the module, but inside
+  /// the mixed Hallway section boards and dorms still disambiguate.
+  final bool showSourceBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +435,10 @@ class _HitTile extends StatelessWidget {
       SearchSource.vaultMessage => (
           const SketchIcon(kind: SketchIconKind.padlock, size: 18, seed: 21),
           secondary
+        ),
+      SearchSource.boardPost => (
+          const SketchIcon(kind: SketchIconKind.megaphone, size: 18, seed: 27),
+          accent
         ),
       SearchSource.groupMessage => (
           const SketchIcon(kind: SketchIconKind.threeHeads, size: 18, seed: 23),
@@ -252,7 +470,7 @@ class _HitTile extends StatelessWidget {
         ),
       ),
       // Deep link (#8): containerId is the route target (post id for
-      // Square, conversation/group id for chats).
+      // Square, conversation/group/channel id for the rest).
       onTap: () => context.go(routeFor(hit)),
     );
   }
@@ -260,7 +478,8 @@ class _HitTile extends StatelessWidget {
   static String _sourceLabel(SearchSource source) => switch (source) {
         SearchSource.squarePost => 'Square',
         SearchSource.vaultMessage => 'Vault',
-        SearchSource.groupMessage => 'Hallway',
+        SearchSource.boardPost => 'Board',
+        SearchSource.groupMessage => 'Dorm',
       };
 
   /// Route for the hit's container (#8). Square posts land on the feed
@@ -269,6 +488,7 @@ class _HitTile extends StatelessWidget {
   static String routeFor(SearchHit hit) => switch (hit.source) {
         SearchSource.squarePost => '/square',
         SearchSource.vaultMessage => '/vault/conversation/${hit.containerId}',
+        SearchSource.boardPost => '/nexus',
         SearchSource.groupMessage => '/nexus/group/${hit.containerId}',
       };
 }

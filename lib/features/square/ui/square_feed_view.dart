@@ -5,7 +5,10 @@ import 'package:fpdart/fpdart.dart' hide State;
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
+import '../../../core/auth/auth_repository.dart';
+import '../../../core/auth/session.dart';
 import '../../../core/error/failures.dart';
+import '../../../injection.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/entities/post.dart';
 import '../domain/repositories/feed_repository.dart';
@@ -26,6 +29,22 @@ class SquareFeedView extends StatefulWidget {
 
   final FeedRepository repository;
 
+  /// Author id the keep-it action belongs to. Resolved from the auth
+  /// seam when available; tests constructing the view without DI fall
+  /// back to the mock's conventional id.
+  static Future<String> resolveLocalUserId() async {
+    try {
+      final session = await sl<AuthRepository>().currentUser();
+      final id = session.fold(
+        (_) => 'local-user',
+        (Session s) => s.userId,
+      );
+      return id;
+    } on Object catch (_) {
+      return 'local-user';
+    }
+  }
+
   @override
   State<SquareFeedView> createState() => _SquareFeedViewState();
 }
@@ -44,11 +63,18 @@ class _SquareFeedViewState extends State<SquareFeedView> {
   /// Index of the keyboard-focused card; -1 means nothing focused yet.
   int _focusedIndex = -1;
 
+  /// The local user's id — gates the keep-it action to the author's own
+  /// ephemeral posts. Resolved once from the auth seam.
+  String _localUserId = 'local-user';
+
   final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    SquareFeedView.resolveLocalUserId().then((id) {
+      if (mounted) setState(() => _localUserId = id);
+    });
     _stream = widget.repository.watchFeed().map(
           (either) => _FeedSnapshot(posts: either.fold((f) => null, (l) => l), failure: either.fold((f) => f, (_) => null)),
         );
@@ -71,6 +97,23 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(failure.message ?? 'Like failed')),
+      ),
+      (_) {},
+    );
+  }
+
+  /// "Keep it": converts an ephemeral post to permanent. Only offered
+  /// on the local user's own ephemeral posts (the button is null
+  /// otherwise). The stream re-emits; the timer strip disappears.
+  Future<void> _keepPost(Post post) async {
+    final result = await widget.repository.keepPost(postId: post.id);
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ?? 'Could not keep it'),
+          behavior: SnackBarBehavior.floating,
+        ),
       ),
       (_) {},
     );
@@ -299,6 +342,10 @@ class _SquareFeedViewState extends State<SquareFeedView> {
               onLike: () => _toggleLike(_posts[postIndex]),
               onDelete: () => _deletePost(_posts[postIndex]),
               onShare: () => sharePostAsImage(context, _posts[postIndex]),
+              onKeep: _posts[postIndex].authorId == _localUserId &&
+                      _posts[postIndex].expiresAt != null
+                  ? () => _keepPost(_posts[postIndex])
+                  : null,
             ),
           ),
         );
@@ -321,6 +368,7 @@ class _SquareFeedViewState extends State<SquareFeedView> {
         blurhash: p.blurhash,
         likesCount: p.likesCount,
         isLiked: p.isLiked,
+        expiresAt: p.expiresAt,
       );
 }
 
@@ -413,6 +461,7 @@ class SquareDayViewPage extends StatelessWidget {
                           blurhash: p.blurhash,
                           likesCount: p.likesCount,
                           isLiked: p.isLiked,
+                          expiresAt: p.expiresAt,
                         ),
                         onLike: () {},
                         onShare: () => sharePostAsImage(context, p),

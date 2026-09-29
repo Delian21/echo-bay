@@ -19,6 +19,7 @@ extension PostRowMapper on PostRow {
         blurhash: blurhash,
         createdAt: createdAt,
         deletedAt: deletedAt,
+        expiresAt: expiresAt,
         isLiked: isLiked,
         likesCount: likesCount,
       );
@@ -27,6 +28,9 @@ extension PostRowMapper on PostRow {
 /// Local cache access for the Square. One-shot and stream reads over the
 /// drift tables; writes happen only through repositories.
 abstract class SquareLocalDatasource {
+  /// Injectable clock for expiry checks — tests pass a fixed [DateTime]
+  /// factory so boundary behaviour is deterministic.
+  DateTime Function() get clock;
   /// Feed, newest first, with like flags and like counts.
   Stream<List<Post>> watchFeed();
 
@@ -56,6 +60,10 @@ abstract class SquareLocalDatasource {
   /// Clears the tombstone — the undo path.
   Future<void> restorePost(String postId);
 
+  /// "Keep it": converts an ephemeral post to permanent by clearing
+  /// [Post.expiresAt]. Null-safe (permanent posts are untouched).
+  Future<void> keepPost(String postId);
+
   /// Hard-deletes the post (and its likes). Called by the repository
   /// once the undo window has closed.
   Future<void> purgePost(String postId);
@@ -66,9 +74,24 @@ abstract class SquareLocalDatasource {
 }
 
 class DriftSquareLocalDatasource implements SquareLocalDatasource {
-  DriftSquareLocalDatasource(this._db);
+  DriftSquareLocalDatasource(this._db, {DateTime Function()? clock})
+      : clock = clock ?? DateTime.now;
 
   final AppDatabase _db;
+
+  @override
+  final DateTime Function() clock;
+
+  /// Expiry visibility clause: ephemeral posts survive only while
+  /// [expiresAt] is in the future. Applied at query time on every read
+  /// path so correctness never depends on the lazy purge.
+  Expression<bool> get _notExpiredExpr =>
+      _db.posts.expiresAt.isNull() |
+      _db.posts.expiresAt.isBiggerThanValue(clock());
+
+  /// One-shot expired purge used by app-start cleanup; visible here so
+  /// the repository can orchestrate without reaching into the db.
+  Future<int> purgeExpired() => _db.purgeExpiredPosts(clock());
 
   @override
   Stream<List<Post>> watchFeed() {
@@ -78,7 +101,8 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     ])
       // Soft-deleted posts are invisible everywhere in the feed; the row
       // itself survives for the undo window (see deletePost/restorePost).
-      ..where(_db.posts.deletedAt.isNull())
+      // Expired ephemeral posts are filtered at query time (clock-seamed).
+      ..where(_db.posts.deletedAt.isNull() & _notExpiredExpr)
       ..orderBy([
         OrderingTerm(
           expression: _db.posts.createdAt,
@@ -128,7 +152,8 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
       leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
     ])
       ..where(_db.posts.deletedAt.isNull() &
-          _db.posts.createdAt.isBetweenValues(start, end))
+          _db.posts.createdAt.isBetweenValues(start, end) &
+          _notExpiredExpr)
       ..orderBy([
         OrderingTerm(
           expression: _db.posts.createdAt,
@@ -164,7 +189,8 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
       leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
     ])
       ..where(_db.posts.deletedAt.isNull() &
-          _db.posts.authorName.equals(authorName))
+          _db.posts.authorName.equals(authorName) &
+          _notExpiredExpr)
       ..orderBy([
         OrderingTerm(
           expression: _db.posts.createdAt,
@@ -239,6 +265,12 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   Future<void> restorePost(String postId) async {
     await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
         .write(const PostsCompanion(deletedAt: Value(null)));
+  }
+
+  @override
+  Future<void> keepPost(String postId) async {
+    await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
+        .write(const PostsCompanion(expiresAt: Value(null)));
   }
 
   @override

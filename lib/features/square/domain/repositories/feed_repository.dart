@@ -15,14 +15,18 @@ abstract class FeedRepository {
   /// push new posts into the cache; offline it returns [NetworkFailure].
   Future<Either<Failure, Unit>> refreshFeed();
 
-  /// Create a post locally and "publish" it. Mock stage: lands in cache,
+  /// Create a post locally and "publish it". Mock stage: lands in cache,
   /// marked as published. Real stage: outbox + server round-trip.
   /// [authorName] carries the profile display name; defaults preserve the
   /// pre-profile 'You' label for callers that do not pass it.
+  /// [ephemeral] opts the post into "fades in 24h": it disappears from
+  /// feed and profile after [ephemeralLifetime] and can be made permanent
+  /// with [keepPost] before that.
   Future<Either<Failure, Post>> createPost({
     required String body,
     String? mediaUrl,
     String authorName = 'You',
+    bool ephemeral = false,
   });
 
   /// Toggle like on a post; persists to the local like table.
@@ -41,4 +45,12 @@ abstract class FeedRepository {
   /// Posts created on [day] (local midnight to midnight) — the journal
   /// day-view behind the clickable date in the feed header.
   Future<Either<Failure, List<Post>>> postsOnDay(DateTime day);
+
+  /// Lifetime of an ephemeral ("fades in 24h") post.
+  static const ephemeralLifetime = Duration(hours: 24);
+
+  /// "Keep it": converts one of the local user's own ephemeral posts to
+  /// permanent by clearing its expiry. Returns failure when the post
+  /// does not exist or is not the caller's.
+  Future<Either<Failure, Unit>> keepPost({required String postId});
 }

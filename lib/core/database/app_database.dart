@@ -30,6 +30,12 @@ class Posts extends Table {
   /// after the window closes.
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
+  /// Ephemeral expiry ("fades in 24h"): non-null means the post is
+  /// temporary. Visibility is filtered AT QUERY TIME (expiresAt > now),
+  /// so correctness never depends on a background job; the row itself
+  /// is purged lazily on app start. Null = keeps forever.
+  DateTimeColumn get expiresAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -367,18 +373,27 @@ class Settings extends Table {
   Settings,
 ])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  /// Injectable clock for query-time expiry checks (search, purge).
+  /// Production uses wall time; tests pin a fixed instant.
+  AppDatabase({DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now,
+        super(_openConnection());
 
   /// In-memory instance for tests. Wraps the executor in a
   /// [DatabaseConnection] with `closeStreamsSynchronously: true` — drift
   /// keeps stream-key cleanup one event-loop tick after the last listener
   /// detaches, which trips flutter_test's pending-timer invariant. Drift
   /// documents this exact flag for such test setups.
-  AppDatabase.forTesting(QueryExecutor e)
-      : super(DatabaseConnection(e, closeStreamsSynchronously: true));
+  AppDatabase.forTesting(QueryExecutor e, {DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now,
+        super(DatabaseConnection(e, closeStreamsSynchronously: true));
+
+  final DateTime Function() _clock;
+
+  DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 12;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -446,6 +461,11 @@ class AppDatabase extends _$AppDatabase {
           ftsTable: 'group_messages_fts',
           contentTable: 'group_messages',
           columns: 'id, body',
+        ),
+        ..._ftsStatements(
+          ftsTable: 'channel_posts_fts',
+          contentTable: 'channel_posts',
+          columns: 'id, body, author_name',
         ),
       ];
 
@@ -587,8 +607,45 @@ class AppDatabase extends _$AppDatabase {
               'group_messages', 'attachment_duration_ms', 'INTEGER NULL',
             );
           }
+          // v10 -> v11: ephemeral posts ("fades in 24h"). Visibility is
+          // a query-time filter on the new column; the purge is lazy.
+          if (from < 11) {
+            await addColumnIfMissing('posts', 'expires_at', 'INTEGER NULL');
+          }
+          // v11 -> v12: Hallway board posts join the search index (the
+          // dorm groups were indexed since v5; the boards were missed).
+          // Idempotent DDL + backfill, same as the v5 pattern.
+          if (from < 12) {
+            for (final stmt in _ftsSchema) {
+              await customStatement(stmt);
+            }
+            await customStatement(_ftsBackfill(
+              ftsTable: 'channel_posts_fts',
+              contentTable: 'channel_posts',
+              columns: 'id, body, author_name',
+            ));
+          }
         },
       );
+
+  /// Hard-deletes expired ephemeral posts and their likes. Lazy cleanup
+  /// for the "fades in 24h" feature: rows survive until this runs (app
+  /// start), but visibility never depends on it — every read filters
+  /// expired rows at query time. The posts_fts AFTER DELETE trigger
+  /// keeps the search index in sync automatically. Returns rows purged.
+  Future<int> purgeExpiredPosts(DateTime now) async {
+    Expression<bool> expiredExpr(DateTime t) =>
+        posts.expiresAt.isNotNull() & posts.expiresAt.isSmallerOrEqualValue(t);
+    final expired =
+        await (select(posts)..where((tbl) => expiredExpr(now)))
+            .map((r) => r.id)
+            .get();
+    if (expired.isEmpty) return 0;
+    final deleted = await (delete(posts)..where((tbl) => expiredExpr(now))).go();
+    await (delete(postLikes)..where((tbl) => tbl.postId.isIn(expired))).go();
+    return deleted;
+  }
+
 
   /// Sanitized FTS5 MATCH term: strips syntax characters so user input
   /// cannot break (or widen) the query, then quote-wraps each word as an
@@ -613,20 +670,21 @@ class AppDatabase extends _$AppDatabase {
     Future<List<FtsHitRow>> searchOne(
       String ftsTable,
       String source, {
-      List<String> extra = const [],
+      String extraWhere = '',
+      List<Variable> extraVars = const [],
     }) async {
       final selectCols = <String>[
         "'$source' AS source",
         'id',
         "snippet($ftsTable, 1, '[..]', '[..]', '…', 12) AS snippet_text",
         'bm25($ftsTable) AS rank_value',
-        ...extra,
       ];
+      final variables = <Variable>[Variable(term), ...extraVars, Variable(limit)];
       final rows = await customSelect(
         'SELECT ${selectCols.join(', ')} '
-        'FROM $ftsTable WHERE $ftsTable MATCH ? '
+        'FROM $ftsTable WHERE $ftsTable MATCH ? $extraWhere '
         'ORDER BY rank_value LIMIT ?',
-        variables: [Variable(term), Variable(limit)],
+        variables: variables,
         readsFrom: {},
       ).get();
       return rows
@@ -639,10 +697,23 @@ class AppDatabase extends _$AppDatabase {
           .toList();
     }
 
+    // Expiry is a query-time filter: expired ephemeral posts must not
+    // surface in search even before the lazy purge runs. The NOT EXISTS
+    // subquery re-checks the content table at search time.
+    const notExpiredPosts =
+        'AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = posts_fts.id '
+        'AND p.expires_at IS NOT NULL AND p.expires_at <= ?)';
+
     final results = <FtsHitRow>[];
-    results.addAll(await searchOne('posts_fts', 'square_post'));
+    results.addAll(await searchOne(
+      'posts_fts',
+      'square_post',
+      extraWhere: notExpiredPosts,
+      extraVars: [Variable(clock())],
+    ));
     results.addAll(await searchOne('messages_fts', 'vault_message'));
     results.addAll(await searchOne('group_messages_fts', 'group_message'));
+    results.addAll(await searchOne('channel_posts_fts', 'board_post'));
     results.sort((a, b) => a.rank.compareTo(b.rank));
     return results.take(limit).toList();
   }

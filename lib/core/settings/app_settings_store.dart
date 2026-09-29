@@ -17,6 +17,9 @@ class AppSettingsStore {
   static const _profileAvatarKey = 'profile_avatar';
   static const _profileAccentKey = 'profile_accent';
 
+  /// Recent search queries, stored as a JSON array (search page).
+  static const searchRecentsKey = 'search_recents';
+
   /// Reads the persisted theme mode; null when never set (or an unknown
   /// value — stale installs keep working instead of crashing).
   Future<ThemeMode?> readThemeMode() async {
@@ -95,6 +98,20 @@ class AppSettingsStore {
     await _write(
         _profileAccentKey,
         '#${profile.accentColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}');
+  }
+
+  /// Generic typed KV reads/writes for feature keys (search recents).
+  /// Same advisory-failure posture as the rest of the store.
+  Future<String?> readString(String key) => _read(key);
+
+  Future<void> writeString(String key, String value) => _write(key, value);
+
+  Future<void> deleteKey(String key) async {
+    try {
+      await (_db.delete(_db.settings)..where((s) => s.key.equals(key))).go();
+    } on Object {
+      // Advisory; ignore.
+    }
   }
 
   Future<String?> _read(String key) async {

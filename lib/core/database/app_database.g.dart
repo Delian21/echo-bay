@@ -54,6 +54,12 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
   late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
       'deleted_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _expiresAtMeta =
+      const VerificationMeta('expiresAt');
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+      'expires_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -63,7 +69,8 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
         mediaUrl,
         blurhash,
         createdAt,
-        deletedAt
+        deletedAt,
+        expiresAt
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -118,6 +125,10 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
       context.handle(_deletedAtMeta,
           deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
     }
+    if (data.containsKey('expires_at')) {
+      context.handle(_expiresAtMeta,
+          expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta));
+    }
     return context;
   }
 
@@ -143,6 +154,8 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       deletedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
+      expiresAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}expires_at']),
     );
   }
 
@@ -169,6 +182,12 @@ class PostRow extends DataClass implements Insertable<PostRow> {
   /// hidden from the feed but still restorable. Purged by the repository
   /// after the window closes.
   final DateTime? deletedAt;
+
+  /// Ephemeral expiry ("fades in 24h"): non-null means the post is
+  /// temporary. Visibility is filtered AT QUERY TIME (expiresAt > now),
+  /// so correctness never depends on a background job; the row itself
+  /// is purged lazily on app start. Null = keeps forever.
+  final DateTime? expiresAt;
   const PostRow(
       {required this.id,
       required this.authorId,
@@ -177,7 +196,8 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       this.mediaUrl,
       this.blurhash,
       required this.createdAt,
-      this.deletedAt});
+      this.deletedAt,
+      this.expiresAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -194,6 +214,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<DateTime>(expiresAt);
     }
     return map;
   }
@@ -214,6 +237,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
     );
   }
 
@@ -229,6 +255,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       blurhash: serializer.fromJson<String?>(json['blurhash']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
     );
   }
   @override
@@ -243,6 +270,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       'blurhash': serializer.toJson<String?>(blurhash),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'expiresAt': serializer.toJson<DateTime?>(expiresAt),
     };
   }
 
@@ -254,7 +282,8 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           Value<String?> mediaUrl = const Value.absent(),
           Value<String?> blurhash = const Value.absent(),
           DateTime? createdAt,
-          Value<DateTime?> deletedAt = const Value.absent()}) =>
+          Value<DateTime?> deletedAt = const Value.absent(),
+          Value<DateTime?> expiresAt = const Value.absent()}) =>
       PostRow(
         id: id ?? this.id,
         authorId: authorId ?? this.authorId,
@@ -264,6 +293,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
         blurhash: blurhash.present ? blurhash.value : this.blurhash,
         createdAt: createdAt ?? this.createdAt,
         deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+        expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
       );
   PostRow copyWithCompanion(PostsCompanion data) {
     return PostRow(
@@ -276,6 +306,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       blurhash: data.blurhash.present ? data.blurhash.value : this.blurhash,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
     );
   }
 
@@ -289,14 +320,15 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           ..write('mediaUrl: $mediaUrl, ')
           ..write('blurhash: $blurhash, ')
           ..write('createdAt: $createdAt, ')
-          ..write('deletedAt: $deletedAt')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, authorId, authorName, body, mediaUrl, blurhash, createdAt, deletedAt);
+  int get hashCode => Object.hash(id, authorId, authorName, body, mediaUrl,
+      blurhash, createdAt, deletedAt, expiresAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -308,7 +340,8 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           other.mediaUrl == this.mediaUrl &&
           other.blurhash == this.blurhash &&
           other.createdAt == this.createdAt &&
-          other.deletedAt == this.deletedAt);
+          other.deletedAt == this.deletedAt &&
+          other.expiresAt == this.expiresAt);
 }
 
 class PostsCompanion extends UpdateCompanion<PostRow> {
@@ -320,6 +353,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
   final Value<String?> blurhash;
   final Value<DateTime> createdAt;
   final Value<DateTime?> deletedAt;
+  final Value<DateTime?> expiresAt;
   final Value<int> rowid;
   const PostsCompanion({
     this.id = const Value.absent(),
@@ -330,6 +364,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.blurhash = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PostsCompanion.insert({
@@ -341,6 +376,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.blurhash = const Value.absent(),
     required DateTime createdAt,
     this.deletedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         authorId = Value(authorId),
@@ -356,6 +392,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     Expression<String>? blurhash,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? deletedAt,
+    Expression<DateTime>? expiresAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -367,6 +404,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       if (blurhash != null) 'blurhash': blurhash,
       if (createdAt != null) 'created_at': createdAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -380,6 +418,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       Value<String?>? blurhash,
       Value<DateTime>? createdAt,
       Value<DateTime?>? deletedAt,
+      Value<DateTime?>? expiresAt,
       Value<int>? rowid}) {
     return PostsCompanion(
       id: id ?? this.id,
@@ -390,6 +429,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       blurhash: blurhash ?? this.blurhash,
       createdAt: createdAt ?? this.createdAt,
       deletedAt: deletedAt ?? this.deletedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -421,6 +461,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -438,6 +481,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
           ..write('blurhash: $blurhash, ')
           ..write('createdAt: $createdAt, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('expiresAt: $expiresAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5286,6 +5330,7 @@ typedef $$PostsTableCreateCompanionBuilder = PostsCompanion Function({
   Value<String?> blurhash,
   required DateTime createdAt,
   Value<DateTime?> deletedAt,
+  Value<DateTime?> expiresAt,
   Value<int> rowid,
 });
 typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
@@ -5297,6 +5342,7 @@ typedef $$PostsTableUpdateCompanionBuilder = PostsCompanion Function({
   Value<String?> blurhash,
   Value<DateTime> createdAt,
   Value<DateTime?> deletedAt,
+  Value<DateTime?> expiresAt,
   Value<int> rowid,
 });
 
@@ -5331,6 +5377,9 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
       column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+      column: $table.expiresAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$PostsTableOrderingComposer
@@ -5365,6 +5414,9 @@ class $$PostsTableOrderingComposer
 
   ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
       column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+      column: $table.expiresAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PostsTableAnnotationComposer
@@ -5399,6 +5451,9 @@ class $$PostsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
 class $$PostsTableTableManager extends RootTableManager<
@@ -5432,6 +5487,7 @@ class $$PostsTableTableManager extends RootTableManager<
             Value<String?> blurhash = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime?> deletedAt = const Value.absent(),
+            Value<DateTime?> expiresAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PostsCompanion(
@@ -5443,6 +5499,7 @@ class $$PostsTableTableManager extends RootTableManager<
             blurhash: blurhash,
             createdAt: createdAt,
             deletedAt: deletedAt,
+            expiresAt: expiresAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -5454,6 +5511,7 @@ class $$PostsTableTableManager extends RootTableManager<
             Value<String?> blurhash = const Value.absent(),
             required DateTime createdAt,
             Value<DateTime?> deletedAt = const Value.absent(),
+            Value<DateTime?> expiresAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PostsCompanion.insert(
@@ -5465,14 +5523,11 @@ class $$PostsTableTableManager extends RootTableManager<
             blurhash: blurhash,
             createdAt: createdAt,
             deletedAt: deletedAt,
+            expiresAt: expiresAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$PostsTable, PostRow>(table),
-                    BaseReferences<_$AppDatabase, $PostsTable, PostRow>(
-                        db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -5607,11 +5662,7 @@ class $$PostLikesTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$PostLikesTable, PostLikeRow>(table),
-                    BaseReferences<_$AppDatabase, $PostLikesTable, PostLikeRow>(
-                        db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -5770,11 +5821,7 @@ class $$ConversationsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$ConversationsTable, ConversationRow>(table),
-                    BaseReferences<_$AppDatabase, $ConversationsTable,
-                        ConversationRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -6058,11 +6105,7 @@ class $$MessagesTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$MessagesTable, MessageRow>(table),
-                    BaseReferences<_$AppDatabase, $MessagesTable, MessageRow>(
-                        db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -6217,11 +6260,7 @@ class $$NexusChannelsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$NexusChannelsTable, NexusChannelRow>(table),
-                    BaseReferences<_$AppDatabase, $NexusChannelsTable,
-                        NexusChannelRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -6424,11 +6463,7 @@ class $$ChannelPostsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$ChannelPostsTable, ChannelPostRow>(table),
-                    BaseReferences<_$AppDatabase, $ChannelPostsTable,
-                        ChannelPostRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -6588,11 +6623,7 @@ class $$NexusGroupsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$NexusGroupsTable, NexusGroupRow>(table),
-                    BaseReferences<_$AppDatabase, $NexusGroupsTable,
-                        NexusGroupRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -6879,11 +6910,7 @@ class $$GroupMessagesTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$GroupMessagesTable, GroupMessageRow>(table),
-                    BaseReferences<_$AppDatabase, $GroupMessagesTable,
-                        GroupMessageRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7061,11 +7088,7 @@ class $$MemberRolesTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$MemberRolesTable, MemberRoleRow>(table),
-                    BaseReferences<_$AppDatabase, $MemberRolesTable,
-                        MemberRoleRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7273,12 +7296,7 @@ class $$MessageReactionsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$MessageReactionsTable, MessageReactionRow>(
-                        table),
-                    BaseReferences<_$AppDatabase, $MessageReactionsTable,
-                        MessageReactionRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7440,11 +7458,7 @@ class $$ReadCursorsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$ReadCursorsTable, ReadCursorRow>(table),
-                    BaseReferences<_$AppDatabase, $ReadCursorsTable,
-                        ReadCursorRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7613,11 +7627,7 @@ class $$PromptsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$PromptsTable, PromptRow>(table),
-                    BaseReferences<_$AppDatabase, $PromptsTable, PromptRow>(
-                        db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7772,11 +7782,7 @@ class $$PromptPrefsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$PromptPrefsTable, PromptPrefsRow>(table),
-                    BaseReferences<_$AppDatabase, $PromptPrefsTable,
-                        PromptPrefsRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -7934,11 +7940,7 @@ class $$PromptActionsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$PromptActionsTable, PromptActionRow>(table),
-                    BaseReferences<_$AppDatabase, $PromptActionsTable,
-                        PromptActionRow>(db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -8061,11 +8063,7 @@ class $$SettingsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable<$SettingsTable, SettingRow>(table),
-                    BaseReferences<_$AppDatabase, $SettingsTable, SettingRow>(
-                        db, table, e)
-                  ))
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
         ));

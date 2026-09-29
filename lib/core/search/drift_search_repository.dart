@@ -34,6 +34,14 @@ class DriftSearchRepository implements SearchRepository {
                   ..where((t) => t.id.equals(r.id)))
                 .getSingleOrNull();
             if (post == null) continue;
+            // Tombstoned (delete-for-everyone) posts must not surface;
+            // the FTS trigger only re-indexes on UPDATE, so a row that
+            // vanished between indexing and now is also skipped here.
+            if (post.deletedAt != null) continue;
+            if (post.expiresAt != null &&
+                !post.expiresAt!.isAfter(_db.clock())) {
+              continue; // belt-and-braces: query-time filter missed it
+            }
             hits.add(SearchHit(
               source: SearchSource.squarePost,
               id: r.id,
@@ -43,11 +51,34 @@ class DriftSearchRepository implements SearchRepository {
               rank: r.rank,
               timestamp: post.createdAt,
             ));
+          case 'board_post':
+            final boardPost = await (_db.select(_db.channelPosts)
+                  ..where((t) => t.id.equals(r.id)))
+                .getSingleOrNull();
+            if (boardPost == null) continue;
+            if (boardPost.expiresAt != null &&
+                !boardPost.expiresAt!.isAfter(_db.clock())) {
+              continue;
+            }
+            final channel = await (_db.select(_db.nexusChannels)
+                  ..where((t) => t.id.equals(boardPost.channelId)))
+                .getSingleOrNull();
+            hits.add(SearchHit(
+              source: SearchSource.boardPost,
+              id: boardPost.id,
+              containerId: boardPost.channelId,
+              containerTitle: channel?.title ?? 'Board',
+              snippet: r.snippet,
+              rank: r.rank,
+              timestamp: boardPost.createdAt,
+            ));
           case 'vault_message':
             final msg = await (_db.select(_db.messages)
                   ..where((t) => t.id.equals(r.id)))
                 .getSingleOrNull();
             if (msg == null) continue;
+            // Delete-for-everyone tombstones never surface in search.
+            if (msg.deletedAt != null) continue;
             final conv = await (_db.select(_db.conversations)
                   ..where((t) => t.id.equals(msg.conversationId)))
                 .getSingleOrNull();
@@ -65,6 +96,7 @@ class DriftSearchRepository implements SearchRepository {
                   ..where((t) => t.id.equals(r.id)))
                 .getSingleOrNull();
             if (msg == null) continue;
+            if (msg.deletedAt != null) continue;
             final group = await (_db.select(_db.nexusGroups)
                   ..where((t) => t.id.equals(msg.groupId)))
                 .getSingleOrNull();

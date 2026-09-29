@@ -123,6 +123,7 @@ class MockFeedRepository implements FeedRepository {
     required String body,
     String? mediaUrl,
     String authorName = 'You',
+    bool ephemeral = false,
   }) async {
     try {
       final post = Post(
@@ -132,6 +133,9 @@ class MockFeedRepository implements FeedRepository {
         body: body,
         mediaUrl: mediaUrl,
         createdAt: DateTime.now(),
+        expiresAt: ephemeral
+            ? DateTime.now().add(FeedRepository.ephemeralLifetime)
+            : null,
       );
       await _local.insertPost(PostsCompanion.insert(
         id: post.id,
@@ -143,10 +147,28 @@ class MockFeedRepository implements FeedRepository {
             ? null
             : _blurhashFor(post.mediaUrl!)),
         createdAt: post.createdAt,
+        expiresAt: Value(post.expiresAt),
       ));
       return right(post);
     } catch (e) {
       return left(CacheFailure(message: 'createPost failed', cause: e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> keepPost({required String postId}) async {
+    try {
+      final existing = await _local.findPost(postId);
+      if (existing == null) {
+        return left(const NotFoundFailure(message: 'post not found'));
+      }
+      if (existing.authorId != localUserId) {
+        return left(const NotFoundFailure(message: 'not your post'));
+      }
+      await _local.keepPost(postId);
+      return right(unit);
+    } catch (e) {
+      return left(CacheFailure(message: 'keepPost failed', cause: e));
     }
   }
 

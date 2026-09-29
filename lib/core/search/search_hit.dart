@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Which index a search hit came from. Mirrors the three FTS5 tables.
-enum SearchSource { squarePost, vaultMessage, groupMessage }
+/// Which index a search hit came from. Mirrors the FTS5 tables.
+enum SearchSource { squarePost, vaultMessage, groupMessage, boardPost }
 
 /// One local search result. The snippet carries FTS5's `[..]` highlight
 /// markers around the matched terms; the UI renders them (or strips

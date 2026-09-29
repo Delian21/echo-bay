@@ -30,6 +30,7 @@ class SquareFeedCard extends StatelessWidget {
     this.onComment,
     this.onShare,
     this.onDelete,
+    this.onKeep,
   });
 
   final SquarePost post;
@@ -40,6 +41,10 @@ class SquareFeedCard extends StatelessWidget {
   /// Delete own post; null hides the affordance. Played through the
   /// rewind effect — removing a post is the purest "undo a moment".
   final VoidCallback? onDelete;
+
+  /// "Keep it": converts an ephemeral post to permanent; null hides
+  /// the affordance (only the author's own ephemeral posts offer it).
+  final VoidCallback? onKeep;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +82,7 @@ class SquareFeedCard extends StatelessWidget {
                 onLike: onLike,
                 onComment: onComment,
                 onShare: onShare,
+                onKeep: onKeep,
               ),
             ],
           ),
@@ -101,6 +107,15 @@ class SquareFeedCard extends StatelessWidget {
     if (!golden.enabled) {
       return content;
     }
+
+    // Ephemeral posts fade like a print left in the sun: full ink for
+    // the first half of their life, then the polaroid washes out toward
+    // expiry (floor of 0.2 — a ghost, not an invisible post; the row
+    // vanishes entirely once the clock passes the expiry, query-side).
+    final fade = post.fadeFactor();
+    final opacity = post.expiresAt == null
+        ? 1.0
+        : (0.2 + 2.0 * fade).clamp(0.2, 1.0);
 
     // Golden Hour: the card body rides inside a polaroid — warm paper
     // frame, thicker bottom lip, soft print shadow, and a slight
@@ -131,8 +146,11 @@ class SquareFeedCard extends StatelessWidget {
             color: SketchInk.of(context),
             fill: golden.polaroidPaper,
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
-            child: RewindScope(
-              child: body,
+            child: Opacity(
+              opacity: opacity,
+              child: RewindScope(
+                child: body,
+              ),
             ),
           ),
         ),
@@ -721,12 +739,16 @@ class _CardFooter extends StatefulWidget {
     required this.onLike,
     this.onComment,
     this.onShare,
+    this.onKeep,
   });
 
   final SquarePost post;
   final VoidCallback onLike;
   final VoidCallback? onComment;
   final VoidCallback? onShare;
+
+  /// "Keep it" — makes an ephemeral post permanent. Null hides it.
+  final VoidCallback? onKeep;
 
   @override
   State<_CardFooter> createState() => _CardFooterState();
@@ -884,6 +906,51 @@ class _CardFooterState extends State<_CardFooter> {
                 ),
             ],
           ),
+          if (post.expiresAt != null) ...[
+            const SizedBox(height: 4),
+            // Hand-drawn timer strip: a clock-tick mark and a written
+            // verdict. Keeps fading copy in the app's voice.
+            Row(
+              children: [
+                const SketchIcon(
+                  kind: SketchIconKind.clockTick,
+                  size: 16,
+                  seed: 71,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    post.isExpired
+                        ? 'Its time is up — it fades away.'
+                        : 'Fades in ${_timeLeft(post)}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+                if (widget.onKeep != null)
+                  Tooltip(
+                    message: 'Keep it — this one stays',
+                    child: InkWell(
+                      onTap: widget.onKeep,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        child: Text(
+                          'keep it',
+                          style: kHandwrittenTextStyle.copyWith(
+                            fontSize: 15,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -901,6 +968,17 @@ class _CardFooterState extends State<_CardFooter> {
       ),
     );
   }
+}
+
+/// Compact time-left for the ephemeral strip: "38m", "19h".
+String _timeLeft(SquarePost post) {
+  final expiry = post.expiresAt!;
+  final delta = expiry
+      .difference(post.clock?.call() ?? DateTime.now());
+  if (delta.isNegative) return '0m';
+  if (delta.inMinutes < 60) return '${delta.inMinutes}m';
+  if (delta.inHours < 24) return '${delta.inHours}h';
+  return '${delta.inDays}d';
 }
 
 /// Caption spans with #hashtags and @mentions highlighted. Dark-mode
