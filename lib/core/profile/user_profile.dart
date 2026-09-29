@@ -9,7 +9,7 @@ class UserProfile {
     this.displayName = 'You',
     this.bio,
     this.avatarPath,
-    this.accentColor = const Color(0xFF2C5FDB),
+    this.accentColor = const Color(0xFFD98324),
   });
 
   final String displayName;
@@ -72,8 +72,8 @@ class UserProfile {
 /// choice reads as part of the same notebook rather than a free-for-all
 /// colour wheel. The first entry is the app's shipped default.
 const kAccentPalette = <Color>[
-  Color(0xFF2C5FDB), // fountain-pen cobalt (default)
-  Color(0xFFD98324), // golden-hour amber
+  Color(0xFFD98324), // golden-hour amber (default — the sketchbook's own ink)
+  Color(0xFF2C5FDB), // fountain-pen cobalt
   Color(0xFFC2542E), // terracotta pencil
   Color(0xFF1E7D4F), // moss marker
   Color(0xFF6B4A2B), // iron-gall sepia

@@ -35,6 +35,14 @@ NexusModuleView _nexusWith({String? deepLinkGroupId}) => NexusModuleView(
 
 final appRouter = GoRouter(
   initialLocation: AppRoutes.home,
+  // The browser's swipe-back gesture (edge swipe on mobile browsers) is
+  // a history navigation: on the root route there is nothing behind it,
+  // so the swipe exits the site entirely. Most shell navigation is
+  // module switching inside one route (no history entries), so this
+  // mostly bites right after opening the composer deep link. go_router
+  // cannot intercept the browser gesture itself; the mitigation is that
+  // in-app pushes are rare (see the FAB fix) and the transition
+  // vocabulary is vertical, which does not invite horizontal swipes.
   routes: [
     GoRoute(
       path: AppRoutes.home,

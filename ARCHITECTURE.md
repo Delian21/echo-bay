@@ -411,8 +411,9 @@ builders remain for A/B comparison. Handwritten display voice: Caveat
 `kHandwrittenTextStyle`; body text stays Roboto.
 
 **User accent palette.** `kAccentPalette` (user_profile.dart) is the six
-ink pots the profile editor offers: fountain-pen cobalt (default),
-golden-hour amber, terracotta pencil, moss marker, iron-gall sepia
+ink pots the profile editor offers: golden-hour amber #D98324 (the
+default for first visits — the sketchbook's own ink), fountain-pen
+cobalt, terracotta pencil, moss marker, iron-gall sepia
 #6B4A2B and oxblood #8E3B46. The last two replaced the earlier violet
 #7C4DFF and graffiti rose #E91E63, which read as screen-native Material
 colours rather than inks that could come out of a pen pot.

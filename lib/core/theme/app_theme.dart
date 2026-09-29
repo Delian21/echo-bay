@@ -425,6 +425,20 @@ ThemeData _theme(
     scaffoldBackgroundColor: scheme.surface,
     extensions: [tokens, goldenHour],
 
+    // Page transitions: vertical fade-through everywhere. The default
+    // horizontal slide makes edge swipes look like a page stack that
+    // swipe-back can unwind — on web that gesture exits the site, so the
+    // horizontal vocabulary actively invited the accident.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+      },
+    ),
+
     // Typography: single family, fixed scale. No dynamic font surprises.
     // `displaySmall` carries the module-title voice — same definition as
     // [kDisplayTextStyle], themed.
