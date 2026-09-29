@@ -5089,6 +5089,1218 @@ class PromptActionsCompanion extends UpdateCompanion<PromptActionRow> {
   }
 }
 
+class $PostCommentsTable extends PostComments
+    with TableInfo<$PostCommentsTable, PostCommentRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PostCommentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+      'post_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _authorIdMeta =
+      const VerificationMeta('authorId');
+  @override
+  late final GeneratedColumn<String> authorId = GeneratedColumn<String>(
+      'author_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _authorNameMeta =
+      const VerificationMeta('authorName');
+  @override
+  late final GeneratedColumn<String> authorName = GeneratedColumn<String>(
+      'author_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+      'body', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, postId, authorId, authorName, body, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'post_comments';
+  @override
+  VerificationContext validateIntegrity(Insertable<PostCommentRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(_postIdMeta,
+          postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta));
+    } else if (isInserting) {
+      context.missing(_postIdMeta);
+    }
+    if (data.containsKey('author_id')) {
+      context.handle(_authorIdMeta,
+          authorId.isAcceptableOrUnknown(data['author_id']!, _authorIdMeta));
+    } else if (isInserting) {
+      context.missing(_authorIdMeta);
+    }
+    if (data.containsKey('author_name')) {
+      context.handle(
+          _authorNameMeta,
+          authorName.isAcceptableOrUnknown(
+              data['author_name']!, _authorNameMeta));
+    } else if (isInserting) {
+      context.missing(_authorNameMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+          _bodyMeta, body.isAcceptableOrUnknown(data['body']!, _bodyMeta));
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PostCommentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PostCommentRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      postId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}post_id'])!,
+      authorId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}author_id'])!,
+      authorName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}author_name'])!,
+      body: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}body'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $PostCommentsTable createAlias(String alias) {
+    return $PostCommentsTable(attachedDatabase, alias);
+  }
+}
+
+class PostCommentRow extends DataClass implements Insertable<PostCommentRow> {
+  final String id;
+  final String postId;
+  final String authorId;
+  final String authorName;
+  final String body;
+  final DateTime createdAt;
+  const PostCommentRow(
+      {required this.id,
+      required this.postId,
+      required this.authorId,
+      required this.authorName,
+      required this.body,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['post_id'] = Variable<String>(postId);
+    map['author_id'] = Variable<String>(authorId);
+    map['author_name'] = Variable<String>(authorName);
+    map['body'] = Variable<String>(body);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  PostCommentsCompanion toCompanion(bool nullToAbsent) {
+    return PostCommentsCompanion(
+      id: Value(id),
+      postId: Value(postId),
+      authorId: Value(authorId),
+      authorName: Value(authorName),
+      body: Value(body),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PostCommentRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PostCommentRow(
+      id: serializer.fromJson<String>(json['id']),
+      postId: serializer.fromJson<String>(json['postId']),
+      authorId: serializer.fromJson<String>(json['authorId']),
+      authorName: serializer.fromJson<String>(json['authorName']),
+      body: serializer.fromJson<String>(json['body']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'postId': serializer.toJson<String>(postId),
+      'authorId': serializer.toJson<String>(authorId),
+      'authorName': serializer.toJson<String>(authorName),
+      'body': serializer.toJson<String>(body),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  PostCommentRow copyWith(
+          {String? id,
+          String? postId,
+          String? authorId,
+          String? authorName,
+          String? body,
+          DateTime? createdAt}) =>
+      PostCommentRow(
+        id: id ?? this.id,
+        postId: postId ?? this.postId,
+        authorId: authorId ?? this.authorId,
+        authorName: authorName ?? this.authorName,
+        body: body ?? this.body,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  PostCommentRow copyWithCompanion(PostCommentsCompanion data) {
+    return PostCommentRow(
+      id: data.id.present ? data.id.value : this.id,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      authorId: data.authorId.present ? data.authorId.value : this.authorId,
+      authorName:
+          data.authorName.present ? data.authorName.value : this.authorName,
+      body: data.body.present ? data.body.value : this.body,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostCommentRow(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('authorId: $authorId, ')
+          ..write('authorName: $authorName, ')
+          ..write('body: $body, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, postId, authorId, authorName, body, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PostCommentRow &&
+          other.id == this.id &&
+          other.postId == this.postId &&
+          other.authorId == this.authorId &&
+          other.authorName == this.authorName &&
+          other.body == this.body &&
+          other.createdAt == this.createdAt);
+}
+
+class PostCommentsCompanion extends UpdateCompanion<PostCommentRow> {
+  final Value<String> id;
+  final Value<String> postId;
+  final Value<String> authorId;
+  final Value<String> authorName;
+  final Value<String> body;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const PostCommentsCompanion({
+    this.id = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.authorId = const Value.absent(),
+    this.authorName = const Value.absent(),
+    this.body = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PostCommentsCompanion.insert({
+    required String id,
+    required String postId,
+    required String authorId,
+    required String authorName,
+    required String body,
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        postId = Value(postId),
+        authorId = Value(authorId),
+        authorName = Value(authorName),
+        body = Value(body),
+        createdAt = Value(createdAt);
+  static Insertable<PostCommentRow> custom({
+    Expression<String>? id,
+    Expression<String>? postId,
+    Expression<String>? authorId,
+    Expression<String>? authorName,
+    Expression<String>? body,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (postId != null) 'post_id': postId,
+      if (authorId != null) 'author_id': authorId,
+      if (authorName != null) 'author_name': authorName,
+      if (body != null) 'body': body,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PostCommentsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? postId,
+      Value<String>? authorId,
+      Value<String>? authorName,
+      Value<String>? body,
+      Value<DateTime>? createdAt,
+      Value<int>? rowid}) {
+    return PostCommentsCompanion(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+      body: body ?? this.body,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (authorId.present) {
+      map['author_id'] = Variable<String>(authorId.value);
+    }
+    if (authorName.present) {
+      map['author_name'] = Variable<String>(authorName.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PostCommentsCompanion(')
+          ..write('id: $id, ')
+          ..write('postId: $postId, ')
+          ..write('authorId: $authorId, ')
+          ..write('authorName: $authorName, ')
+          ..write('body: $body, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SocialNotificationsTable extends SocialNotifications
+    with TableInfo<$SocialNotificationsTable, SocialNotificationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SocialNotificationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<NotificationKind, String> kind =
+      GeneratedColumn<String>('kind', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<NotificationKind>(
+              $SocialNotificationsTable.$converterkind);
+  static const VerificationMeta _peerNameMeta =
+      const VerificationMeta('peerName');
+  @override
+  late final GeneratedColumn<String> peerName = GeneratedColumn<String>(
+      'peer_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+      'body', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _deepLinkMeta =
+      const VerificationMeta('deepLink');
+  @override
+  late final GeneratedColumn<String> deepLink = GeneratedColumn<String>(
+      'deep_link', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<DateTime> readAt = GeneratedColumn<DateTime>(
+      'read_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, kind, peerName, body, deepLink, createdAt, readAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'social_notifications';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<SocialNotificationRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('peer_name')) {
+      context.handle(_peerNameMeta,
+          peerName.isAcceptableOrUnknown(data['peer_name']!, _peerNameMeta));
+    } else if (isInserting) {
+      context.missing(_peerNameMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+          _bodyMeta, body.isAcceptableOrUnknown(data['body']!, _bodyMeta));
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('deep_link')) {
+      context.handle(_deepLinkMeta,
+          deepLink.isAcceptableOrUnknown(data['deep_link']!, _deepLinkMeta));
+    } else if (isInserting) {
+      context.missing(_deepLinkMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(_readAtMeta,
+          readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SocialNotificationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SocialNotificationRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      kind: $SocialNotificationsTable.$converterkind.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!),
+      peerName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}peer_name'])!,
+      body: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}body'])!,
+      deepLink: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}deep_link'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      readAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}read_at']),
+    );
+  }
+
+  @override
+  $SocialNotificationsTable createAlias(String alias) {
+    return $SocialNotificationsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<NotificationKind, String, String> $converterkind =
+      const EnumNameConverter<NotificationKind>(NotificationKind.values);
+}
+
+class SocialNotificationRow extends DataClass
+    implements Insertable<SocialNotificationRow> {
+  final String id;
+
+  /// 'comment' | 'reaction' | 'reply'
+  final NotificationKind kind;
+  final String peerName;
+  final String body;
+  final String deepLink;
+  final DateTime createdAt;
+  final DateTime? readAt;
+  const SocialNotificationRow(
+      {required this.id,
+      required this.kind,
+      required this.peerName,
+      required this.body,
+      required this.deepLink,
+      required this.createdAt,
+      this.readAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    {
+      map['kind'] = Variable<String>(
+          $SocialNotificationsTable.$converterkind.toSql(kind));
+    }
+    map['peer_name'] = Variable<String>(peerName);
+    map['body'] = Variable<String>(body);
+    map['deep_link'] = Variable<String>(deepLink);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || readAt != null) {
+      map['read_at'] = Variable<DateTime>(readAt);
+    }
+    return map;
+  }
+
+  SocialNotificationsCompanion toCompanion(bool nullToAbsent) {
+    return SocialNotificationsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      peerName: Value(peerName),
+      body: Value(body),
+      deepLink: Value(deepLink),
+      createdAt: Value(createdAt),
+      readAt:
+          readAt == null && nullToAbsent ? const Value.absent() : Value(readAt),
+    );
+  }
+
+  factory SocialNotificationRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SocialNotificationRow(
+      id: serializer.fromJson<String>(json['id']),
+      kind: $SocialNotificationsTable.$converterkind
+          .fromJson(serializer.fromJson<String>(json['kind'])),
+      peerName: serializer.fromJson<String>(json['peerName']),
+      body: serializer.fromJson<String>(json['body']),
+      deepLink: serializer.fromJson<String>(json['deepLink']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      readAt: serializer.fromJson<DateTime?>(json['readAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(
+          $SocialNotificationsTable.$converterkind.toJson(kind)),
+      'peerName': serializer.toJson<String>(peerName),
+      'body': serializer.toJson<String>(body),
+      'deepLink': serializer.toJson<String>(deepLink),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'readAt': serializer.toJson<DateTime?>(readAt),
+    };
+  }
+
+  SocialNotificationRow copyWith(
+          {String? id,
+          NotificationKind? kind,
+          String? peerName,
+          String? body,
+          String? deepLink,
+          DateTime? createdAt,
+          Value<DateTime?> readAt = const Value.absent()}) =>
+      SocialNotificationRow(
+        id: id ?? this.id,
+        kind: kind ?? this.kind,
+        peerName: peerName ?? this.peerName,
+        body: body ?? this.body,
+        deepLink: deepLink ?? this.deepLink,
+        createdAt: createdAt ?? this.createdAt,
+        readAt: readAt.present ? readAt.value : this.readAt,
+      );
+  SocialNotificationRow copyWithCompanion(SocialNotificationsCompanion data) {
+    return SocialNotificationRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      peerName: data.peerName.present ? data.peerName.value : this.peerName,
+      body: data.body.present ? data.body.value : this.body,
+      deepLink: data.deepLink.present ? data.deepLink.value : this.deepLink,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SocialNotificationRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('peerName: $peerName, ')
+          ..write('body: $body, ')
+          ..write('deepLink: $deepLink, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('readAt: $readAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, kind, peerName, body, deepLink, createdAt, readAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SocialNotificationRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.peerName == this.peerName &&
+          other.body == this.body &&
+          other.deepLink == this.deepLink &&
+          other.createdAt == this.createdAt &&
+          other.readAt == this.readAt);
+}
+
+class SocialNotificationsCompanion
+    extends UpdateCompanion<SocialNotificationRow> {
+  final Value<String> id;
+  final Value<NotificationKind> kind;
+  final Value<String> peerName;
+  final Value<String> body;
+  final Value<String> deepLink;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> readAt;
+  final Value<int> rowid;
+  const SocialNotificationsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.peerName = const Value.absent(),
+    this.body = const Value.absent(),
+    this.deepLink = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SocialNotificationsCompanion.insert({
+    required String id,
+    required NotificationKind kind,
+    required String peerName,
+    required String body,
+    required String deepLink,
+    required DateTime createdAt,
+    this.readAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        kind = Value(kind),
+        peerName = Value(peerName),
+        body = Value(body),
+        deepLink = Value(deepLink),
+        createdAt = Value(createdAt);
+  static Insertable<SocialNotificationRow> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? peerName,
+    Expression<String>? body,
+    Expression<String>? deepLink,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? readAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (peerName != null) 'peer_name': peerName,
+      if (body != null) 'body': body,
+      if (deepLink != null) 'deep_link': deepLink,
+      if (createdAt != null) 'created_at': createdAt,
+      if (readAt != null) 'read_at': readAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SocialNotificationsCompanion copyWith(
+      {Value<String>? id,
+      Value<NotificationKind>? kind,
+      Value<String>? peerName,
+      Value<String>? body,
+      Value<String>? deepLink,
+      Value<DateTime>? createdAt,
+      Value<DateTime?>? readAt,
+      Value<int>? rowid}) {
+    return SocialNotificationsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      peerName: peerName ?? this.peerName,
+      body: body ?? this.body,
+      deepLink: deepLink ?? this.deepLink,
+      createdAt: createdAt ?? this.createdAt,
+      readAt: readAt ?? this.readAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(
+          $SocialNotificationsTable.$converterkind.toSql(kind.value));
+    }
+    if (peerName.present) {
+      map['peer_name'] = Variable<String>(peerName.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (deepLink.present) {
+      map['deep_link'] = Variable<String>(deepLink.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<DateTime>(readAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SocialNotificationsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('peerName: $peerName, ')
+          ..write('body: $body, ')
+          ..write('deepLink: $deepLink, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('readAt: $readAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $KeepsakeItemsTable extends KeepsakeItems
+    with TableInfo<$KeepsakeItemsTable, KeepsakeItemRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $KeepsakeItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<KeepsakeKind, String> kind =
+      GeneratedColumn<String>('kind', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<KeepsakeKind>($KeepsakeItemsTable.$converterkind);
+  static const VerificationMeta _postIdMeta = const VerificationMeta('postId');
+  @override
+  late final GeneratedColumn<String> postId = GeneratedColumn<String>(
+      'post_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _noteTextMeta =
+      const VerificationMeta('noteText');
+  @override
+  late final GeneratedColumn<String> noteText = GeneratedColumn<String>(
+      'note_text', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _posXMeta = const VerificationMeta('posX');
+  @override
+  late final GeneratedColumn<double> posX = GeneratedColumn<double>(
+      'pos_x', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _posYMeta = const VerificationMeta('posY');
+  @override
+  late final GeneratedColumn<double> posY = GeneratedColumn<double>(
+      'pos_y', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _rotationMeta =
+      const VerificationMeta('rotation');
+  @override
+  late final GeneratedColumn<double> rotation = GeneratedColumn<double>(
+      'rotation', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _strungToMeta =
+      const VerificationMeta('strungTo');
+  @override
+  late final GeneratedColumn<String> strungTo = GeneratedColumn<String>(
+      'strung_to', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _pinnedAtMeta =
+      const VerificationMeta('pinnedAt');
+  @override
+  late final GeneratedColumn<DateTime> pinnedAt = GeneratedColumn<DateTime>(
+      'pinned_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, kind, postId, noteText, posX, posY, rotation, strungTo, pinnedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'keepsake_items';
+  @override
+  VerificationContext validateIntegrity(Insertable<KeepsakeItemRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('post_id')) {
+      context.handle(_postIdMeta,
+          postId.isAcceptableOrUnknown(data['post_id']!, _postIdMeta));
+    }
+    if (data.containsKey('note_text')) {
+      context.handle(_noteTextMeta,
+          noteText.isAcceptableOrUnknown(data['note_text']!, _noteTextMeta));
+    }
+    if (data.containsKey('pos_x')) {
+      context.handle(
+          _posXMeta, posX.isAcceptableOrUnknown(data['pos_x']!, _posXMeta));
+    } else if (isInserting) {
+      context.missing(_posXMeta);
+    }
+    if (data.containsKey('pos_y')) {
+      context.handle(
+          _posYMeta, posY.isAcceptableOrUnknown(data['pos_y']!, _posYMeta));
+    } else if (isInserting) {
+      context.missing(_posYMeta);
+    }
+    if (data.containsKey('rotation')) {
+      context.handle(_rotationMeta,
+          rotation.isAcceptableOrUnknown(data['rotation']!, _rotationMeta));
+    } else if (isInserting) {
+      context.missing(_rotationMeta);
+    }
+    if (data.containsKey('strung_to')) {
+      context.handle(_strungToMeta,
+          strungTo.isAcceptableOrUnknown(data['strung_to']!, _strungToMeta));
+    }
+    if (data.containsKey('pinned_at')) {
+      context.handle(_pinnedAtMeta,
+          pinnedAt.isAcceptableOrUnknown(data['pinned_at']!, _pinnedAtMeta));
+    } else if (isInserting) {
+      context.missing(_pinnedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  KeepsakeItemRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return KeepsakeItemRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      kind: $KeepsakeItemsTable.$converterkind.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!),
+      postId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}post_id']),
+      noteText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note_text']),
+      posX: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}pos_x'])!,
+      posY: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}pos_y'])!,
+      rotation: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}rotation'])!,
+      strungTo: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}strung_to']),
+      pinnedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}pinned_at'])!,
+    );
+  }
+
+  @override
+  $KeepsakeItemsTable createAlias(String alias) {
+    return $KeepsakeItemsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<KeepsakeKind, String, String> $converterkind =
+      const EnumNameConverter<KeepsakeKind>(KeepsakeKind.values);
+}
+
+class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
+  final String id;
+
+  /// 'post' | 'note'
+  final KeepsakeKind kind;
+
+  /// Square post id when [kind] == post; null for freehand notes.
+  final String? postId;
+
+  /// Note text when [kind] == note; null for pinned posts.
+  final String? noteText;
+
+  /// Board-relative anchor of the item's top-left corner.
+  final double posX;
+  final double posY;
+
+  /// Tilt in radians (kept small — a thumbtacked print, not a kite).
+  final double rotation;
+
+  /// Second item this one is strung to (hand-inked wobbly string), or
+  /// null. One outgoing string per item keeps the board tidy.
+  final String? strungTo;
+  final DateTime pinnedAt;
+  const KeepsakeItemRow(
+      {required this.id,
+      required this.kind,
+      this.postId,
+      this.noteText,
+      required this.posX,
+      required this.posY,
+      required this.rotation,
+      this.strungTo,
+      required this.pinnedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    {
+      map['kind'] =
+          Variable<String>($KeepsakeItemsTable.$converterkind.toSql(kind));
+    }
+    if (!nullToAbsent || postId != null) {
+      map['post_id'] = Variable<String>(postId);
+    }
+    if (!nullToAbsent || noteText != null) {
+      map['note_text'] = Variable<String>(noteText);
+    }
+    map['pos_x'] = Variable<double>(posX);
+    map['pos_y'] = Variable<double>(posY);
+    map['rotation'] = Variable<double>(rotation);
+    if (!nullToAbsent || strungTo != null) {
+      map['strung_to'] = Variable<String>(strungTo);
+    }
+    map['pinned_at'] = Variable<DateTime>(pinnedAt);
+    return map;
+  }
+
+  KeepsakeItemsCompanion toCompanion(bool nullToAbsent) {
+    return KeepsakeItemsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      postId:
+          postId == null && nullToAbsent ? const Value.absent() : Value(postId),
+      noteText: noteText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteText),
+      posX: Value(posX),
+      posY: Value(posY),
+      rotation: Value(rotation),
+      strungTo: strungTo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(strungTo),
+      pinnedAt: Value(pinnedAt),
+    );
+  }
+
+  factory KeepsakeItemRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return KeepsakeItemRow(
+      id: serializer.fromJson<String>(json['id']),
+      kind: $KeepsakeItemsTable.$converterkind
+          .fromJson(serializer.fromJson<String>(json['kind'])),
+      postId: serializer.fromJson<String?>(json['postId']),
+      noteText: serializer.fromJson<String?>(json['noteText']),
+      posX: serializer.fromJson<double>(json['posX']),
+      posY: serializer.fromJson<double>(json['posY']),
+      rotation: serializer.fromJson<double>(json['rotation']),
+      strungTo: serializer.fromJson<String?>(json['strungTo']),
+      pinnedAt: serializer.fromJson<DateTime>(json['pinnedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer
+          .toJson<String>($KeepsakeItemsTable.$converterkind.toJson(kind)),
+      'postId': serializer.toJson<String?>(postId),
+      'noteText': serializer.toJson<String?>(noteText),
+      'posX': serializer.toJson<double>(posX),
+      'posY': serializer.toJson<double>(posY),
+      'rotation': serializer.toJson<double>(rotation),
+      'strungTo': serializer.toJson<String?>(strungTo),
+      'pinnedAt': serializer.toJson<DateTime>(pinnedAt),
+    };
+  }
+
+  KeepsakeItemRow copyWith(
+          {String? id,
+          KeepsakeKind? kind,
+          Value<String?> postId = const Value.absent(),
+          Value<String?> noteText = const Value.absent(),
+          double? posX,
+          double? posY,
+          double? rotation,
+          Value<String?> strungTo = const Value.absent(),
+          DateTime? pinnedAt}) =>
+      KeepsakeItemRow(
+        id: id ?? this.id,
+        kind: kind ?? this.kind,
+        postId: postId.present ? postId.value : this.postId,
+        noteText: noteText.present ? noteText.value : this.noteText,
+        posX: posX ?? this.posX,
+        posY: posY ?? this.posY,
+        rotation: rotation ?? this.rotation,
+        strungTo: strungTo.present ? strungTo.value : this.strungTo,
+        pinnedAt: pinnedAt ?? this.pinnedAt,
+      );
+  KeepsakeItemRow copyWithCompanion(KeepsakeItemsCompanion data) {
+    return KeepsakeItemRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      postId: data.postId.present ? data.postId.value : this.postId,
+      noteText: data.noteText.present ? data.noteText.value : this.noteText,
+      posX: data.posX.present ? data.posX.value : this.posX,
+      posY: data.posY.present ? data.posY.value : this.posY,
+      rotation: data.rotation.present ? data.rotation.value : this.rotation,
+      strungTo: data.strungTo.present ? data.strungTo.value : this.strungTo,
+      pinnedAt: data.pinnedAt.present ? data.pinnedAt.value : this.pinnedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KeepsakeItemRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('postId: $postId, ')
+          ..write('noteText: $noteText, ')
+          ..write('posX: $posX, ')
+          ..write('posY: $posY, ')
+          ..write('rotation: $rotation, ')
+          ..write('strungTo: $strungTo, ')
+          ..write('pinnedAt: $pinnedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, kind, postId, noteText, posX, posY, rotation, strungTo, pinnedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is KeepsakeItemRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.postId == this.postId &&
+          other.noteText == this.noteText &&
+          other.posX == this.posX &&
+          other.posY == this.posY &&
+          other.rotation == this.rotation &&
+          other.strungTo == this.strungTo &&
+          other.pinnedAt == this.pinnedAt);
+}
+
+class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
+  final Value<String> id;
+  final Value<KeepsakeKind> kind;
+  final Value<String?> postId;
+  final Value<String?> noteText;
+  final Value<double> posX;
+  final Value<double> posY;
+  final Value<double> rotation;
+  final Value<String?> strungTo;
+  final Value<DateTime> pinnedAt;
+  final Value<int> rowid;
+  const KeepsakeItemsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.postId = const Value.absent(),
+    this.noteText = const Value.absent(),
+    this.posX = const Value.absent(),
+    this.posY = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.strungTo = const Value.absent(),
+    this.pinnedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  KeepsakeItemsCompanion.insert({
+    required String id,
+    required KeepsakeKind kind,
+    this.postId = const Value.absent(),
+    this.noteText = const Value.absent(),
+    required double posX,
+    required double posY,
+    required double rotation,
+    this.strungTo = const Value.absent(),
+    required DateTime pinnedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        kind = Value(kind),
+        posX = Value(posX),
+        posY = Value(posY),
+        rotation = Value(rotation),
+        pinnedAt = Value(pinnedAt);
+  static Insertable<KeepsakeItemRow> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? postId,
+    Expression<String>? noteText,
+    Expression<double>? posX,
+    Expression<double>? posY,
+    Expression<double>? rotation,
+    Expression<String>? strungTo,
+    Expression<DateTime>? pinnedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (postId != null) 'post_id': postId,
+      if (noteText != null) 'note_text': noteText,
+      if (posX != null) 'pos_x': posX,
+      if (posY != null) 'pos_y': posY,
+      if (rotation != null) 'rotation': rotation,
+      if (strungTo != null) 'strung_to': strungTo,
+      if (pinnedAt != null) 'pinned_at': pinnedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  KeepsakeItemsCompanion copyWith(
+      {Value<String>? id,
+      Value<KeepsakeKind>? kind,
+      Value<String?>? postId,
+      Value<String?>? noteText,
+      Value<double>? posX,
+      Value<double>? posY,
+      Value<double>? rotation,
+      Value<String?>? strungTo,
+      Value<DateTime>? pinnedAt,
+      Value<int>? rowid}) {
+    return KeepsakeItemsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      postId: postId ?? this.postId,
+      noteText: noteText ?? this.noteText,
+      posX: posX ?? this.posX,
+      posY: posY ?? this.posY,
+      rotation: rotation ?? this.rotation,
+      strungTo: strungTo ?? this.strungTo,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(
+          $KeepsakeItemsTable.$converterkind.toSql(kind.value));
+    }
+    if (postId.present) {
+      map['post_id'] = Variable<String>(postId.value);
+    }
+    if (noteText.present) {
+      map['note_text'] = Variable<String>(noteText.value);
+    }
+    if (posX.present) {
+      map['pos_x'] = Variable<double>(posX.value);
+    }
+    if (posY.present) {
+      map['pos_y'] = Variable<double>(posY.value);
+    }
+    if (rotation.present) {
+      map['rotation'] = Variable<double>(rotation.value);
+    }
+    if (strungTo.present) {
+      map['strung_to'] = Variable<String>(strungTo.value);
+    }
+    if (pinnedAt.present) {
+      map['pinned_at'] = Variable<DateTime>(pinnedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KeepsakeItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('postId: $postId, ')
+          ..write('noteText: $noteText, ')
+          ..write('posX: $posX, ')
+          ..write('posY: $posY, ')
+          ..write('rotation: $rotation, ')
+          ..write('strungTo: $strungTo, ')
+          ..write('pinnedAt: $pinnedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SettingsTable extends Settings
     with TableInfo<$SettingsTable, SettingRow> {
   @override
@@ -5297,6 +6509,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PromptsTable prompts = $PromptsTable(this);
   late final $PromptPrefsTable promptPrefs = $PromptPrefsTable(this);
   late final $PromptActionsTable promptActions = $PromptActionsTable(this);
+  late final $PostCommentsTable postComments = $PostCommentsTable(this);
+  late final $SocialNotificationsTable socialNotifications =
+      $SocialNotificationsTable(this);
+  late final $KeepsakeItemsTable keepsakeItems = $KeepsakeItemsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5317,6 +6533,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         prompts,
         promptPrefs,
         promptActions,
+        postComments,
+        socialNotifications,
+        keepsakeItems,
         settings
       ];
 }
@@ -7961,6 +9180,639 @@ typedef $$PromptActionsTableProcessedTableManager = ProcessedTableManager<
     ),
     PromptActionRow,
     PrefetchHooks Function()>;
+typedef $$PostCommentsTableCreateCompanionBuilder = PostCommentsCompanion
+    Function({
+  required String id,
+  required String postId,
+  required String authorId,
+  required String authorName,
+  required String body,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$PostCommentsTableUpdateCompanionBuilder = PostCommentsCompanion
+    Function({
+  Value<String> id,
+  Value<String> postId,
+  Value<String> authorId,
+  Value<String> authorName,
+  Value<String> body,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
+
+class $$PostCommentsTableFilterComposer
+    extends Composer<_$AppDatabase, $PostCommentsTable> {
+  $$PostCommentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get postId => $composableBuilder(
+      column: $table.postId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authorId => $composableBuilder(
+      column: $table.authorId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get authorName => $composableBuilder(
+      column: $table.authorName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$PostCommentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PostCommentsTable> {
+  $$PostCommentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get postId => $composableBuilder(
+      column: $table.postId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authorId => $composableBuilder(
+      column: $table.authorId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get authorName => $composableBuilder(
+      column: $table.authorName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PostCommentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PostCommentsTable> {
+  $$PostCommentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get postId =>
+      $composableBuilder(column: $table.postId, builder: (column) => column);
+
+  GeneratedColumn<String> get authorId =>
+      $composableBuilder(column: $table.authorId, builder: (column) => column);
+
+  GeneratedColumn<String> get authorName => $composableBuilder(
+      column: $table.authorName, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$PostCommentsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PostCommentsTable,
+    PostCommentRow,
+    $$PostCommentsTableFilterComposer,
+    $$PostCommentsTableOrderingComposer,
+    $$PostCommentsTableAnnotationComposer,
+    $$PostCommentsTableCreateCompanionBuilder,
+    $$PostCommentsTableUpdateCompanionBuilder,
+    (
+      PostCommentRow,
+      BaseReferences<_$AppDatabase, $PostCommentsTable, PostCommentRow>
+    ),
+    PostCommentRow,
+    PrefetchHooks Function()> {
+  $$PostCommentsTableTableManager(_$AppDatabase db, $PostCommentsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PostCommentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PostCommentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PostCommentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> postId = const Value.absent(),
+            Value<String> authorId = const Value.absent(),
+            Value<String> authorName = const Value.absent(),
+            Value<String> body = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PostCommentsCompanion(
+            id: id,
+            postId: postId,
+            authorId: authorId,
+            authorName: authorName,
+            body: body,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String postId,
+            required String authorId,
+            required String authorName,
+            required String body,
+            required DateTime createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PostCommentsCompanion.insert(
+            id: id,
+            postId: postId,
+            authorId: authorId,
+            authorName: authorName,
+            body: body,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PostCommentsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PostCommentsTable,
+    PostCommentRow,
+    $$PostCommentsTableFilterComposer,
+    $$PostCommentsTableOrderingComposer,
+    $$PostCommentsTableAnnotationComposer,
+    $$PostCommentsTableCreateCompanionBuilder,
+    $$PostCommentsTableUpdateCompanionBuilder,
+    (
+      PostCommentRow,
+      BaseReferences<_$AppDatabase, $PostCommentsTable, PostCommentRow>
+    ),
+    PostCommentRow,
+    PrefetchHooks Function()>;
+typedef $$SocialNotificationsTableCreateCompanionBuilder
+    = SocialNotificationsCompanion Function({
+  required String id,
+  required NotificationKind kind,
+  required String peerName,
+  required String body,
+  required String deepLink,
+  required DateTime createdAt,
+  Value<DateTime?> readAt,
+  Value<int> rowid,
+});
+typedef $$SocialNotificationsTableUpdateCompanionBuilder
+    = SocialNotificationsCompanion Function({
+  Value<String> id,
+  Value<NotificationKind> kind,
+  Value<String> peerName,
+  Value<String> body,
+  Value<String> deepLink,
+  Value<DateTime> createdAt,
+  Value<DateTime?> readAt,
+  Value<int> rowid,
+});
+
+class $$SocialNotificationsTableFilterComposer
+    extends Composer<_$AppDatabase, $SocialNotificationsTable> {
+  $$SocialNotificationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<NotificationKind, NotificationKind, String>
+      get kind => $composableBuilder(
+          column: $table.kind,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get peerName => $composableBuilder(
+      column: $table.peerName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get deepLink => $composableBuilder(
+      column: $table.deepLink, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$SocialNotificationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SocialNotificationsTable> {
+  $$SocialNotificationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get peerName => $composableBuilder(
+      column: $table.peerName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get body => $composableBuilder(
+      column: $table.body, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get deepLink => $composableBuilder(
+      column: $table.deepLink, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get readAt => $composableBuilder(
+      column: $table.readAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SocialNotificationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SocialNotificationsTable> {
+  $$SocialNotificationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<NotificationKind, String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get peerName =>
+      $composableBuilder(column: $table.peerName, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get deepLink =>
+      $composableBuilder(column: $table.deepLink, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+}
+
+class $$SocialNotificationsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SocialNotificationsTable,
+    SocialNotificationRow,
+    $$SocialNotificationsTableFilterComposer,
+    $$SocialNotificationsTableOrderingComposer,
+    $$SocialNotificationsTableAnnotationComposer,
+    $$SocialNotificationsTableCreateCompanionBuilder,
+    $$SocialNotificationsTableUpdateCompanionBuilder,
+    (
+      SocialNotificationRow,
+      BaseReferences<_$AppDatabase, $SocialNotificationsTable,
+          SocialNotificationRow>
+    ),
+    SocialNotificationRow,
+    PrefetchHooks Function()> {
+  $$SocialNotificationsTableTableManager(
+      _$AppDatabase db, $SocialNotificationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SocialNotificationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SocialNotificationsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SocialNotificationsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<NotificationKind> kind = const Value.absent(),
+            Value<String> peerName = const Value.absent(),
+            Value<String> body = const Value.absent(),
+            Value<String> deepLink = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime?> readAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SocialNotificationsCompanion(
+            id: id,
+            kind: kind,
+            peerName: peerName,
+            body: body,
+            deepLink: deepLink,
+            createdAt: createdAt,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required NotificationKind kind,
+            required String peerName,
+            required String body,
+            required String deepLink,
+            required DateTime createdAt,
+            Value<DateTime?> readAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SocialNotificationsCompanion.insert(
+            id: id,
+            kind: kind,
+            peerName: peerName,
+            body: body,
+            deepLink: deepLink,
+            createdAt: createdAt,
+            readAt: readAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SocialNotificationsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SocialNotificationsTable,
+    SocialNotificationRow,
+    $$SocialNotificationsTableFilterComposer,
+    $$SocialNotificationsTableOrderingComposer,
+    $$SocialNotificationsTableAnnotationComposer,
+    $$SocialNotificationsTableCreateCompanionBuilder,
+    $$SocialNotificationsTableUpdateCompanionBuilder,
+    (
+      SocialNotificationRow,
+      BaseReferences<_$AppDatabase, $SocialNotificationsTable,
+          SocialNotificationRow>
+    ),
+    SocialNotificationRow,
+    PrefetchHooks Function()>;
+typedef $$KeepsakeItemsTableCreateCompanionBuilder = KeepsakeItemsCompanion
+    Function({
+  required String id,
+  required KeepsakeKind kind,
+  Value<String?> postId,
+  Value<String?> noteText,
+  required double posX,
+  required double posY,
+  required double rotation,
+  Value<String?> strungTo,
+  required DateTime pinnedAt,
+  Value<int> rowid,
+});
+typedef $$KeepsakeItemsTableUpdateCompanionBuilder = KeepsakeItemsCompanion
+    Function({
+  Value<String> id,
+  Value<KeepsakeKind> kind,
+  Value<String?> postId,
+  Value<String?> noteText,
+  Value<double> posX,
+  Value<double> posY,
+  Value<double> rotation,
+  Value<String?> strungTo,
+  Value<DateTime> pinnedAt,
+  Value<int> rowid,
+});
+
+class $$KeepsakeItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $KeepsakeItemsTable> {
+  $$KeepsakeItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<KeepsakeKind, KeepsakeKind, String> get kind =>
+      $composableBuilder(
+          column: $table.kind,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get postId => $composableBuilder(
+      column: $table.postId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get noteText => $composableBuilder(
+      column: $table.noteText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get posX => $composableBuilder(
+      column: $table.posX, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get posY => $composableBuilder(
+      column: $table.posY, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get rotation => $composableBuilder(
+      column: $table.rotation, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get strungTo => $composableBuilder(
+      column: $table.strungTo, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get pinnedAt => $composableBuilder(
+      column: $table.pinnedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$KeepsakeItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $KeepsakeItemsTable> {
+  $$KeepsakeItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get postId => $composableBuilder(
+      column: $table.postId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get noteText => $composableBuilder(
+      column: $table.noteText, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get posX => $composableBuilder(
+      column: $table.posX, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get posY => $composableBuilder(
+      column: $table.posY, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get rotation => $composableBuilder(
+      column: $table.rotation, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get strungTo => $composableBuilder(
+      column: $table.strungTo, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get pinnedAt => $composableBuilder(
+      column: $table.pinnedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$KeepsakeItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $KeepsakeItemsTable> {
+  $$KeepsakeItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<KeepsakeKind, String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get postId =>
+      $composableBuilder(column: $table.postId, builder: (column) => column);
+
+  GeneratedColumn<String> get noteText =>
+      $composableBuilder(column: $table.noteText, builder: (column) => column);
+
+  GeneratedColumn<double> get posX =>
+      $composableBuilder(column: $table.posX, builder: (column) => column);
+
+  GeneratedColumn<double> get posY =>
+      $composableBuilder(column: $table.posY, builder: (column) => column);
+
+  GeneratedColumn<double> get rotation =>
+      $composableBuilder(column: $table.rotation, builder: (column) => column);
+
+  GeneratedColumn<String> get strungTo =>
+      $composableBuilder(column: $table.strungTo, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get pinnedAt =>
+      $composableBuilder(column: $table.pinnedAt, builder: (column) => column);
+}
+
+class $$KeepsakeItemsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $KeepsakeItemsTable,
+    KeepsakeItemRow,
+    $$KeepsakeItemsTableFilterComposer,
+    $$KeepsakeItemsTableOrderingComposer,
+    $$KeepsakeItemsTableAnnotationComposer,
+    $$KeepsakeItemsTableCreateCompanionBuilder,
+    $$KeepsakeItemsTableUpdateCompanionBuilder,
+    (
+      KeepsakeItemRow,
+      BaseReferences<_$AppDatabase, $KeepsakeItemsTable, KeepsakeItemRow>
+    ),
+    KeepsakeItemRow,
+    PrefetchHooks Function()> {
+  $$KeepsakeItemsTableTableManager(_$AppDatabase db, $KeepsakeItemsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$KeepsakeItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$KeepsakeItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$KeepsakeItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<KeepsakeKind> kind = const Value.absent(),
+            Value<String?> postId = const Value.absent(),
+            Value<String?> noteText = const Value.absent(),
+            Value<double> posX = const Value.absent(),
+            Value<double> posY = const Value.absent(),
+            Value<double> rotation = const Value.absent(),
+            Value<String?> strungTo = const Value.absent(),
+            Value<DateTime> pinnedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              KeepsakeItemsCompanion(
+            id: id,
+            kind: kind,
+            postId: postId,
+            noteText: noteText,
+            posX: posX,
+            posY: posY,
+            rotation: rotation,
+            strungTo: strungTo,
+            pinnedAt: pinnedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required KeepsakeKind kind,
+            Value<String?> postId = const Value.absent(),
+            Value<String?> noteText = const Value.absent(),
+            required double posX,
+            required double posY,
+            required double rotation,
+            Value<String?> strungTo = const Value.absent(),
+            required DateTime pinnedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              KeepsakeItemsCompanion.insert(
+            id: id,
+            kind: kind,
+            postId: postId,
+            noteText: noteText,
+            posX: posX,
+            posY: posY,
+            rotation: rotation,
+            strungTo: strungTo,
+            pinnedAt: pinnedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$KeepsakeItemsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $KeepsakeItemsTable,
+    KeepsakeItemRow,
+    $$KeepsakeItemsTableFilterComposer,
+    $$KeepsakeItemsTableOrderingComposer,
+    $$KeepsakeItemsTableAnnotationComposer,
+    $$KeepsakeItemsTableCreateCompanionBuilder,
+    $$KeepsakeItemsTableUpdateCompanionBuilder,
+    (
+      KeepsakeItemRow,
+      BaseReferences<_$AppDatabase, $KeepsakeItemsTable, KeepsakeItemRow>
+    ),
+    KeepsakeItemRow,
+    PrefetchHooks Function()>;
 typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   required String key,
   required String value,
@@ -8113,6 +9965,12 @@ class $AppDatabaseManager {
       $$PromptPrefsTableTableManager(_db, _db.promptPrefs);
   $$PromptActionsTableTableManager get promptActions =>
       $$PromptActionsTableTableManager(_db, _db.promptActions);
+  $$PostCommentsTableTableManager get postComments =>
+      $$PostCommentsTableTableManager(_db, _db.postComments);
+  $$SocialNotificationsTableTableManager get socialNotifications =>
+      $$SocialNotificationsTableTableManager(_db, _db.socialNotifications);
+  $$KeepsakeItemsTableTableManager get keepsakeItems =>
+      $$KeepsakeItemsTableTableManager(_db, _db.keepsakeItems);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
 }

@@ -230,6 +230,88 @@ class MessageReactions extends Table {
 enum ReactionSyncStatus { pending, synced, failed }
 
 // ---------------------------------------------------------------------------
+// Social (comments + peer notifications) — schema v13
+// ---------------------------------------------------------------------------
+
+/// Comments on Square posts. Local-first: the author's own comment is
+/// persisted before anything else happens; mock peers append via the
+/// social engine. [authorId] distinguishes 'local-user' from peers.
+@DataClassName('PostCommentRow')
+class PostComments extends Table {
+  TextColumn get id => text()(); // uuid
+  TextColumn get postId => text()();
+  TextColumn get authorId => text()();
+  TextColumn get authorName => text()();
+  TextColumn get body => text()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Notification feed: new comments, reactions, replies — all generated
+/// locally in the mock stage. [readAt] non-null = read; unread count is
+/// a live query. [deepLink] is a go_router location ('/square',
+/// '/vault/conversation/:id', '/nexus/group/:id').
+@DataClassName('SocialNotificationRow')
+class SocialNotifications extends Table {
+  TextColumn get id => text()(); // uuid
+
+  /// 'comment' | 'reaction' | 'reply'
+  TextColumn get kind => textEnum<NotificationKind>()();
+  TextColumn get peerName => text()();
+  TextColumn get body => text()();
+  TextColumn get deepLink => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get readAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Kind of social notification.
+enum NotificationKind { comment, reaction, reply }
+
+// ---------------------------------------------------------------------------
+// Keepsake wall — schema v13
+// ---------------------------------------------------------------------------
+
+/// One pinned item on the corkboard: a Square post pinned by id, or a
+/// freehand note. Position/rotation are board-relative fractions
+/// (0..1) — the board scales to phone and desktop without re-layout.
+@DataClassName('KeepsakeItemRow')
+class KeepsakeItems extends Table {
+  TextColumn get id => text()(); // uuid
+
+  /// 'post' | 'note'
+  TextColumn get kind => textEnum<KeepsakeKind>()();
+
+  /// Square post id when [kind] == post; null for freehand notes.
+  TextColumn get postId => text().nullable()();
+
+  /// Note text when [kind] == note; null for pinned posts.
+  TextColumn get noteText => text().nullable()();
+
+  /// Board-relative anchor of the item's top-left corner.
+  RealColumn get posX => real()();
+  RealColumn get posY => real()();
+
+  /// Tilt in radians (kept small — a thumbtacked print, not a kite).
+  RealColumn get rotation => real()();
+
+  /// Second item this one is strung to (hand-inked wobbly string), or
+  /// null. One outgoing string per item keeps the board tidy.
+  TextColumn get strungTo => text().nullable()();
+  DateTimeColumn get pinnedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Kind of keepsake item.
+enum KeepsakeKind { post, note }
+
+// ---------------------------------------------------------------------------
 // The Daily Square (§6c): a recurring, guilt-free posting prompt. The
 // schedule and rotation are user-owned; nothing here can shame or gate.
 // ---------------------------------------------------------------------------
@@ -370,6 +452,9 @@ class Settings extends Table {
   Prompts,
   PromptPrefs,
   PromptActions,
+  PostComments,
+  SocialNotifications,
+  KeepsakeItems,
   Settings,
 ])
 class AppDatabase extends _$AppDatabase {
@@ -393,7 +478,7 @@ class AppDatabase extends _$AppDatabase {
   DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -624,6 +709,13 @@ class AppDatabase extends _$AppDatabase {
               contentTable: 'channel_posts',
               columns: 'id, body, author_name',
             ));
+          }
+          // v12 -> v13: social layer (post comments, peer notifications)
+          // and the keepsake wall. All-new tables — no data moves.
+          if (from < 13) {
+            await m.createTable(postComments);
+            await m.createTable(socialNotifications);
+            await m.createTable(keepsakeItems);
           }
         },
       );

@@ -31,6 +31,7 @@ class SquareFeedCard extends StatelessWidget {
     this.onShare,
     this.onDelete,
     this.onKeep,
+    this.onPinToWall,
   });
 
   final SquarePost post;
@@ -45,6 +46,10 @@ class SquareFeedCard extends StatelessWidget {
   /// "Keep it": converts an ephemeral post to permanent; null hides
   /// the affordance (only the author's own ephemeral posts offer it).
   final VoidCallback? onKeep;
+
+  /// Pin to the keepsake wall; null hides the affordance (own posts
+  /// only — the wall is a personal shelf, not a reblog button).
+  final VoidCallback? onPinToWall;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +88,7 @@ class SquareFeedCard extends StatelessWidget {
                 onComment: onComment,
                 onShare: onShare,
                 onKeep: onKeep,
+                onPinToWall: onPinToWall,
               ),
             ],
           ),
@@ -740,6 +746,7 @@ class _CardFooter extends StatefulWidget {
     this.onComment,
     this.onShare,
     this.onKeep,
+    this.onPinToWall,
   });
 
   final SquarePost post;
@@ -749,6 +756,9 @@ class _CardFooter extends StatefulWidget {
 
   /// "Keep it" — makes an ephemeral post permanent. Null hides it.
   final VoidCallback? onKeep;
+
+  /// Pin to the keepsake wall. Null hides it.
+  final VoidCallback? onPinToWall;
 
   @override
   State<_CardFooter> createState() => _CardFooterState();
@@ -891,6 +901,21 @@ class _CardFooterState extends State<_CardFooter> {
                   tooltip: 'Comment',
                   onTap: widget.onComment ?? () {},
                 ),
+              if (widget.onPinToWall != null) ...[
+                const SizedBox(width: 4),
+                if (useInk)
+                  sketchAction(
+                    kind: SketchIconKind.plusCircle,
+                    tooltip: 'Pin to keepsake wall',
+                    onTap: widget.onPinToWall!,
+                  )
+                else
+                  _ActionIcon(
+                    icon: Icons.push_pin_outlined,
+                    tooltip: 'Pin to keepsake wall',
+                    onTap: widget.onPinToWall!,
+                  ),
+              ],
               const Spacer(),
               if (useInk)
                 sketchAction(

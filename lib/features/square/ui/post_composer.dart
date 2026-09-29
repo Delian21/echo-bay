@@ -7,6 +7,8 @@ import '../../../core/io/platform_io.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
+import '../../../injection.dart';
+import '../../social/domain/repositories/social_repository.dart';
 import '../domain/repositories/feed_repository.dart';
 
 /// Per-shape composer hint, mirroring the Daily Square prompt rotation
@@ -165,6 +167,15 @@ class _PostComposerState extends State<_PostComposer> {
         );
       },
       (post) async {
+        // Mock-peer choreography: the Square's regulars may drop a note
+        // or a reaction after a realistic delay. Capped and spaced by
+        // the social layer — never more than two events per post.
+        try {
+          sl<SocialRepository>()
+              .onOwnPostPublished(postId: post.id, body: post.body);
+        } on Object {
+          // DI unavailable (tests): no peer chatter, post still lands.
+        }
         // Prompt E2E: answering retires the prompt (§6c rule 2). Best
         // effort — a bookkeeping failure never blocks the post.
         final prompt = widget.prompt;

@@ -20,6 +20,10 @@ import 'features/nexus/data/datasources/nexus_local_datasource.dart';
 import 'features/nexus/data/repositories/mock_nexus_repository.dart';
 import 'features/nexus/domain/repositories/nexus_repository.dart';
 import 'features/profile/data/repositories/drift_profile_repository.dart';
+import 'features/social/data/repositories/drift_social_repository.dart';
+import 'features/social/domain/repositories/social_repository.dart';
+import 'features/keepsake/data/repositories/drift_keepsake_repository.dart';
+import 'features/keepsake/domain/repositories/keepsake_repository.dart';
 import 'features/profile/domain/repositories/profile_repository.dart';
 import 'features/square/data/datasources/square_local_datasource.dart';
 import 'features/square/data/repositories/mock_feed_repository.dart';
@@ -101,6 +105,14 @@ Future<void> configureDependencies() async {
   // square
   sl.registerLazySingleton<SquareLocalDatasource>(
     () => DriftSquareLocalDatasource(sl()),
+  );
+  // Social layer: comments + peer notifications (mock-peer engine).
+  sl.registerLazySingleton<SocialRepository>(
+    () => DriftSocialRepository(sl()),
+  );
+  // Keepsake wall: pinned posts + handwritten notes.
+  sl.registerLazySingleton<KeepsakeRepository>(
+    () => DriftKeepsakeRepository(sl()),
   );
   // Lazy cleanup of expired ephemeral posts ("fades in 24h"): rows are
   // purged on app start. Visibility never depends on this — reads

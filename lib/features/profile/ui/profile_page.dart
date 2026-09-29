@@ -160,7 +160,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     filled: false,
                     border: InputBorder.none,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _commit();
+                  },
                   onSubmitted: (_) => _commit(),
                 ),
               ),
@@ -185,7 +188,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     border: InputBorder.none,
                     counterText: '',
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _commit();
+                  },
                   onSubmitted: (_) => _commit(),
                 ),
               ),

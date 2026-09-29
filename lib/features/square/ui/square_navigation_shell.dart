@@ -14,7 +14,11 @@ import '../../calls/data/repositories/mock_calls_repository.dart';
 import '../../calls/ui/calls_module_view.dart';
 import '../../nexus/domain/repositories/nexus_repository.dart';
 import '../../nexus/ui/nexus_module_view.dart';
+import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../keepsake/ui/keepsake_board_page.dart';
 import '../../profile/ui/profile_page.dart';
+import '../../social/domain/repositories/social_repository.dart';
+import '../../social/ui/notifications_page.dart';
 import '../../settings/ui/settings_page.dart';
 import '../../square/domain/repositories/feed_repository.dart';
 import 'post_composer.dart';
@@ -118,6 +122,25 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   Stream<int>? _unreadStream;
   StreamSubscription<int>? _unreadSub;
   int _totalUnread = 0;
+
+  Stream<int>? _socialUnread;
+
+  /// Live unread count from the social layer; null when no source is
+  /// registered (DI-less tests) — the bell hides entirely then.
+  Stream<int>? _socialUnreadStream() {
+    if (_socialUnread == null && sl.isRegistered<SocialRepository>()) {
+      _socialUnread = sl<SocialRepository>().watchUnreadCount();
+    }
+    return _socialUnread;
+  }
+
+  bool get _hasSocialSource => sl.isRegistered<SocialRepository>();
+
+  void _openNotifications() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => NotificationsPage(repository: sl<SocialRepository>()),
+    ));
+  }
 
   Stream<int> get _totalUnreadStream {
     if (_unreadStream == null && _hasVaultBadgeSource) {
@@ -334,6 +357,45 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                 ),
               ));
             },
+          ),
+          // Notices bell: unread comments/reactions from the Square's
+          // regulars. Badge via live count; hidden when DI has no
+          // social source (tests).
+          if (_hasSocialSource)
+            IconButton(
+              tooltip: 'Notices',
+              onPressed: _openNotifications,
+              icon: StreamBuilder<int>(
+                stream: _socialUnreadStream(),
+                builder: (context, snapshot) {
+                  final unread = snapshot.data ?? 0;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const SketchGlyph(
+                          kind: SketchIconKind.jaggedBubble),
+                      if (unread > 0)
+                        const Positioned(
+                          right: -3,
+                          top: -3,
+                          child: CustomPaint(
+                            size: Size(7, 7),
+                            painter: UnreadScribbleDot(),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          // Keepsake wall: pinned squares + handwritten notes.
+          IconButton(
+            tooltip: 'Keepsake wall',
+            icon: const SketchGlyph(kind: SketchIconKind.spiralHub),
+            onPressed: () => KeepsakeBoardPage.show(
+              context,
+              repository: sl<KeepsakeRepository>(),
+            ),
           ),
           IconButton(
             tooltip: 'New post',

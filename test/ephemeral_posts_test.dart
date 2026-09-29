@@ -4,8 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:superapp/core/database/app_database.dart';
 import 'package:superapp/features/square/data/datasources/square_local_datasource.dart';
 import 'package:superapp/features/square/data/repositories/mock_feed_repository.dart';
-import 'package:superapp/features/square/domain/repositories/feed_repository.dart'
-    show FeedRepository;
 
 void main() {
   late AppDatabase db;

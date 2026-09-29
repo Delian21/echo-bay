@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fpdart/fpdart.dart' hide State;
@@ -9,6 +11,9 @@ import '../../../core/auth/auth_repository.dart';
 import '../../../core/auth/session.dart';
 import '../../../core/error/failures.dart';
 import '../../../injection.dart';
+import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../social/domain/repositories/social_repository.dart';
+import '../../social/ui/comments_sheet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/entities/post.dart';
 import '../domain/repositories/feed_repository.dart';
@@ -99,6 +104,22 @@ class _SquareFeedViewState extends State<SquareFeedView> {
         SnackBar(content: Text(failure.message ?? 'Like failed')),
       ),
       (_) {},
+    );
+  }
+
+  /// Pin one of the user's own posts to the keepsake wall.
+  Future<void> _pinToWall(Post post) async {
+    await sl<KeepsakeRepository>().pinPost(
+          postId: post.id,
+          posX: 0.1 + math.Random().nextDouble() * 0.5,
+          posY: 0.1 + math.Random().nextDouble() * 0.5,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Pinned to the keepsake wall.'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -342,6 +363,14 @@ class _SquareFeedViewState extends State<SquareFeedView> {
               onLike: () => _toggleLike(_posts[postIndex]),
               onDelete: () => _deletePost(_posts[postIndex]),
               onShare: () => sharePostAsImage(context, _posts[postIndex]),
+              onComment: () => CommentsSheet.show(
+                context,
+                repository: sl<SocialRepository>(),
+                postId: _posts[postIndex].id,
+              ),
+              onPinToWall: _posts[postIndex].authorId == _localUserId
+                  ? () => _pinToWall(_posts[postIndex])
+                  : null,
               onKeep: _posts[postIndex].authorId == _localUserId &&
                       _posts[postIndex].expiresAt != null
                   ? () => _keepPost(_posts[postIndex])
