@@ -8,15 +8,28 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/profile/profile_controller.dart';
 import '../../../core/profile/user_profile.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:fpdart/fpdart.dart' hide State;
+
+import '../../square/domain/entities/post.dart';
+import '../../square/domain/repositories/feed_repository.dart';
 
 /// Profile — view and edit the local user's identity: display name,
-/// avatar, and the app's accent color. Edits apply live (the theme root
-/// cross-fades to the new accent) and persist through the controller's
-/// storage seam.
+/// bio, avatar, and the app's accent color, plus the grid of the user's
+/// own Square posts as polaroid thumbnails. Edits apply live (the theme
+/// root cross-fades to the new accent) and persist through the
+/// controller's storage seam.
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key, required this.profileController});
+  const ProfilePage({
+    super.key,
+    required this.profileController,
+    this.feedRepository,
+  });
 
   final ProfileController profileController;
+
+  /// Own-post grid source. Null (older callers / standalone tests) hides
+  /// the grid section entirely rather than showing a fake empty state.
+  final FeedRepository? feedRepository;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -25,6 +38,8 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late final TextEditingController _name =
       TextEditingController(text: widget.profileController.profile.displayName);
+  late final TextEditingController _bio =
+      TextEditingController(text: widget.profileController.profile.bio ?? '');
   late String? _avatarPath = widget.profileController.profile.avatarPath;
   late Color _accent = widget.profileController.profile.accentColor;
 
@@ -41,6 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
     widget.profileController.update(UserProfile(
       displayName:
           _name.text.trim().isEmpty ? 'You' : _name.text.trim(),
+      bio: _bio.text.trim().isEmpty ? null : _bio.text.trim(),
       avatarPath: _avatarPath,
       accentColor: _accent,
     ));
@@ -106,6 +122,23 @@ class _ProfilePageState extends State<ProfilePage> {
                       _name.text.trim().isEmpty ? 'You' : _name.text.trim(),
                       style: theme.textTheme.headlineSmall,
                     ),
+                    // The bio renders in the handwritten voice (Caveat),
+                    // like a note pencilled under a yearbook photo. Empty
+                    // shows a quiet invitation, never a blank gap.
+                    const SizedBox(height: 4),
+                    Text(
+                      _bio.text.trim().isEmpty
+                          ? 'write a line about yourself…'
+                          : _bio.text.trim(),
+                      style: kHandwrittenTextStyle.copyWith(
+                        fontSize: 18,
+                        color: _bio.text.trim().isEmpty
+                            ? theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.55)
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -126,6 +159,31 @@ class _ProfilePageState extends State<ProfilePage> {
                     hintText: 'Your name',
                     filled: false,
                     border: InputBorder.none,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _commit(),
+                ),
+              ),
+            ),
+          ),
+
+          const _SectionHeader('Bio'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: TextField(
+                  controller: _bio,
+                  maxLines: 2,
+                  maxLength: 120,
+                  style: kHandwrittenTextStyle.copyWith(fontSize: 19),
+                  decoration: const InputDecoration(
+                    hintText: 'One line, in ink…',
+                    filled: false,
+                    border: InputBorder.none,
+                    counterText: '',
                   ),
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (_) => _commit(),
@@ -216,8 +274,213 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
 
+          // -- own posts grid --------------------------------------------
+          if (widget.feedRepository != null) ...[
+            const _SectionHeader('Pinned squares'),
+            _OwnPostsGrid(
+              feedRepository: widget.feedRepository!,
+              authorName: _name.text.trim().isEmpty
+                  ? 'You'
+                  : _name.text.trim(),
+            ),
+          ],
+
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+}
+
+/// The local user's own Square posts as small polaroid thumbnails.
+/// Loading paints the shared skeleton; empty shows the in-voice
+/// "nothing pinned yet" note. Thumbnails open the post's day view (the
+/// existing post surface) — no new post-detail page invented here.
+class _OwnPostsGrid extends StatelessWidget {
+  const _OwnPostsGrid({
+    required this.feedRepository,
+    required this.authorName,
+  });
+
+  final FeedRepository feedRepository;
+  final String authorName;
+
+  @override
+  Widget build(BuildContext context) {
+    // Late-final stream discipline: watchFeed() returns a fresh stream
+    // per call, so the stream must be created once per author, not per
+    // build (see the stream-rebind gotcha in ARCHITECTURE.md §8).
+    final stream = feedRepository.watchFeed();
+    return StreamBuilder<Either<dynamic, List<Post>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        final posts = (snapshot.data?.fold((_) => null, (p) => p)) ??
+            const <Post>[];
+        final mine = posts.where((p) => p.authorName == authorName).toList();
+        if (mine.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
+            child: Text(
+              'Nothing pinned yet. Your squares will gather here.',
+              style: kHandwrittenTextStyle.copyWith(
+                fontSize: 17,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82, // polaroid: taller than wide
+            ),
+            itemCount: mine.length,
+            itemBuilder: (context, index) => _PolaroidThumb(
+              post: mine[index],
+              onTap: () {
+                final day = mine[index].createdAt;
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => _ProfileDayLoader(
+                    feedRepository: feedRepository,
+                    day: day,
+                  ),
+                ));
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Loads the day the tapped post belongs to and opens the existing
+/// SquareDayViewPage for it — "opens the existing post view" without
+/// inventing a new detail surface.
+class _ProfileDayLoader extends StatelessWidget {
+  const _ProfileDayLoader({required this.feedRepository, required this.day});
+
+  final FeedRepository feedRepository;
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime(day.year, day.month, day.day);
+    return FutureBuilder<Either<dynamic, List<Post>>>(
+      future: feedRepository.postsOnDay(start),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        final posts =
+            snapshot.data?.fold((_) => <Post>[], (p) => p) ?? const <Post>[];
+        return Scaffold(
+          appBar: AppBar(title: const Text('That day')),
+          body: posts.isEmpty
+              ? const Center(child: Text('Nothing was written this day.'))
+              : ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    for (final p in posts)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.body,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${p.likesCount} likes',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+/// A small polaroid thumbnail: media on top, caption strip below. Local
+/// files render from disk; remote media falls back to the caption-only
+/// frame (no network fetch in a 100dp tile).
+class _PolaroidThumb extends StatelessWidget {
+  const _PolaroidThumb({required this.post, required this.onTap});
+
+  final Post post;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final local = post.mediaUrl != null &&
+        !post.mediaUrl!.startsWith('http');
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        padding: const EdgeInsets.all(5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: post.hasMedia && local
+                    ? Image(
+                        image: platformImageProvider(post.mediaUrl!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SketchGlyph(
+                            kind: SketchIconKind.photoFrame, size: 28),
+                      )
+                    : const ColoredBox(
+                        color: Color(0x1414181F),
+                        child: Center(
+                          child: SketchGlyph(
+                              kind: SketchIconKind.photoFrame, size: 28),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              post.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: kHandwrittenTextStyle.copyWith(
+                fontSize: 11,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

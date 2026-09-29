@@ -8,3 +8,9 @@
 library;
 
 export 'io_stub.dart' if (dart.library.io) 'io_native.dart';
+
+// The stub's download path delegates to io_web.dart, which is safe:
+// io_stub is only actually compiled on web (on native the conditional
+// export picks io_native and the stub's web call is never linked).
+// package:web is a dependency of the Flutter SDK on web builds.
+export 'io_web.dart' if (dart.library.io) 'io_native.dart' show downloadBytesImpl;

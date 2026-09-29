@@ -13,6 +13,7 @@ class AppSettingsStore {
   static const _themeModeKey = 'theme_mode';
   static const _reducedMotionKey = 'reduced_motion';
   static const _profileNameKey = 'profile_name';
+  static const _profileBioKey = 'profile_bio';
   static const _profileAvatarKey = 'profile_avatar';
   static const _profileAccentKey = 'profile_accent';
 
@@ -49,6 +50,7 @@ class AppSettingsStore {
   /// to [UserProfile]'s defaults at the controller layer.
   Future<UserProfile> readProfile() async {
     final name = await _read(_profileNameKey);
+    final bio = await _read(_profileBioKey);
     final avatar = await _read(_profileAvatarKey);
     final accent = await _read(_profileAccentKey);
     Color? accentColor;
@@ -58,6 +60,7 @@ class AppSettingsStore {
     }
     return UserProfile(
       displayName: name ?? 'You',
+      bio: (bio == null || bio.isEmpty) ? null : bio,
       avatarPath: avatar,
       accentColor: accentColor ?? const UserProfile().accentColor,
     );
@@ -65,6 +68,18 @@ class AppSettingsStore {
 
   Future<void> writeProfile(UserProfile profile) async {
     await _write(_profileNameKey, profile.displayName);
+    // Null bio removes the key so a cleared line stays cleared.
+    if (profile.bio == null || profile.bio!.isEmpty) {
+      try {
+        await (_db.delete(_db.settings)
+              ..where((s) => s.key.equals(_profileBioKey)))
+            .go();
+      } on Object {
+        // Advisory persistence; ignore.
+      }
+    } else {
+      await _write(_profileBioKey, profile.bio!);
+    }
     // Null avatar removes the key so a cleared picture stays cleared.
     if (profile.avatarPath == null) {
       try {

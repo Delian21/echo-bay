@@ -1,9 +1,20 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/painting.dart' show FileImage, ImageProvider;
 
 /// Image provider for an on-disk attachment / avatar.
 ImageProvider platformImageProvider(String path) => FileImage(File(path));
+
+/// Writes binary bytes to a temp-ish path in the working directory and
+/// returns the path (native: a real file). Used by share-card export.
+Future<String> writeBytes(String fileName, Uint8List bytes) async {
+  final dir = Directory(joinPath(currentDirPath, '.shares'));
+  if (!await dir.exists()) await dir.create(recursive: true);
+  final path = joinPath(dir.path, fileName);
+  await File(path).writeAsBytes(bytes, flush: true);
+  return path;
+}
 
 /// Whether the file exists on disk.
 Future<bool> fileExists(String path) => File(path).exists();

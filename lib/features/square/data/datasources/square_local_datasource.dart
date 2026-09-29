@@ -34,6 +34,10 @@ abstract class SquareLocalDatasource {
   /// Tombstoned posts excluded, like the feed.
   Future<List<Post>> postsOnDay(DateTime day);
 
+  /// One author's non-deleted posts, newest first (with like flags and
+  /// counts) — the profile grid. Live: re-emits on table changes.
+  Stream<List<Post>> watchPostsByAuthor(String authorName);
+
   Future<void> insertPost(PostsCompanion entry);
 
   Future<Post?> findPost(String postId);
@@ -151,6 +155,43 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
         likesCount: countByPost[post.id] ?? 0,
       );
     }).toList();
+  }
+
+  @override
+  Stream<List<Post>> watchPostsByAuthor(String authorName) {
+    final likes = _db.alias(_db.postLikes, 'pl');
+    final query = _db.select(_db.posts).join([
+      leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
+    ])
+      ..where(_db.posts.deletedAt.isNull() &
+          _db.posts.authorName.equals(authorName))
+      ..orderBy([
+        OrderingTerm(
+          expression: _db.posts.createdAt,
+          mode: OrderingMode.desc,
+        ),
+      ]);
+
+    return query.watch().asyncMap((rows) async {
+      if (rows.isEmpty) return const <Post>[];
+      final countRows = await (_db.selectOnly(_db.postLikes)
+            ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
+            ..groupBy([_db.postLikes.postId]))
+          .get();
+      final countByPost = <String, int>{
+        for (final row in countRows)
+          if (row.read(_db.postLikes.postId) case final postId?)
+            postId: row.read(_db.postLikes.postId.count()) ?? 0,
+      };
+      return rows.map((row) {
+        final post = row.readTable(_db.posts);
+        final liked = row.readTableOrNull(likes) != null;
+        return post.toEntity(
+          isLiked: liked,
+          likesCount: countByPost[post.id] ?? 0,
+        );
+      }).toList();
+    });
   }
 
   @override

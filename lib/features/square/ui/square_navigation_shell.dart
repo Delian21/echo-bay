@@ -134,7 +134,10 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     final controller = _profileController;
     if (controller == null) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ProfilePage(profileController: controller),
+      builder: (_) => ProfilePage(
+        profileController: controller,
+        feedRepository: sl<FeedRepository>(),
+      ),
     ));
   }
 
@@ -295,6 +298,30 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         title: const Text('The Square'),
         centerTitle: false,
         actions: [
+          // Profile entry: the local user's page (identity + pinned grid).
+          // AnimatedBuilder so the initials avatar tracks profile edits.
+          AnimatedBuilder(
+            animation: _profileController ?? ChangeNotifier(),
+            builder: (context, _) {
+              final profile =
+                  _profileController?.profile ?? const UserProfile();
+              return IconButton(
+                tooltip: 'Your profile',
+                onPressed: _openProfile,
+                icon: profile.avatarPath != null
+                    ? CircleAvatar(
+                        radius: 12,
+                        backgroundImage:
+                            platformImageProvider(profile.avatarPath!),
+                        onBackgroundImageError: (_, __) {},
+                      )
+                    : SketchGlyph(
+                        kind: SketchIconKind.personGlyph,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Search',
             icon: const SketchGlyph(kind: SketchIconKind.searchGlass),

@@ -7,11 +7,17 @@ import 'package:flutter/material.dart';
 class UserProfile {
   const UserProfile({
     this.displayName = 'You',
+    this.bio,
     this.avatarPath,
     this.accentColor = const Color(0xFF2C5FDB),
   });
 
   final String displayName;
+
+  /// Handwritten one-liner shown under the display name on the profile
+  /// page (Caveat). Null = never written; the UI shows a quiet invitation
+  /// instead of an empty gap.
+  final String? bio;
 
   /// Optional local avatar picked from the device's files (via
   /// image_picker). Stored as a file path — no network dependency; when
@@ -34,12 +40,15 @@ class UserProfile {
 
   UserProfile copyWith({
     String? displayName,
+    String? bio,
     String? avatarPath,
     Color? accentColor,
     bool clearAvatar = false,
+    bool clearBio = false,
   }) =>
       UserProfile(
         displayName: displayName ?? this.displayName,
+        bio: clearBio ? null : (bio ?? this.bio),
         avatarPath: clearAvatar ? null : (avatarPath ?? this.avatarPath),
         accentColor: accentColor ?? this.accentColor,
       );
@@ -48,12 +57,13 @@ class UserProfile {
   bool operator ==(Object other) =>
       other is UserProfile &&
       other.displayName == displayName &&
+      other.bio == bio &&
       other.avatarPath == avatarPath &&
       other.accentColor.toARGB32() == accentColor.toARGB32();
 
   @override
   int get hashCode =>
-      Object.hash(displayName, avatarPath, accentColor.toARGB32());
+      Object.hash(displayName, bio, avatarPath, accentColor.toARGB32());
 }
 
 /// Preset accent palette for the profile editor — the ink pots. Curated

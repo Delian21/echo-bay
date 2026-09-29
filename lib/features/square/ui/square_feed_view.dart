@@ -9,6 +9,7 @@ import '../../../core/error/failures.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/entities/post.dart';
 import '../domain/repositories/feed_repository.dart';
+import 'post_share_sheet.dart';
 import 'square_card.dart';
 import 'square_post_model.dart';
 
@@ -297,6 +298,7 @@ class _SquareFeedViewState extends State<SquareFeedView> {
               post: _toModel(_posts[postIndex]),
               onLike: () => _toggleLike(_posts[postIndex]),
               onDelete: () => _deletePost(_posts[postIndex]),
+              onShare: () => sharePostAsImage(context, _posts[postIndex]),
             ),
           ),
         );
@@ -413,6 +415,7 @@ class SquareDayViewPage extends StatelessWidget {
                           isLiked: p.isLiked,
                         ),
                         onLike: () {},
+                        onShare: () => sharePostAsImage(context, p),
                       );
                     },
                   ),

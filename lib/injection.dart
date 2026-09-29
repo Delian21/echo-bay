@@ -19,6 +19,8 @@ import 'features/calls/domain/repositories/calls_repository.dart';
 import 'features/nexus/data/datasources/nexus_local_datasource.dart';
 import 'features/nexus/data/repositories/mock_nexus_repository.dart';
 import 'features/nexus/domain/repositories/nexus_repository.dart';
+import 'features/profile/data/repositories/drift_profile_repository.dart';
+import 'features/profile/domain/repositories/profile_repository.dart';
 import 'features/square/data/datasources/square_local_datasource.dart';
 import 'features/square/data/repositories/mock_feed_repository.dart';
 import 'features/square/domain/repositories/feed_repository.dart';
@@ -107,6 +109,11 @@ Future<void> configureDependencies() async {
       localUserId: sessionUserId,
       incomingPostInterval: const Duration(seconds: 20),
     ),
+  );
+  // Profile seam: identity via the settings store, grid via the Square
+  // datasource (author-matched live query).
+  sl.registerLazySingleton<ProfileRepository>(
+    () => DriftProfileRepository(sl(), sl()),
   );
 
   // vault

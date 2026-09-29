@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/painting.dart' show ImageProvider, NetworkImage;
+
+import 'io_web.dart' if (dart.library.io) 'io_native_noop.dart' show downloadBytesImpl;
 
 /// Web stubs for the IO seam. The browser has no local filesystem, so
 /// existence checks are false, reads return null, writes are no-ops,
@@ -7,6 +11,17 @@ import 'package:flutter/painting.dart' show ImageProvider, NetworkImage;
 /// decode within the session. Real durable attachment storage on web
 /// comes from drift's IndexedDB/OPFS via the database, not files.
 ImageProvider platformImageProvider(String path) => NetworkImage(path);
+
+/// Web: trigger a client-side download of [bytes] as [fileName]. No dart:io
+/// here; implemented with an anchor-download over interop.
+Future<String> writeBytes(String fileName, Uint8List bytes) async {
+  downloadBytes(fileName, bytes);
+  return fileName;
+}
+
+/// Browser download via an object-URL anchor click.
+void downloadBytes(String fileName, Uint8List bytes) =>
+    downloadBytesImpl(fileName, bytes);
 
 Future<bool> fileExists(String path) async => false;
 
