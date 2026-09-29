@@ -304,6 +304,12 @@ class KeepsakeItems extends Table {
   TextColumn get strungTo => text().nullable()();
   DateTimeColumn get pinnedAt => dateTime()();
 
+  /// Soft-unpin tombstone (schema v14). Non-null = taken off the board
+  /// at that instant. Time travel needs the row to survive so the past
+  /// board can show items that were later unpinned; the present board
+  /// filters them out query-side.
+  DateTimeColumn get unpinnedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -478,7 +484,7 @@ class AppDatabase extends _$AppDatabase {
   DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -716,6 +722,13 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(postComments);
             await m.createTable(socialNotifications);
             await m.createTable(keepsakeItems);
+          }
+          // v13 -> v14: keepsake unpin becomes a soft tombstone so time
+          // travel can recover past boards. Idempotent column add.
+          if (from < 14) {
+            await addColumnIfMissing(
+              'keepsake_items', 'unpinned_at', 'INTEGER NULL',
+            );
           }
         },
       );

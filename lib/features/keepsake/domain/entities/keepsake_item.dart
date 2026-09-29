@@ -14,6 +14,7 @@ class KeepsakeItem extends Equatable {
     this.postId,
     this.noteText,
     this.strungTo,
+    this.unpinnedAt,
   });
 
   final String id;
@@ -38,6 +39,10 @@ class KeepsakeItem extends Equatable {
   final String? strungTo;
   final DateTime pinnedAt;
 
+  /// Soft-unpin tombstone (v14). Non-null = off the board since then;
+  /// time travel uses it to reconstruct past boards.
+  final DateTime? unpinnedAt;
+
   KeepsakeItem copyWith({
     double? posX,
     double? posY,
@@ -55,6 +60,7 @@ class KeepsakeItem extends Equatable {
       rotation: rotation ?? this.rotation,
       strungTo: clearString == _sentinel ? (strungTo ?? this.strungTo) : null,
       pinnedAt: pinnedAt,
+      unpinnedAt: unpinnedAt,
     );
   }
 
@@ -63,6 +69,6 @@ class KeepsakeItem extends Equatable {
   @override
   List<Object?> get props => [
         id, kind, postId, noteText,
-        posX, posY, rotation, strungTo, pinnedAt,
+        posX, posY, rotation, strungTo, pinnedAt, unpinnedAt,
       ];
 }

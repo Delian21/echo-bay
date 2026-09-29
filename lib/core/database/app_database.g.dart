@@ -5883,9 +5883,25 @@ class $KeepsakeItemsTable extends KeepsakeItems
   late final GeneratedColumn<DateTime> pinnedAt = GeneratedColumn<DateTime>(
       'pinned_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _unpinnedAtMeta =
+      const VerificationMeta('unpinnedAt');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, kind, postId, noteText, posX, posY, rotation, strungTo, pinnedAt];
+  late final GeneratedColumn<DateTime> unpinnedAt = GeneratedColumn<DateTime>(
+      'unpinned_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        kind,
+        postId,
+        noteText,
+        posX,
+        posY,
+        rotation,
+        strungTo,
+        pinnedAt,
+        unpinnedAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5937,6 +5953,12 @@ class $KeepsakeItemsTable extends KeepsakeItems
     } else if (isInserting) {
       context.missing(_pinnedAtMeta);
     }
+    if (data.containsKey('unpinned_at')) {
+      context.handle(
+          _unpinnedAtMeta,
+          unpinnedAt.isAcceptableOrUnknown(
+              data['unpinned_at']!, _unpinnedAtMeta));
+    }
     return context;
   }
 
@@ -5965,6 +5987,8 @@ class $KeepsakeItemsTable extends KeepsakeItems
           .read(DriftSqlType.string, data['${effectivePrefix}strung_to']),
       pinnedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}pinned_at'])!,
+      unpinnedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}unpinned_at']),
     );
   }
 
@@ -6000,6 +6024,12 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
   /// null. One outgoing string per item keeps the board tidy.
   final String? strungTo;
   final DateTime pinnedAt;
+
+  /// Soft-unpin tombstone (schema v14). Non-null = taken off the board
+  /// at that instant. Time travel needs the row to survive so the past
+  /// board can show items that were later unpinned; the present board
+  /// filters them out query-side.
+  final DateTime? unpinnedAt;
   const KeepsakeItemRow(
       {required this.id,
       required this.kind,
@@ -6009,7 +6039,8 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
       required this.posY,
       required this.rotation,
       this.strungTo,
-      required this.pinnedAt});
+      required this.pinnedAt,
+      this.unpinnedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -6031,6 +6062,9 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
       map['strung_to'] = Variable<String>(strungTo);
     }
     map['pinned_at'] = Variable<DateTime>(pinnedAt);
+    if (!nullToAbsent || unpinnedAt != null) {
+      map['unpinned_at'] = Variable<DateTime>(unpinnedAt);
+    }
     return map;
   }
 
@@ -6050,6 +6084,9 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
           ? const Value.absent()
           : Value(strungTo),
       pinnedAt: Value(pinnedAt),
+      unpinnedAt: unpinnedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unpinnedAt),
     );
   }
 
@@ -6067,6 +6104,7 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
       rotation: serializer.fromJson<double>(json['rotation']),
       strungTo: serializer.fromJson<String?>(json['strungTo']),
       pinnedAt: serializer.fromJson<DateTime>(json['pinnedAt']),
+      unpinnedAt: serializer.fromJson<DateTime?>(json['unpinnedAt']),
     );
   }
   @override
@@ -6083,6 +6121,7 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
       'rotation': serializer.toJson<double>(rotation),
       'strungTo': serializer.toJson<String?>(strungTo),
       'pinnedAt': serializer.toJson<DateTime>(pinnedAt),
+      'unpinnedAt': serializer.toJson<DateTime?>(unpinnedAt),
     };
   }
 
@@ -6095,7 +6134,8 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
           double? posY,
           double? rotation,
           Value<String?> strungTo = const Value.absent(),
-          DateTime? pinnedAt}) =>
+          DateTime? pinnedAt,
+          Value<DateTime?> unpinnedAt = const Value.absent()}) =>
       KeepsakeItemRow(
         id: id ?? this.id,
         kind: kind ?? this.kind,
@@ -6106,6 +6146,7 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
         rotation: rotation ?? this.rotation,
         strungTo: strungTo.present ? strungTo.value : this.strungTo,
         pinnedAt: pinnedAt ?? this.pinnedAt,
+        unpinnedAt: unpinnedAt.present ? unpinnedAt.value : this.unpinnedAt,
       );
   KeepsakeItemRow copyWithCompanion(KeepsakeItemsCompanion data) {
     return KeepsakeItemRow(
@@ -6118,6 +6159,8 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
       rotation: data.rotation.present ? data.rotation.value : this.rotation,
       strungTo: data.strungTo.present ? data.strungTo.value : this.strungTo,
       pinnedAt: data.pinnedAt.present ? data.pinnedAt.value : this.pinnedAt,
+      unpinnedAt:
+          data.unpinnedAt.present ? data.unpinnedAt.value : this.unpinnedAt,
     );
   }
 
@@ -6132,14 +6175,15 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
           ..write('posY: $posY, ')
           ..write('rotation: $rotation, ')
           ..write('strungTo: $strungTo, ')
-          ..write('pinnedAt: $pinnedAt')
+          ..write('pinnedAt: $pinnedAt, ')
+          ..write('unpinnedAt: $unpinnedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, kind, postId, noteText, posX, posY, rotation, strungTo, pinnedAt);
+  int get hashCode => Object.hash(id, kind, postId, noteText, posX, posY,
+      rotation, strungTo, pinnedAt, unpinnedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -6152,7 +6196,8 @@ class KeepsakeItemRow extends DataClass implements Insertable<KeepsakeItemRow> {
           other.posY == this.posY &&
           other.rotation == this.rotation &&
           other.strungTo == this.strungTo &&
-          other.pinnedAt == this.pinnedAt);
+          other.pinnedAt == this.pinnedAt &&
+          other.unpinnedAt == this.unpinnedAt);
 }
 
 class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
@@ -6165,6 +6210,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
   final Value<double> rotation;
   final Value<String?> strungTo;
   final Value<DateTime> pinnedAt;
+  final Value<DateTime?> unpinnedAt;
   final Value<int> rowid;
   const KeepsakeItemsCompanion({
     this.id = const Value.absent(),
@@ -6176,6 +6222,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
     this.rotation = const Value.absent(),
     this.strungTo = const Value.absent(),
     this.pinnedAt = const Value.absent(),
+    this.unpinnedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   KeepsakeItemsCompanion.insert({
@@ -6188,6 +6235,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
     required double rotation,
     this.strungTo = const Value.absent(),
     required DateTime pinnedAt,
+    this.unpinnedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         kind = Value(kind),
@@ -6205,6 +6253,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
     Expression<double>? rotation,
     Expression<String>? strungTo,
     Expression<DateTime>? pinnedAt,
+    Expression<DateTime>? unpinnedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6217,6 +6266,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
       if (rotation != null) 'rotation': rotation,
       if (strungTo != null) 'strung_to': strungTo,
       if (pinnedAt != null) 'pinned_at': pinnedAt,
+      if (unpinnedAt != null) 'unpinned_at': unpinnedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6231,6 +6281,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
       Value<double>? rotation,
       Value<String?>? strungTo,
       Value<DateTime>? pinnedAt,
+      Value<DateTime?>? unpinnedAt,
       Value<int>? rowid}) {
     return KeepsakeItemsCompanion(
       id: id ?? this.id,
@@ -6242,6 +6293,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
       rotation: rotation ?? this.rotation,
       strungTo: strungTo ?? this.strungTo,
       pinnedAt: pinnedAt ?? this.pinnedAt,
+      unpinnedAt: unpinnedAt ?? this.unpinnedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6277,6 +6329,9 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
     if (pinnedAt.present) {
       map['pinned_at'] = Variable<DateTime>(pinnedAt.value);
     }
+    if (unpinnedAt.present) {
+      map['unpinned_at'] = Variable<DateTime>(unpinnedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6295,6 +6350,7 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
           ..write('rotation: $rotation, ')
           ..write('strungTo: $strungTo, ')
           ..write('pinnedAt: $pinnedAt, ')
+          ..write('unpinnedAt: $unpinnedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9589,6 +9645,7 @@ typedef $$KeepsakeItemsTableCreateCompanionBuilder = KeepsakeItemsCompanion
   required double rotation,
   Value<String?> strungTo,
   required DateTime pinnedAt,
+  Value<DateTime?> unpinnedAt,
   Value<int> rowid,
 });
 typedef $$KeepsakeItemsTableUpdateCompanionBuilder = KeepsakeItemsCompanion
@@ -9602,6 +9659,7 @@ typedef $$KeepsakeItemsTableUpdateCompanionBuilder = KeepsakeItemsCompanion
   Value<double> rotation,
   Value<String?> strungTo,
   Value<DateTime> pinnedAt,
+  Value<DateTime?> unpinnedAt,
   Value<int> rowid,
 });
 
@@ -9642,6 +9700,9 @@ class $$KeepsakeItemsTableFilterComposer
 
   ColumnFilters<DateTime> get pinnedAt => $composableBuilder(
       column: $table.pinnedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get unpinnedAt => $composableBuilder(
+      column: $table.unpinnedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$KeepsakeItemsTableOrderingComposer
@@ -9679,6 +9740,9 @@ class $$KeepsakeItemsTableOrderingComposer
 
   ColumnOrderings<DateTime> get pinnedAt => $composableBuilder(
       column: $table.pinnedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get unpinnedAt => $composableBuilder(
+      column: $table.unpinnedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$KeepsakeItemsTableAnnotationComposer
@@ -9716,6 +9780,9 @@ class $$KeepsakeItemsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get pinnedAt =>
       $composableBuilder(column: $table.pinnedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get unpinnedAt => $composableBuilder(
+      column: $table.unpinnedAt, builder: (column) => column);
 }
 
 class $$KeepsakeItemsTableTableManager extends RootTableManager<
@@ -9753,6 +9820,7 @@ class $$KeepsakeItemsTableTableManager extends RootTableManager<
             Value<double> rotation = const Value.absent(),
             Value<String?> strungTo = const Value.absent(),
             Value<DateTime> pinnedAt = const Value.absent(),
+            Value<DateTime?> unpinnedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               KeepsakeItemsCompanion(
@@ -9765,6 +9833,7 @@ class $$KeepsakeItemsTableTableManager extends RootTableManager<
             rotation: rotation,
             strungTo: strungTo,
             pinnedAt: pinnedAt,
+            unpinnedAt: unpinnedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -9777,6 +9846,7 @@ class $$KeepsakeItemsTableTableManager extends RootTableManager<
             required double rotation,
             Value<String?> strungTo = const Value.absent(),
             required DateTime pinnedAt,
+            Value<DateTime?> unpinnedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               KeepsakeItemsCompanion.insert(
@@ -9789,6 +9859,7 @@ class $$KeepsakeItemsTableTableManager extends RootTableManager<
             rotation: rotation,
             strungTo: strungTo,
             pinnedAt: pinnedAt,
+            unpinnedAt: unpinnedAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

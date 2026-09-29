@@ -50,6 +50,7 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
         rotation: r.rotation,
         strungTo: r.strungTo,
         pinnedAt: r.pinnedAt,
+        unpinnedAt: r.unpinnedAt,
       );
 
   @override
@@ -62,18 +63,22 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
             ),
       ]);
     // Time travel: re-run when the as-of instant moves; show only items
-    // pinned by then. switchMap tears down the previous watch when the
-    // instant moves, so exactly one live query per screen.
+    // pinned by then AND not yet unpinned by then (unpin is a soft
+    // tombstone since v14, so the past board is fully recoverable). The
+    // present board hides unpinned rows query-side.
     return _asOfTick.stream
         .startWith(null)
         .switchMap((_) => query.watch().map((rows) {
               final moment = _asOf;
-              final visible = moment == null
-                  ? rows.map(_toItem).toList()
-                  : rows
-                      .where((r) => !r.pinnedAt.isAfter(moment))
-                      .map(_toItem)
-                      .toList();
+              final visible = rows
+                  .where((r) =>
+                      moment == null
+                          ? r.unpinnedAt == null
+                          : (!r.pinnedAt.isAfter(moment) &&
+                              (r.unpinnedAt == null ||
+                                  r.unpinnedAt!.isAfter(moment))))
+                  .map(_toItem)
+                  .toList();
               return Right<Failure, List<KeepsakeItem>>(visible);
             }));
   }
@@ -183,13 +188,17 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
   Future<Either<Failure, Unit>> unpin({required String itemId}) async {
     _assertWritable();
     try {
-      // Also drop any string that pointed at this item.
+      // Soft tombstone (v14): the row survives so time travel can show
+      // the board as it was before the unpin. Also drop any string that
+      // pointed at this item.
       await (_db.update(_db.keepsakeItems)
             ..where((t) => t.strungTo.equals(itemId)))
           .write(const KeepsakeItemsCompanion(strungTo: Value(null)));
-      await (_db.delete(_db.keepsakeItems)
+      await (_db.update(_db.keepsakeItems)
             ..where((t) => t.id.equals(itemId)))
-          .go();
+          .write(KeepsakeItemsCompanion(
+        unpinnedAt: Value(DateTime.now()),
+      ));
       return right(unit);
     } on Object catch (e) {
       return left(CacheFailure(message: 'unpin failed', cause: e));
