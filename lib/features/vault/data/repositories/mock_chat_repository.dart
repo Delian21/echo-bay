@@ -193,6 +193,20 @@ class MockChatRepository implements ChatRepository {
               [localUserId, c.peer]),
           lastActivityAt: now,
         ));
+        // First-run welcome: Rune opens the conversation so the Vault
+        // never greets anyone with silence. Only on fresh installs.
+        if (c.id == 'conv-1') {
+          await _local.insertMessage(MessagesCompanion.insert(
+            id: _uuid.v4(),
+            conversationId: c.id,
+            senderId: c.peer,
+            body: 'Welcome to Echo Bay! This is the Vault — whatever we '
+                'say here stays between us, on your device. Try the mic '
+                'in the composer, or pin this note to your wall.',
+            syncStatus: MsgSyncStatus.read,
+            createdAt: now,
+          ));
+        }
       }
     }
     _seeded = true;
@@ -429,6 +443,13 @@ class MockChatRepository implements ChatRepository {
   Stream<int> watchTotalUnread() {
     return _local.watchTotalUnread(userId: localUserId);
   }
+
+  @override
+  Future<Message?> findMessage(String messageId) => _local.findMessage(messageId);
+
+  @override
+  Future<Conversation?> findConversation(String conversationId) =>
+      _local.findConversation(conversationId);
 
   @override
   Future<Either<Failure, Unit>> syncOutbox() async {

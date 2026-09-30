@@ -70,6 +70,13 @@ abstract class ChatRepository {
     required String conversationId,
   });
 
+  /// One message by id — cross-module references (keepsake wall pins)
+  /// resolve through this. Null when purged.
+  Future<Message?> findMessage(String messageId);
+
+  /// One conversation by id. Null when unknown.
+  Future<Conversation?> findConversation(String conversationId);
+
   /// Live total unread across all conversations — the shell-level badge
   /// on the Vault nav destination. Emits on every message/cursor change;
   /// opening a conversation (markConversationRead) drives it down.

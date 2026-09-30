@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/attachments/post_navigation.dart';
 import '../../features/calls/domain/repositories/calls_repository.dart';
 import '../../features/calls/ui/calls_module_view.dart';
 import '../../features/nexus/ui/nexus_module_view.dart';
@@ -58,6 +59,16 @@ final appRouter = GoRouter(
         openComposer: true,
       ),
     ),
+    // Notification deep link: an exact Square post. Opens its journal
+    // day view (the existing post surface) — a bare shell would lose the
+    // context the notification promised.
+    GoRoute(
+      path: '/square/post/:id',
+      builder: (context, state) {
+        final postId = state.pathParameters['id']!;
+        return _PostOpenProxy(postId: postId);
+      },
+    ),
     GoRoute(
       path: AppRoutes.calls,
       builder: (context, state) =>
@@ -93,6 +104,39 @@ final appRouter = GoRouter(
     ),
   ],
 );
+
+/// Pushes a full-screen shell behind the day view for one post, then
+/// opens it. A route widget (not a redirect) so the back button returns
+/// to the Square, not out of the app.
+class _PostOpenProxy extends StatefulWidget {
+  const _PostOpenProxy({required this.postId});
+
+  final String postId;
+
+  @override
+  State<_PostOpenProxy> createState() => _PostOpenProxyState();
+}
+
+class _PostOpenProxyState extends State<_PostOpenProxy> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      openSquarePost(context, widget.postId).then((_) {
+        if (mounted && context.mounted) {
+          // Replacing: the proxy itself is never a screen to sit on.
+          GoRouter.of(context).replace<void>(AppRoutes.square);
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+}
 
 /// Resolves a notification payload or raw link into a navigation.
 /// Unknown payloads are ignored silently — a malformed notification

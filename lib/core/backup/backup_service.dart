@@ -59,6 +59,23 @@ class BackupService {
     'settings',
   ];
 
+  /// Wipes every table (settings included) and returns the app to
+  /// first-run state: the onboarding flag lives in settings, so clearing
+  /// it re-arms the intro. The FTS indexes follow their content tables
+  /// via triggers. Callers must confirm in the UI first.
+  Future<Either<Failure, Unit>> clearAllData() async {
+    try {
+      await _db.transaction(() async {
+        for (final table in _tables.reversed) {
+          await _db.customStatement('DELETE FROM $table');
+        }
+      });
+      return right(unit);
+    } on Object catch (e) {
+      return left(CacheFailure(message: 'clear failed', cause: e));
+    }
+  }
+
   /// Export everything to a JSON map (not yet serialized).
   Future<Either<Failure, Map<String, dynamic>>> exportJson() async {
     try {

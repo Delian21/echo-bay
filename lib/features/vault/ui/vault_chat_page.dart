@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import '../../../core/design_system/ink_chat_composer.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/error/failures.dart';
+import '../../../core/attachments/post_navigation.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/motion/rewind_scope.dart';
 import '../../../core/settings/draft_store.dart';
@@ -17,6 +19,7 @@ import '../../../injection.dart';
 import '../../calls/data/repositories/mock_calls_repository.dart';
 import '../../calls/domain/repositories/calls_repository.dart';
 import '../../calls/ui/calls_module_view.dart' show placeCallToPeer;
+import '../../keepsake/domain/repositories/keepsake_repository.dart';
 import '../data/repositories/mock_chat_repository.dart';
 import '../domain/entities/message.dart';
 import '../domain/repositories/chat_repository.dart';
@@ -203,6 +206,41 @@ class _VaultChatPageState extends State<VaultChatPage> {
     );
   }
 
+  /// Pin a message to the keepsake wall. The wall stores the reference;
+  /// the board card resolves it at render time (and shows a graceful
+  /// faded card if the message is later deleted-for-everyone).
+  Future<void> _pinToWall(Message m) async {
+    try {
+      final wall = sl.isRegistered<KeepsakeRepository>()
+          ? sl<KeepsakeRepository>()
+          : null;
+      if (wall == null) return;
+      final result = await wall.pinMessage(
+        messageId: m.id,
+        posX: 0.1 + math.Random().nextDouble() * 0.5,
+        posY: 0.1 + math.Random().nextDouble() * 0.5,
+      );
+      if (!mounted) return;
+      result.fold(
+        (failure) => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(failure.message ??
+                "Couldn't pin that one — the wall is out of thumbtacks."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        ),
+        (_) => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pinned to the keepsake wall.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        ),
+      );
+    } on Object {
+      // DI absent (tests) — nothing to do.
+    }
+  }
+
   /// Landline mock call flow, launched from the conversation header.
   /// The chat repository seam doesn't know calls, so the calls repository
   /// is resolved through DI (registered with the shell's mock stack).
@@ -354,6 +392,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
                               ? () => _rewindDelete(m.id)
                               : null,
                           onReact: () => _react(m.id),
+                          onPinToWall: m.isDeleted ? null : () => _pinToWall(m),
                         );
                       },
                     );
@@ -413,6 +452,7 @@ class _MessageBubble extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.onReact,
+    this.onPinToWall,
   });
 
   final Message message;
@@ -420,6 +460,9 @@ class _MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onReact;
+
+  /// Pin this message to the keepsake wall; null hides the action.
+  final VoidCallback? onPinToWall;
 
   @override
   Widget build(BuildContext context) {
@@ -437,6 +480,8 @@ class _MessageBubble extends StatelessWidget {
             AttachmentMediaView(
               attachment: message.attachment!,
               seed: message.id.hashCode & 0x7FFFFFFF,
+              onOpenSharedPost: (context, postId) =>
+                  openSquarePost(context, postId),
             ),
             if (message.body.isNotEmpty) const SizedBox(height: 6),
           ],
@@ -567,7 +612,8 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    final actionable = mine && onEdit != null && !message.isDeleted;
+    final actionable =
+        (mine && onEdit != null || onPinToWall != null) && !message.isDeleted;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
@@ -586,25 +632,34 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit message'),
-              onTap: () => Navigator.pop(sheetContext, 'edit'),
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline,
-                  color: Theme.of(sheetContext).colorScheme.error),
-              title: Text('Delete for everyone',
-                  style: TextStyle(
-                      color: Theme.of(sheetContext).colorScheme.error)),
-              onTap: () => Navigator.pop(sheetContext, 'delete'),
-            ),
+            if (message.isMine && onEdit != null)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit message'),
+                onTap: () => Navigator.pop(sheetContext, 'edit'),
+              ),
+            if (onPinToWall != null)
+              ListTile(
+                leading: const Icon(Icons.push_pin_outlined),
+                title: const Text('Pin to keepsake wall'),
+                onTap: () => Navigator.pop(sheetContext, 'pin'),
+              ),
+            if (message.isMine && onDelete != null)
+              ListTile(
+                leading: Icon(Icons.delete_outline,
+                    color: Theme.of(sheetContext).colorScheme.error),
+                title: Text('Delete for everyone',
+                    style: TextStyle(
+                        color: Theme.of(sheetContext).colorScheme.error)),
+                onTap: () => Navigator.pop(sheetContext, 'delete'),
+              ),
           ],
         ),
       ),
     );
     if (action == 'edit') onEdit?.call(message.id);
     if (action == 'delete') onDelete?.call();
+    if (action == 'pin') onPinToWall?.call();
   }
 
   String _clock(DateTime at) =>

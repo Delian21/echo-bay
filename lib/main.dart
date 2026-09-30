@@ -6,6 +6,7 @@ import 'injection.dart';
 import 'core/motion/motion_controller.dart';
 import 'core/motion/motion_scope.dart';
 import 'core/notifications/prompt_notifier.dart';
+import 'core/onboarding/first_run.dart';
 import 'core/profile/profile_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -64,6 +65,11 @@ class _SuperAppState extends State<SuperApp> {
     // Accent changes ride the same cross-fade as mode changes — picking a
     // new accent fades the whole app instead of snapping.
     _profile.addListener(_onThemeChanged);
+    // First-run onboarding: once per install (persisted flag); runs on
+    // the first frame so the router's shell exists behind it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FirstRun.runIfNeeded(context);
+    });
   }
 
   @override

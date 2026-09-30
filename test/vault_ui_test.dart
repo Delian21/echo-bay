@@ -94,10 +94,13 @@ void main() {
       // Constructed directly, not awaited from watchConversations(): a
       // drift stream event needs a real timer tick, which FakeAsync never
       // advances — awaiting it here deadlocks the test runner.
+      // 'conv-2', not conv-1: the first-run welcome message seeds into
+      // conv-1, so the empty-state assertion needs a conversation the
+      // seeder leaves untouched.
       final conversation = Conversation(
-        id: 'conv-1',
-        title: 'Rune Virtanen',
-        participantIds: const [Conversation.localUserId, 'peer-rune'],
+        id: 'conv-2',
+        title: 'Signal Ops Team',
+        participantIds: const [Conversation.localUserId, 'peer-ops'],
         lastActivityAt: DateTime.now(),
       );
 

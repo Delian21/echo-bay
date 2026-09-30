@@ -5,23 +5,30 @@ import '../theme/app_theme.dart';
 import '../io/platform_io.dart';
 import 'attachment.dart';
 import 'attachment_photo_viewer.dart';
+import 'shared_post_card.dart';
 import 'voice_waveform_chip.dart';
 
 /// Renders a message's attachment inside a chat bubble, in the sketch
 /// kit's language: the photo is "taped into the notebook" (wobbly inked
-/// frame), video and voice render as small play chips. Lives in core —
+/// frame), video and voice render as small play chips, and a shared
+/// Square post renders as a small polaroid card. Lives in core —
 /// both the Vault and the Dorms render attachments.
 class AttachmentMediaView extends StatelessWidget {
   const AttachmentMediaView({
     super.key,
     required this.attachment,
     this.seed = 1,
+    this.onOpenSharedPost,
   });
 
   final MessageAttachment attachment;
 
   /// Deterministic wobble seed for the inked frame (message id hash).
   final int seed;
+
+  /// Opens a shared Square post in context (the day view). Null makes
+  /// the shared-post card inert (tests).
+  final void Function(BuildContext context, String postId)? onOpenSharedPost;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +83,16 @@ class AttachmentMediaView extends StatelessWidget {
         return VoiceWaveformChip(
           attachment: attachment,
           seed: seed,
+        );
+
+      case AttachmentKind.post:
+        // A shared Square post: small polaroid card; tap opens the post
+        // (the day view). Faded/deleted posts show the graceful card.
+        return SharedPostCard(
+          postId: attachment.path,
+          onOpen: onOpenSharedPost == null
+              ? null
+              : (context) => onOpenSharedPost!(context, attachment.path),
         );
     }
   }

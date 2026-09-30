@@ -10,6 +10,7 @@ import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/error/failures.dart';
+import '../../../core/attachments/post_navigation.dart';
 import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../injection.dart';
@@ -852,6 +853,8 @@ class _GroupBubble extends StatelessWidget {
           AttachmentMediaView(
             attachment: message.attachment!,
             seed: seed,
+            onOpenSharedPost: (context, postId) =>
+                openSquarePost(context, postId),
           ),
           if (message.body.isNotEmpty) const SizedBox(height: 6),
         ],

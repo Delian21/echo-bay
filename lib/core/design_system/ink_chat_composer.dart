@@ -273,6 +273,12 @@ class _PendingAttachmentChip extends StatelessWidget {
           const SketchIcon(kind: SketchIconKind.scribbleMic, size: 16),
           'Voice note ${(attachment.durationMs! / 1000).toStringAsFixed(0)}s'
         ),
+      // Shared posts are composed by the Square's share sheet, never by
+      // this composer; the chip case exists only for exhaustiveness.
+      AttachmentKind.post => (
+          const SketchIcon(kind: SketchIconKind.photoFrame, size: 16),
+          'Square post'
+        ),
     };
     return Material(
       color: theme.colorScheme.secondaryContainer,

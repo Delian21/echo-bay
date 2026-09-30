@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../core/people/person_sheet.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../domain/entities/social_entities.dart';
 import '../domain/repositories/social_repository.dart';
@@ -112,17 +113,26 @@ class _NoticeTile extends StatelessWidget {
       NotificationKind.reaction => (Icons.favorite_border_rounded, 'reacted'),
       NotificationKind.reply => (Icons.reply_rounded, 'replied'),
     };
+    final personName = notification.peerName;
     return ListTile(
-      leading: CircleAvatar(
-        child: Text(notification.peerName.characters.first),
+      leading: GestureDetector(
+        onTap: () => openPerson(context, name: personName),
+        child: CircleAvatar(
+          child: Text(personName.characters.first),
+        ),
       ),
       title: RichText(
         text: TextSpan(
           style: theme.textTheme.bodyMedium,
           children: [
-            TextSpan(
-              text: notification.peerName,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+            WidgetSpan(
+              child: GestureDetector(
+                onTap: () => openPerson(context, name: personName),
+                child: Text(
+                  personName,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
             TextSpan(text: ' $verb'),
           ],

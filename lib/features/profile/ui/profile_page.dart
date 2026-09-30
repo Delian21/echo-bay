@@ -23,6 +23,7 @@ class ProfilePage extends StatefulWidget {
     super.key,
     required this.profileController,
     this.feedRepository,
+    this.embedInOnboarding = false,
   });
 
   final ProfileController profileController;
@@ -30,6 +31,10 @@ class ProfilePage extends StatefulWidget {
   /// Own-post grid source. Null (older callers / standalone tests) hides
   /// the grid section entirely rather than showing a fake empty state.
   final FeedRepository? feedRepository;
+
+  /// First-run mode: no Scaffold/app-bar, no own-posts grid, no padding —
+  /// just the identity editor, embedded in the onboarding flow.
+  final bool embedInOnboarding;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -94,14 +99,9 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        centerTitle: false,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
+    final body = ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
           // -- identity preview ------------------------------------------
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
@@ -281,7 +281,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
 
           // -- own posts grid --------------------------------------------
-          if (widget.feedRepository != null) ...[
+          if (!widget.embedInOnboarding && widget.feedRepository != null) ...[
             const _SectionHeader('Pinned squares'),
             _OwnPostsGrid(
               feedRepository: widget.feedRepository!,
@@ -293,7 +293,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
           const SizedBox(height: 24),
         ],
+    );
+
+    if (widget.embedInOnboarding) return body;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        centerTitle: false,
       ),
+      body: body,
     );
   }
 }

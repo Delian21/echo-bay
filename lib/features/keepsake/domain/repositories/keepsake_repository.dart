@@ -20,6 +20,17 @@ abstract class KeepsakeRepository {
     double? rotation,
   });
 
+  /// Pin a Vault message to the wall. The id travels in the same
+  /// [KeepsakeItem.postId] slot (it is an opaque reference either way);
+  /// the board resolves what it points at at render time. Same contract
+  /// shape as [pinPost] — the wall is one shelf for saved moments.
+  Future<Either<Failure, KeepsakeItem>> pinMessage({
+    required String messageId,
+    required double posX,
+    required double posY,
+    double? rotation,
+  });
+
   /// Pin a handwritten note.
   Future<Either<Failure, KeepsakeItem>> addNote({
     required String noteText,

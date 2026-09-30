@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_scope.dart';
+import '../../../core/people/person_sheet.dart';
 import '../../../core/motion/rewind_scope.dart';
 import '../../../core/theme/app_theme.dart';
 import 'square_post_model.dart';
@@ -210,15 +211,21 @@ class _CardHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Row(
         children: [
-          _StoryRingAvatar(url: post.userAvatarUrl),
+          GestureDetector(
+            onTap: () => openPerson(context, name: post.username),
+            child: _StoryRingAvatar(url: post.userAvatarUrl),
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              post.username,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w800),
+            child: GestureDetector(
+              onTap: () => openPerson(context, name: post.username),
+              child: Text(
+                post.username,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
             ),
           ),
           Text(

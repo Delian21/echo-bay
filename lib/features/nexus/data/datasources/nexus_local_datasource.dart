@@ -68,6 +68,7 @@ extension GroupMessageRowMapper on GroupMessageRow {
       'photo' => AttachmentKind.photo,
       'video' => AttachmentKind.video,
       'voice' => AttachmentKind.voice,
+      'post' => AttachmentKind.post,
       _ => null,
     };
     if (parsed == null) return null;

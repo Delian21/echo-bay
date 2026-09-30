@@ -377,7 +377,7 @@ class _SquareFeedViewState extends State<SquareFeedView> {
               post: _toModel(_posts[postIndex]),
               onLike: () => _toggleLike(_posts[postIndex]),
               onDelete: () => _deletePost(_posts[postIndex]),
-              onShare: () => sharePostAsImage(context, _posts[postIndex]),
+              onShare: () => sharePost(context, _posts[postIndex]),
               onComment: () => CommentsSheet.show(
                 context,
                 repository: sl<SocialRepository>(),
@@ -508,7 +508,7 @@ class SquareDayViewPage extends StatelessWidget {
                           expiresAt: p.expiresAt,
                         ),
                         onLike: () {},
-                        onShare: () => sharePostAsImage(context, p),
+                        onShare: () => sharePost(context, p),
                       );
                     },
                   ),

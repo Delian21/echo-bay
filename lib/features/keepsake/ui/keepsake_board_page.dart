@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'pinned_reference_card.dart' show PinnedReferenceCard;
+
 import '../../../../core/design_system/sketch_kit.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/database/app_database.dart' show KeepsakeKind;
@@ -265,13 +267,7 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
           width: boardSize.width * _cardWidthFraction,
           height: boardSize.height * _cardHeightFraction,
           child: item.kind == KeepsakeKind.post
-              ? const Center(
-                  child: SketchIcon(
-                    kind: SketchIconKind.photoFrame,
-                    size: 34,
-                    seed: 67,
-                  ),
-                )
+              ? PinnedReferenceCard(referenceId: item.postId ?? '')
               : Text(
                   item.noteText ?? '',
                   style: kHandwrittenTextStyle.copyWith(fontSize: 17),

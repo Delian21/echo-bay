@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../core/people/person_sheet.dart';
 import '../../../../core/settings/draft_store.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../injection.dart';
@@ -247,11 +248,14 @@ class _CommentBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  comment.authorName,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onSurfaceVariant,
+                GestureDetector(
+                  onTap: () => openPerson(context, name: comment.authorName),
+                  child: Text(
+                    comment.authorName,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 Text(

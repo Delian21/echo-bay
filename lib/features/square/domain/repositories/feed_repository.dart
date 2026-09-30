@@ -46,6 +46,15 @@ abstract class FeedRepository {
   /// day-view behind the clickable date in the feed header.
   Future<Either<Failure, List<Post>>> postsOnDay(DateTime day);
 
+  /// One post by id, regardless of tombstones or expiry — cross-module
+  /// surfaces (shared-post cards, keepsake wall) need the raw row to
+  /// decide how to present it (live, faded, rewound). Null when purged.
+  Future<Either<Failure, Post?>> findPostById(String postId);
+
+  /// One author's visible posts, newest first — the person sheet's
+  /// "their squares" list. Tombstoned/expired posts excluded.
+  Future<Either<Failure, List<Post>>> findPostsByAuthor(String authorName);
+
   /// Lifetime of an ephemeral ("fades in 24h") post.
   static const ephemeralLifetime = Duration(hours: 24);
 

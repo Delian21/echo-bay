@@ -51,6 +51,9 @@ abstract class SquareLocalDatasource {
   /// counts) — the profile grid. Live: re-emits on table changes.
   Stream<List<Post>> watchPostsByAuthor(String authorName);
 
+  /// One-shot [watchPostsByAuthor] for cross-module reads (person sheet).
+  Future<List<Post>> findVisiblePostsByAuthor(String authorName);
+
   Future<void> insertPost(PostsCompanion entry);
 
   Future<Post?> findPost(String postId);
@@ -292,6 +295,34 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
             );
           }).toList();
         }));
+  }
+
+  @override
+  Future<List<Post>> findVisiblePostsByAuthor(String authorName) async {
+    final likes = _db.alias(_db.postLikes, 'pl');
+    final query = _db.select(_db.posts).join([
+      leftOuterJoin(likes, _liveLikeJoin(likes)),
+    ])
+      ..where(_existedAsOfExpr &
+          _db.posts.authorName.equals(authorName) &
+          _notExpiredExpr)
+      ..orderBy([
+        OrderingTerm(
+          expression: _db.posts.createdAt,
+          mode: OrderingMode.desc,
+        ),
+      ]);
+    final rows = await query.get();
+    if (rows.isEmpty) return const <Post>[];
+    final countByPost = await _likeCounts();
+    return rows.map((row) {
+      final post = row.readTable(_db.posts);
+      final liked = row.readTableOrNull(likes) != null;
+      return post.toEntity(
+        isLiked: liked,
+        likesCount: countByPost[post.id] ?? 0,
+      );
+    }).toList();
   }
 
   @override

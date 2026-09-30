@@ -125,7 +125,7 @@ class DriftSocialRepository implements SocialRepository {
             body: event.kind == NotificationKind.comment
                 ? event.commentBody ?? ''
                 : 'reacted ${event.reaction ?? ''}'.trim(),
-            deepLink: '/square',
+            deepLink: '/square/post/$postId',
             createdAt: now,
           ),
         );

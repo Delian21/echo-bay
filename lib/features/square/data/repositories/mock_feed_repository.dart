@@ -255,6 +255,28 @@ class MockFeedRepository implements FeedRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, Post?>> findPostById(String postId) async {
+    try {
+      // Tombstones included: the caller decides how to present a deleted
+      // post (the shared-post card shows its "rewound" state).
+      return right(await _local.findPostIncludingDeleted(postId));
+    } catch (e) {
+      return left(CacheFailure(message: 'findPostById failed', cause: e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<Post>>> findPostsByAuthor(
+    String authorName,
+  ) async {
+    try {
+      return right(await _local.findVisiblePostsByAuthor(authorName));
+    } catch (e) {
+      return left(CacheFailure(message: 'findPostsByAuthor failed', cause: e));
+    }
+  }
+
   // -- Fake network simulation ----------------------------------------------
 
   bool _online = true;

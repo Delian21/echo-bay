@@ -7,6 +7,8 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_controller.dart';
+import '../../../core/onboarding/first_run.dart';
+import '../../../core/settings/app_settings_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../core/theme/theme_controller.dart';
@@ -90,6 +92,27 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
 
+          // -- onboarding ---------------------------------------------------
+          const _SectionHeader('Welcome'),
+          _SettingsNavTile(
+            glyph: SketchGlyph(
+              kind: SketchIconKind.sunMark,
+              color: theme.colorScheme.primary,
+            ),
+            label: 'Replay intro',
+            subtitle: 'The three-page welcome again — the Square, the '
+                'Vault, the rewind.',
+            trailing: null,
+            onTap: () async {
+              await FirstRun.reset(sl<AppSettingsStore>());
+              if (!context.mounted) return;
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                fullscreenDialog: true,
+                builder: (_) => const FirstRunFlow(),
+              ));
+            },
+          ),
+
           // -- modules -----------------------------------------------------
           const _SectionHeader('Modules'),
           _SettingsNavTile(
@@ -129,6 +152,10 @@ class SettingsPage extends StatelessWidget {
           const _SectionHeader('Your data'),
           const _BackupCard(),
 
+          // -- danger -------------------------------------------------------
+          const _SectionHeader('Start over'),
+          const _ClearAllDataCard(),
+
           // -- about -------------------------------------------------------
           const _SectionHeader('About'),
           _SettingsNavTile(
@@ -152,6 +179,82 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+}
+
+/// Clear-all-data: wipes every table and returns the app to the first-run
+/// intro. Double-confirm — typed-phrase free, but two explicit taps and
+/// a suggestion to export first.
+class _ClearAllDataCard extends StatelessWidget {
+  const _ClearAllDataCard();
+
+  Future<void> _confirmAndClear(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      // STALE_CHECK_OK: invoked synchronously from the tap.
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (sheetContext) => AlertDialog(
+        title: const Text('Turn the page?'),
+        content: const Text(
+          'Every square, message, and note on this device will be cleared — '
+          'a fresh sketchbook. Export a backup first if you want to keep '
+          'anything.\n\nThis cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(sheetContext).pop(false),
+            child: const Text('Keep everything'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(sheetContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(sheetContext).pop(true),
+            child: const Text('Clear it all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final result = await sl<BackupService>().clearAllData();
+    if (!messenger.mounted) return;
+    result.fold(
+      (Failure f) => messenger.showSnackBar(
+        SnackBar(
+          content: Text(f.message ?? "Couldn't clear — try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Fresh pages. Welcome back to day one.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          leading: SketchGlyph(
+            kind: SketchIconKind.closeX,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: const Text('Clear all data'),
+          subtitle: const Text(
+            'Wipes everything and restarts the welcome. Export first! A '
+            'fresh sketchbook, not a lost one.',
+          ),
+          onTap: () => _confirmAndClear(context),
+        ),
       ),
     );
   }

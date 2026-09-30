@@ -109,6 +109,19 @@ class DriftKeepsakeRepository implements KeepsakeRepository {
   }
 
   @override
+  Future<Either<Failure, KeepsakeItem>> pinMessage({
+    required String messageId,
+    required double posX,
+    required double posY,
+    double? rotation,
+  }) => pinPost(
+        postId: messageId,
+        posX: posX,
+        posY: posY,
+        rotation: rotation,
+      );
+
+  @override
   Future<Either<Failure, KeepsakeItem>> addNote({
     required String noteText,
     required double posX,
