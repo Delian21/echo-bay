@@ -97,4 +97,23 @@ class PeerPlanner {
     }
     return events;
   }
+
+  /// Whether a peer starts keeping the local user close after [postCount]
+  /// own posts. Deliberately rare and capped: at most [maxFollowEvents]
+  /// spontaneous follows ever (lifetime), and only after a quiet-in — the
+  /// first few posts never trigger it. Drifting apart is never planned:
+  /// nobody quietly unfriends you in Echo Bay.
+  ///
+  /// Returns the peer's name, or null when nothing happens.
+  String? planFollow({
+    required int postCount,
+    int maxFollowEvents = 3,
+    int quietInPosts = 3,
+  }) {
+    if (postCount <= quietInPosts) return null;
+    if (postCount % 4 != 0) return null; // check at most every 4th post
+    if (_random() >= 0.5) return null; // then still a coin flip
+    if (postCount > quietInPosts + maxFollowEvents * 4) return null;
+    return peers[(_random() * peers.length).floor()];
+  }
 }

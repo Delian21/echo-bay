@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/social_entities.dart';
+import '../../domain/repositories/follow_repository.dart';
 import '../../domain/repositories/social_repository.dart';
 import '../../domain/services/peer_planner.dart';
 
@@ -15,11 +16,23 @@ import '../../domain/services/peer_planner.dart';
 /// is persisted before the future completes; mock-peer events arrive on
 /// real (injectable) timers, capped and spaced by [PeerPlanner].
 class DriftSocialRepository implements SocialRepository {
-  DriftSocialRepository(this._db, {PeerPlanner? planner})
-      : _planner = planner ?? PeerPlanner();
+  DriftSocialRepository(
+    this._db, {
+    PeerPlanner? planner,
+    FollowRepository? follows,
+    this.localUserId = 'local-user',
+  })  : _planner = planner ?? PeerPlanner(),
+        _follows = follows;
 
   final AppDatabase _db;
   final PeerPlanner _planner;
+
+  /// Follow graph for spontaneous peer follows (optional: absent in
+  /// some tests, and then no follows are ever planned).
+  final FollowRepository? _follows;
+
+  /// The local user's id (session-attributed own-post counting).
+  final String localUserId;
   final _uuid = const Uuid();
 
   /// Time-travel instant (null = present). Comment/notification reads
@@ -148,8 +161,55 @@ class DriftSocialRepository implements SocialRepository {
     }
 
     schedule(events);
+    // Spontaneous follow: a peer may quietly start keeping the local
+    // user close. Rare, capped by the planner, and notified in the
+    // app's voice ("Mila kept you close"). Drifting apart is never
+    // planned — nothing announces an unfollow.
+    unawaited(_maybePeerFollow(postId));
     return handle ?? Timer(Duration.zero, () {});
   }
+
+  /// How many own posts exist (the planner's quiet-in + cap input).
+  Future<int> _countOwnPosts() async {
+    final count = _db.posts.id.count();
+    final query = _db.selectOnly(_db.posts)
+      ..addColumns([count])
+      ..where(_db.posts.authorId.equals(localUserId));
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  Future<void> _maybePeerFollow(String postId) async {
+    final postCount = await _countOwnPosts();
+    final peerName = _planner.planFollow(postCount: postCount);
+    if (peerName == null) return;
+    // Write goes through the follow graph (local user id matches the
+    // session); the notification lands with a deep link to the Square.
+    final follows = _follows;
+    if (follows == null) return;
+    final result = await follows.peerKeepsMeClose(peerName);
+    result.fold((_) {}, (_) => unawaited(_notifyFollow(peerName)));
+  }
+
+  /// The announcement, after a human-paced pause: "Mila kept you close."
+  Future<void> _notifyFollow(String peerName) async {
+    final delay = const Duration(seconds: 30) +
+        Duration(seconds: DateTime.now().second % 30);
+    Timer(delay, () async {
+      await _db.into(_db.socialNotifications).insert(
+            SocialNotificationsCompanion.insert(
+              id: _uuid.v4(),
+              kind: NotificationKind.follow,
+              peerName: peerName,
+              body: 'kept you close',
+              deepLink: '/square',
+              createdAt: DateTime.now(),
+            ),
+          );
+    });
+  }
+
+
 
   @override
   Stream<Either<Failure, List<SocialNotification>>> watchNotifications() {

@@ -130,14 +130,19 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<SquareLocalDatasource>(
     () => DriftSquareLocalDatasource(sl()),
   );
-  // Social layer: comments + peer notifications (mock-peer engine).
-  sl.registerLazySingleton<SocialRepository>(
-    () => DriftSocialRepository(sl()),
-  );
-  // Follow graph: who keeps whom close (mock peers, soft-removed rows).
+  // Follow graph first (the social layer's peer engine writes through
+  // it): who keeps whom close, mock peers, soft-removed rows.
   sl.registerLazySingleton<FollowRepository>(
     () => DriftFollowRepository(sl(), localUserId: sessionUserId)
       ..seedIfEmpty(),
+  );
+  // Social layer: comments + peer notifications (mock-peer engine).
+  sl.registerLazySingleton<SocialRepository>(
+    () => DriftSocialRepository(
+      sl(),
+      follows: sl<FollowRepository>(),
+      localUserId: sessionUserId,
+    ),
   );
   // Keepsake wall: pinned posts + handwritten notes.
   sl.registerLazySingleton<KeepsakeRepository>(
