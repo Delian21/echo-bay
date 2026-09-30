@@ -510,8 +510,14 @@ class $PostLikesTable extends PostLikes
   late final GeneratedColumn<DateTime> likedAt = GeneratedColumn<DateTime>(
       'liked_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _unlikedAtMeta =
+      const VerificationMeta('unlikedAt');
   @override
-  List<GeneratedColumn> get $columns => [postId, userId, likedAt];
+  late final GeneratedColumn<DateTime> unlikedAt = GeneratedColumn<DateTime>(
+      'unliked_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [postId, userId, likedAt, unlikedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -540,6 +546,10 @@ class $PostLikesTable extends PostLikes
     } else if (isInserting) {
       context.missing(_likedAtMeta);
     }
+    if (data.containsKey('unliked_at')) {
+      context.handle(_unlikedAtMeta,
+          unlikedAt.isAcceptableOrUnknown(data['unliked_at']!, _unlikedAtMeta));
+    }
     return context;
   }
 
@@ -555,6 +565,8 @@ class $PostLikesTable extends PostLikes
           .read(DriftSqlType.string, data['${effectivePrefix}user_id'])!,
       likedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}liked_at'])!,
+      unlikedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}unliked_at']),
     );
   }
 
@@ -568,14 +580,26 @@ class PostLikeRow extends DataClass implements Insertable<PostLikeRow> {
   final String postId;
   final String userId;
   final DateTime likedAt;
+
+  /// Un-like tombstone (v15): a set row means the like was withdrawn at
+  /// that instant. The row is kept so time travel can reconstruct like
+  /// counts as of any past moment; present-day reads treat the like as
+  /// absent. Re-liking clears the tombstone (same row re-used).
+  final DateTime? unlikedAt;
   const PostLikeRow(
-      {required this.postId, required this.userId, required this.likedAt});
+      {required this.postId,
+      required this.userId,
+      required this.likedAt,
+      this.unlikedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['post_id'] = Variable<String>(postId);
     map['user_id'] = Variable<String>(userId);
     map['liked_at'] = Variable<DateTime>(likedAt);
+    if (!nullToAbsent || unlikedAt != null) {
+      map['unliked_at'] = Variable<DateTime>(unlikedAt);
+    }
     return map;
   }
 
@@ -584,6 +608,9 @@ class PostLikeRow extends DataClass implements Insertable<PostLikeRow> {
       postId: Value(postId),
       userId: Value(userId),
       likedAt: Value(likedAt),
+      unlikedAt: unlikedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unlikedAt),
     );
   }
 
@@ -594,6 +621,7 @@ class PostLikeRow extends DataClass implements Insertable<PostLikeRow> {
       postId: serializer.fromJson<String>(json['postId']),
       userId: serializer.fromJson<String>(json['userId']),
       likedAt: serializer.fromJson<DateTime>(json['likedAt']),
+      unlikedAt: serializer.fromJson<DateTime?>(json['unlikedAt']),
     );
   }
   @override
@@ -603,20 +631,27 @@ class PostLikeRow extends DataClass implements Insertable<PostLikeRow> {
       'postId': serializer.toJson<String>(postId),
       'userId': serializer.toJson<String>(userId),
       'likedAt': serializer.toJson<DateTime>(likedAt),
+      'unlikedAt': serializer.toJson<DateTime?>(unlikedAt),
     };
   }
 
-  PostLikeRow copyWith({String? postId, String? userId, DateTime? likedAt}) =>
+  PostLikeRow copyWith(
+          {String? postId,
+          String? userId,
+          DateTime? likedAt,
+          Value<DateTime?> unlikedAt = const Value.absent()}) =>
       PostLikeRow(
         postId: postId ?? this.postId,
         userId: userId ?? this.userId,
         likedAt: likedAt ?? this.likedAt,
+        unlikedAt: unlikedAt.present ? unlikedAt.value : this.unlikedAt,
       );
   PostLikeRow copyWithCompanion(PostLikesCompanion data) {
     return PostLikeRow(
       postId: data.postId.present ? data.postId.value : this.postId,
       userId: data.userId.present ? data.userId.value : this.userId,
       likedAt: data.likedAt.present ? data.likedAt.value : this.likedAt,
+      unlikedAt: data.unlikedAt.present ? data.unlikedAt.value : this.unlikedAt,
     );
   }
 
@@ -625,37 +660,42 @@ class PostLikeRow extends DataClass implements Insertable<PostLikeRow> {
     return (StringBuffer('PostLikeRow(')
           ..write('postId: $postId, ')
           ..write('userId: $userId, ')
-          ..write('likedAt: $likedAt')
+          ..write('likedAt: $likedAt, ')
+          ..write('unlikedAt: $unlikedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(postId, userId, likedAt);
+  int get hashCode => Object.hash(postId, userId, likedAt, unlikedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PostLikeRow &&
           other.postId == this.postId &&
           other.userId == this.userId &&
-          other.likedAt == this.likedAt);
+          other.likedAt == this.likedAt &&
+          other.unlikedAt == this.unlikedAt);
 }
 
 class PostLikesCompanion extends UpdateCompanion<PostLikeRow> {
   final Value<String> postId;
   final Value<String> userId;
   final Value<DateTime> likedAt;
+  final Value<DateTime?> unlikedAt;
   final Value<int> rowid;
   const PostLikesCompanion({
     this.postId = const Value.absent(),
     this.userId = const Value.absent(),
     this.likedAt = const Value.absent(),
+    this.unlikedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PostLikesCompanion.insert({
     required String postId,
     required String userId,
     required DateTime likedAt,
+    this.unlikedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : postId = Value(postId),
         userId = Value(userId),
@@ -664,12 +704,14 @@ class PostLikesCompanion extends UpdateCompanion<PostLikeRow> {
     Expression<String>? postId,
     Expression<String>? userId,
     Expression<DateTime>? likedAt,
+    Expression<DateTime>? unlikedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (postId != null) 'post_id': postId,
       if (userId != null) 'user_id': userId,
       if (likedAt != null) 'liked_at': likedAt,
+      if (unlikedAt != null) 'unliked_at': unlikedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -678,11 +720,13 @@ class PostLikesCompanion extends UpdateCompanion<PostLikeRow> {
       {Value<String>? postId,
       Value<String>? userId,
       Value<DateTime>? likedAt,
+      Value<DateTime?>? unlikedAt,
       Value<int>? rowid}) {
     return PostLikesCompanion(
       postId: postId ?? this.postId,
       userId: userId ?? this.userId,
       likedAt: likedAt ?? this.likedAt,
+      unlikedAt: unlikedAt ?? this.unlikedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -699,6 +743,9 @@ class PostLikesCompanion extends UpdateCompanion<PostLikeRow> {
     if (likedAt.present) {
       map['liked_at'] = Variable<DateTime>(likedAt.value);
     }
+    if (unlikedAt.present) {
+      map['unliked_at'] = Variable<DateTime>(unlikedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -711,6 +758,7 @@ class PostLikesCompanion extends UpdateCompanion<PostLikeRow> {
           ..write('postId: $postId, ')
           ..write('userId: $userId, ')
           ..write('likedAt: $likedAt, ')
+          ..write('unlikedAt: $unlikedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6824,12 +6872,14 @@ typedef $$PostLikesTableCreateCompanionBuilder = PostLikesCompanion Function({
   required String postId,
   required String userId,
   required DateTime likedAt,
+  Value<DateTime?> unlikedAt,
   Value<int> rowid,
 });
 typedef $$PostLikesTableUpdateCompanionBuilder = PostLikesCompanion Function({
   Value<String> postId,
   Value<String> userId,
   Value<DateTime> likedAt,
+  Value<DateTime?> unlikedAt,
   Value<int> rowid,
 });
 
@@ -6850,6 +6900,9 @@ class $$PostLikesTableFilterComposer
 
   ColumnFilters<DateTime> get likedAt => $composableBuilder(
       column: $table.likedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get unlikedAt => $composableBuilder(
+      column: $table.unlikedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$PostLikesTableOrderingComposer
@@ -6869,6 +6922,9 @@ class $$PostLikesTableOrderingComposer
 
   ColumnOrderings<DateTime> get likedAt => $composableBuilder(
       column: $table.likedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get unlikedAt => $composableBuilder(
+      column: $table.unlikedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PostLikesTableAnnotationComposer
@@ -6888,6 +6944,9 @@ class $$PostLikesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get likedAt =>
       $composableBuilder(column: $table.likedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get unlikedAt =>
+      $composableBuilder(column: $table.unlikedAt, builder: (column) => column);
 }
 
 class $$PostLikesTableTableManager extends RootTableManager<
@@ -6916,24 +6975,28 @@ class $$PostLikesTableTableManager extends RootTableManager<
             Value<String> postId = const Value.absent(),
             Value<String> userId = const Value.absent(),
             Value<DateTime> likedAt = const Value.absent(),
+            Value<DateTime?> unlikedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PostLikesCompanion(
             postId: postId,
             userId: userId,
             likedAt: likedAt,
+            unlikedAt: unlikedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String postId,
             required String userId,
             required DateTime likedAt,
+            Value<DateTime?> unlikedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PostLikesCompanion.insert(
             postId: postId,
             userId: userId,
             likedAt: likedAt,
+            unlikedAt: unlikedAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

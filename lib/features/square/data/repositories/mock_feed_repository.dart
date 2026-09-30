@@ -190,9 +190,16 @@ class MockFeedRepository implements FeedRepository {
     }
   }
 
-  /// Undo window: tombstoned posts are purged this long after delete.
-  /// Within the window, [restorePost] brings the exact post back.
+  /// Retention window for tombstoned posts. The undo UX still runs on
+  /// [undoWindow]; the hard purge now waits [retentionWindow] so time
+  /// travel can revisit the post's final day before the row goes.
   static const undoWindow = Duration(seconds: 10);
+
+  /// How long a tombstoned post survives in the store after deletion.
+  /// Hard-deleting at the undo window's close destroyed recoverable
+  /// history; a day matches the app's natural past-depth (ephemeral
+  /// posts fade at 24h too) and keeps growth bounded.
+  static const retentionWindow = Duration(hours: 24);
 
   @override
   Future<Either<Failure, Unit>> deletePost({required String postId}) async {
@@ -207,12 +214,13 @@ class MockFeedRepository implements FeedRepository {
         return left(const NotFoundFailure(message: 'not your post'));
       }
       await _local.deletePost(postId); // tombstone — restorable
-      // Hard-delete once the undo window closes. One timer per delete:
-      // restorePost cancels the purge by clearing the tombstone before
-      // the timer fires (purge re-checks and no-ops on a restored post
-      // only if it wins the race — the DB write order makes the window
-      // self-consistent).
-      Timer(undoWindow, () async {
+      // Hard-delete once retention closes (was: at the undo window's
+      // close, which destroyed recoverable past for time travel). One
+      // timer per delete: restorePost cancels the purge by clearing the
+      // tombstone before the timer fires (purge re-checks and no-ops on
+      // a restored post only if it wins the race — the DB write order
+      // makes the window self-consistent).
+      Timer(retentionWindow, () async {
         final row = await _local.findPostIncludingDeleted(postId);
         if (row == null || row.deletedAt == null) return;
         await _local.purgePost(postId);

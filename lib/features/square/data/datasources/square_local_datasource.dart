@@ -156,11 +156,22 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   /// the repository can orchestrate without reaching into the db.
   Future<int> purgeExpired() => _db.purgeExpiredPosts(clock());
 
-  /// Like-count enrichment shared by all three watch paths (the grouped
+  /// Like-count enrichment shared by the watch paths (the grouped
   /// aggregate — groupBy is load-bearing, see the note in watchFeed).
+  ///
+  /// Time travel aware: a like existed at [moment] when likedAt <= moment
+  /// and (unlikedAt is null or unlikedAt > moment) — the same semantics
+  /// the post tombstone uses. In the present only live (non-unliked)
+  /// likes count.
   Future<Map<String, int>> _likeCounts() async {
+    final moment = _asOf;
     final countRows = await (_db.selectOnly(_db.postLikes)
           ..addColumns([_db.postLikes.postId, _db.postLikes.postId.count()])
+          ..where(moment == null
+              ? _db.postLikes.unlikedAt.isNull()
+              : _db.postLikes.likedAt.isSmallerOrEqualValue(moment) &
+                  (_db.postLikes.unlikedAt.isNull() |
+                      _db.postLikes.unlikedAt.isBiggerThanValue(moment)))
           ..groupBy([_db.postLikes.postId]))
         .get();
     return {
@@ -170,11 +181,17 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     };
   }
 
+  /// Live-like join predicate: only non-unliked rows match, so the
+  /// single-user like flag reads straight off the join (row present =
+  /// heart on). Unliked rows keep their history for the as-of counts.
+  Expression<bool> _liveLikeJoin(PostLikes likes) =>
+      likes.postId.equalsExp(_db.posts.id) & likes.unlikedAt.isNull();
+
   @override
   Stream<List<Post>> watchFeed() {
     final likes = _db.alias(_db.postLikes, 'pl');
     final query = _db.select(_db.posts).join([
-      leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
+      leftOuterJoin(likes, _liveLikeJoin(likes)),
     ])
       // Soft-deleted posts are invisible everywhere in the feed; the row
       // itself survives for the undo window (see deletePost/restorePost).
@@ -223,7 +240,7 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     final end = start.add(const Duration(days: 1));
     final likes = _db.alias(_db.postLikes, 'pl');
     final query = _db.select(_db.posts).join([
-      leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
+      leftOuterJoin(likes, _liveLikeJoin(likes)),
     ])
       ..where(_db.posts.createdAt.isBetweenValues(start, end) &
           _existedAsOfExpr &
@@ -251,7 +268,7 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   Stream<List<Post>> watchPostsByAuthor(String authorName) {
     final likes = _db.alias(_db.postLikes, 'pl');
     final query = _db.select(_db.posts).join([
-      leftOuterJoin(likes, likes.postId.equalsExp(_db.posts.id)),
+      leftOuterJoin(likes, _liveLikeJoin(likes)),
     ])
       ..where(_existedAsOfExpr &
           _db.posts.authorName.equals(authorName) &
@@ -279,17 +296,9 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
 
   @override
   Future<Post?> findPost(String postId) async {
-    final query = _db.select(_db.posts)
-      ..where((tbl) => tbl.id.equals(postId));
-    final row = await query.getSingleOrNull();
+    final row = await _findRowIncludingDeleted(postId);
     if (row == null) return null;
-    final likedRows = await (_db.select(_db.postLikes)
-          ..where((tbl) => tbl.postId.equals(postId)))
-        .get();
-    return row.toEntity(
-      isLiked: likedRows.isNotEmpty,
-      likesCount: likedRows.length,
-    );
+    return _enrichSingle(row);
   }
 
   @override
@@ -299,18 +308,15 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
     required bool liked,
   }) async {
     _assertWritable();
-    if (liked) {
-      await _db.into(_db.postLikes).insertOnConflictUpdate(PostLikesCompanion(
-            postId: Value(postId),
-            userId: Value(userId),
-            likedAt: Value(DateTime.now()),
-          ));
-    } else {
-      await (_db.delete(_db.postLikes)
-            ..where((tbl) =>
-                tbl.postId.equals(postId) & tbl.userId.equals(userId)))
-          .go();
-    }
+    // Soft like state (v15): un-liking stamps unliked_at instead of
+    // deleting the row, so like history stays reconstructable for time
+    // travel. Re-liking clears the tombstone — same row, upserted.
+    await _db.into(_db.postLikes).insertOnConflictUpdate(PostLikesCompanion(
+          postId: Value(postId),
+          userId: Value(userId),
+          likedAt: Value(DateTime.now()),
+          unlikedAt: Value(liked ? null : DateTime.now()),
+        ));
   }
 
   @override
@@ -346,12 +352,22 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
 
   @override
   Future<Post?> findPostIncludingDeleted(String postId) async {
-    final query = _db.select(_db.posts)
-      ..where((tbl) => tbl.id.equals(postId));
-    final row = await query.getSingleOrNull();
+    final row = await _findRowIncludingDeleted(postId);
     if (row == null) return null;
+    return _enrichSingle(row);
+  }
+
+  Future<PostRow?> _findRowIncludingDeleted(String postId) =>
+      (_db.select(_db.posts)..where((tbl) => tbl.id.equals(postId)))
+          .getSingleOrNull();
+
+  /// Entity for one row with live like state (unliked rows excluded —
+  /// the tombstone is history, not a live like). Time travel does not
+  /// apply here: these are point lookups for the write paths.
+  Future<Post> _enrichSingle(PostRow row) async {
     final likedRows = await (_db.select(_db.postLikes)
-          ..where((tbl) => tbl.postId.equals(postId)))
+          ..where((tbl) =>
+              tbl.postId.equals(row.id) & tbl.unlikedAt.isNull()))
         .get();
     return row.toEntity(
       isLiked: likedRows.isNotEmpty,

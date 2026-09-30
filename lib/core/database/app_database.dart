@@ -48,6 +48,12 @@ class PostLikes extends Table {
   TextColumn get userId => text()();
   DateTimeColumn get likedAt => dateTime()();
 
+  /// Un-like tombstone (v15): a set row means the like was withdrawn at
+  /// that instant. The row is kept so time travel can reconstruct like
+  /// counts as of any past moment; present-day reads treat the like as
+  /// absent. Re-liking clears the tombstone (same row re-used).
+  DateTimeColumn get unlikedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {postId, userId};
 }
@@ -484,7 +490,7 @@ class AppDatabase extends _$AppDatabase {
   DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -728,6 +734,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 14) {
             await addColumnIfMissing(
               'keepsake_items', 'unpinned_at', 'INTEGER NULL',
+            );
+          }
+          // v14 -> v15: un-like becomes a soft tombstone (unliked_at) so
+          // like counts stay reconstructable as of any past moment.
+          // Idempotent column add; rows keep their liked_at history.
+          if (from < 15) {
+            await addColumnIfMissing(
+              'post_likes', 'unliked_at', 'INTEGER NULL',
             );
           }
         },
