@@ -11,6 +11,12 @@ abstract class FeedRepository {
   /// the underlying table changes (including inserts from the mock ticker).
   Stream<Either<Failure, List<Post>>> watchFeed();
 
+  /// The feed restricted to authors the local user keeps close — the
+  /// Square's "My Window" filter. [authorNames] is provided by the UI
+  /// from the follow graph; an empty set yields an empty feed.
+  Stream<Either<Failure, List<Post>>> watchFeedByAuthors(
+      Set<String> authorNames);
+
   /// One-shot refresh. In the mock stage this triggers the fake remote to
   /// push new posts into the cache; offline it returns [NetworkFailure].
   Future<Either<Failure, Unit>> refreshFeed();

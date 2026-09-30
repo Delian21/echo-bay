@@ -107,6 +107,15 @@ class MockFeedRepository implements FeedRepository {
   }
 
   @override
+  Stream<Either<Failure, List<Post>>> watchFeedByAuthors(
+      Set<String> authorNames) async* {
+    await _seeded;
+    yield* _local
+        .watchFeedByAuthors(authorNames)
+        .map((posts) => Right<Failure, List<Post>>(posts));
+  }
+
+  @override
   Future<Either<Failure, Unit>> refreshFeed() async {
     // Mock "network refresh": pull simulated remote posts into cache now.
     // Fail-path behaviour is preserved: callers get NetworkFailure when the

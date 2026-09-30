@@ -43,6 +43,10 @@ abstract class SquareLocalDatasource {
   /// Feed, newest first, with like flags and like counts.
   Stream<List<Post>> watchFeed();
 
+  /// The feed restricted to authors in [authorNames] (the Square's
+  /// "My Window" filter). Same ordering and flags as [watchFeed].
+  Stream<List<Post>> watchFeedByAuthors(Set<String> authorNames);
+
   /// Posts created on [day] (local midnight to midnight), newest first.
   /// Tombstoned posts excluded, like the feed.
   Future<List<Post>> postsOnDay(DateTime day);
@@ -220,6 +224,38 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
           // the whole table's like total instead of their own count.
           final countByPost = await _likeCounts();
 
+          return rows.map((row) {
+            final post = row.readTable(_db.posts);
+            final liked = row.readTableOrNull(likes) != null;
+            return post.toEntity(
+              isLiked: liked,
+              likesCount: countByPost[post.id] ?? 0,
+            );
+          }).toList();
+        }));
+  }
+
+  @override
+  Stream<List<Post>> watchFeedByAuthors(Set<String> authorNames) {
+    if (authorNames.isEmpty) {
+      return Stream.value(const <Post>[]);
+    }
+    final likes = _db.alias(_db.postLikes, 'pl');
+    final query = _db.select(_db.posts).join([
+      leftOuterJoin(likes, _liveLikeJoin(likes)),
+    ])
+      ..where(_db.posts.authorName.isIn(authorNames) &
+          _existedAsOfExpr &
+          _notExpiredExpr)
+      ..orderBy([
+        OrderingTerm(
+          expression: _db.posts.createdAt,
+          mode: OrderingMode.desc,
+        ),
+      ]);
+    return _asOfChanges.switchMap((_) => query.watch().asyncMap((rows) async {
+          if (rows.isEmpty) return const <Post>[];
+          final countByPost = await _likeCounts();
           return rows.map((row) {
             final post = row.readTable(_db.posts);
             final liked = row.readTableOrNull(likes) != null;

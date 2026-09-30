@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fpdart/fpdart.dart' hide State;
+import 'package:stream_transform/stream_transform.dart';
 
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
@@ -13,6 +14,7 @@ import '../../../core/auth/auth_repository.dart';
 import '../../../core/auth/session.dart';
 import '../../../core/error/failures.dart';
 import '../../../injection.dart';
+import '../../social/domain/repositories/follow_repository.dart';
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
 import '../../social/domain/repositories/social_repository.dart';
 import '../../social/ui/comments_sheet.dart';
@@ -63,6 +65,13 @@ class _SquareFeedViewState extends State<SquareFeedView> {
   bool _refreshing = false;
   Stream<_FeedSnapshot>? _stream;
 
+  /// The Square's audience: "Everyone" (false) or "My Window" (true —
+  /// only people the local user keeps close). Fixed vocabulary.
+  bool _myWindowOnly = false;
+
+  /// Live window author names, for the "My Window" filter.
+  Stream<Set<String>>? _windowAuthors;
+
   /// Per-card like transition guard: optimistic like state is keyed by
   /// post id while the repository write is in flight.
   final Set<String> _pendingLikes = {};
@@ -85,6 +94,15 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     _stream = widget.repository.watchFeed().map(
           (either) => _FeedSnapshot(posts: either.fold((f) => null, (l) => l), failure: either.fold((f) => f, (_) => null)),
         );
+    if (sl.isRegistered<FollowRepository>()) {
+      _windowAuthors = sl<FollowRepository>().watchWindow().map(
+            (either) => either
+                    .fold((_) => const <String>{}, (edges) => edges
+                        .map((e) => e.followedName)
+                        .toSet())
+                  ..remove('You'),
+          );
+    }
   }
 
   @override
@@ -357,15 +375,62 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     );
   }
 
+  /// The Square's audience switch: "Everyone" | "My Window". My Window
+  /// shows only people the local user keeps close — a quieter feed, no
+  /// algorithm, just the names you chose.
+  Widget _buildAudienceSwitch() {
+    if (!_hasFollowGraph) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('Everyone')),
+          ButtonSegment(value: true, label: Text('My Window')),
+        ],
+        selected: {_myWindowOnly},
+        onSelectionChanged: (s) => setState(() {
+          _myWindowOnly = s.first;
+          _stream = _feedStreamForFilter();
+        }),
+      ),
+    );
+  }
+
+  bool get _hasFollowGraph => sl.isRegistered<FollowRepository>();
+
+  Stream<_FeedSnapshot> _feedStreamForFilter() {
+    final repo = widget.repository;
+    if (!_myWindowOnly) {
+      return repo.watchFeed().map(
+            (either) => _FeedSnapshot(
+              posts: either.fold((f) => null, (l) => l),
+              failure: either.fold((f) => f, (_) => null),
+            ),
+          );
+    }
+    // My Window: drive the feed off the live window author set.
+    final authors = _windowAuthors ??
+        Stream.value(const <String>{});
+    return authors.switchMap((names) => repo
+        .watchFeedByAuthors(names)
+        .map((either) => _FeedSnapshot(
+              posts: either.fold((f) => null, (l) => l),
+              failure: either.fold((f) => f, (_) => null),
+            )));
+  }
+
   Widget _buildList() {
     return ListView.builder(
       controller: _scroll,
       physics: const AlwaysScrollableScrollPhysics(),
-      // +1 for the journal-invitation header pinned above the feed.
+      // +1 journal header, +1 audience switch above the feed.
       padding: const EdgeInsets.only(bottom: 24),
-      itemCount: _posts.length + 1,
+      itemCount: _posts.length + 2,
       itemBuilder: (context, index) {
         if (index == 0) {
+          return _buildAudienceSwitch();
+        }
+        if (index == 1) {
           return _JournalHeader(repository: widget.repository);
         }
         final postIndex = index - 1;
