@@ -1,7 +1,10 @@
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/settings/draft_store.dart';
@@ -251,6 +254,13 @@ class _PostComposerState extends State<_PostComposer> {
         }
         // Prompt E2E: answering retires the prompt (§6c rule 2). Best
         // effort — a bookkeeping failure never blocks the post.
+        // Atmosphere: soft pen scratch as the post lands (opt-in).
+        try {
+          unawaited(sl<AtmosphereController>()
+              .play(AtmosphereSound.penScratch));
+        } on Object {
+          // DI unavailable (tests): silence is fine.
+        }
         final prompt = widget.prompt;
         final prompts = widget.promptRepository;
         if (prompt != null && prompts != null) {

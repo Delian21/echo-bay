@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
 import '../../../core/attachments/attachment_media_view.dart';
+import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
@@ -133,6 +134,14 @@ class _VaultChatPageState extends State<VaultChatPage> {
     _sending = true;
     _composer.clear();
     unawaited(_clearDraft());
+    // Atmosphere: soft pen scratch as the note is sent (opt-in,
+    // fire-and-forget — a missing sound never blocks a message).
+    try {
+      unawaited(
+          sl<AtmosphereController>().play(AtmosphereSound.penScratch));
+    } on Object {
+      // DI unavailable (tests): silence is fine.
+    }
     final result = await widget.repository.sendMessage(
       conversationId: widget.conversation.id,
       body: body,
@@ -619,7 +628,12 @@ class _MessageBubble extends StatelessWidget {
       child: GestureDetector(
         onLongPress: actionable ? () => _showActions(context) : null,
         onDoubleTap: message.isDeleted ? null : onReact,
-        child: bubble,
+        // The bubble is a raw GestureDetector: give screen readers a
+        // button role so the long-press actions are discoverable.
+        child: Semantics(
+          button: actionable,
+          child: bubble,
+        ),
       ),
     );
   }

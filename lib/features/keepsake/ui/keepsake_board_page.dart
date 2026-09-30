@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import 'pinned_reference_card.dart' show PinnedReferenceCard;
 
+import '../../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/database/app_database.dart' show KeepsakeKind;
 import '../../../../core/motion/rewind_scope.dart';
@@ -73,6 +76,8 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
     });
   }
 
+  /// Pin a handwritten note, with the same page-settle atmosphere as a
+  /// pinned post.
   Future<void> _addNote() async {
     final controller = TextEditingController();
     final text = await showDialog<String>(
@@ -109,6 +114,7 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
       posY: 0.1 + math.Random().nextDouble() * 0.5,
     );
     if (!mounted) return;
+    // Atmosphere: page settling on the wall (opt-in, best-effort).
     result.fold(
       (failure) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -117,7 +123,14 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
           behavior: SnackBarBehavior.floating,
         ),
       ),
-      (_) {},
+      (_) {
+        try {
+          unawaited(
+              sl<AtmosphereController>().play(AtmosphereSound.pageTurn));
+        } on Object {
+          // DI unavailable (tests): silence is fine.
+        }
+      },
     );
   }
 

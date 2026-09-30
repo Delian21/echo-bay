@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:fpdart/fpdart.dart' hide State;
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
+import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/auth/session.dart';
 import '../../../core/error/failures.dart';
@@ -120,6 +122,15 @@ class _SquareFeedViewState extends State<SquareFeedView> {
           posY: 0.1 + math.Random().nextDouble() * 0.5,
         );
     if (!mounted) return;
+    // Atmosphere: page settling on the wall (opt-in, best-effort).
+    if (result.isRight()) {
+      try {
+        unawaited(
+            sl<AtmosphereController>().play(AtmosphereSound.pageTurn));
+      } on Object {
+        // DI unavailable (tests): silence is fine.
+      }
+    }
     result.fold(
       (failure) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

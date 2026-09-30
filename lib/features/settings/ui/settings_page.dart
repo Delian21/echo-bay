@@ -1,8 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/backup/backup_service.dart';
+import '../../../core/feedback/feedback.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/io/platform_io.dart';
@@ -38,6 +41,29 @@ class SettingsPage extends StatelessWidget {
 
   /// Opens the profile editor; null hides the profile row (tests).
   final VoidCallback? onOpenProfile;
+
+  /// Opens the prefilled feedback mailto. Failures (no mail app, web
+  /// popup blocked) surface as a quiet snackbar with the address spelled
+  /// out so the user can still reach it.
+  Future<void> _launchFeedback(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final url = feedbackMailto();
+    try {
+      final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!ok) throw 'launch refused';
+    } on Object {
+      messenger.showSnackBar(
+        // Const interpolation of the const [feedbackEmail] is allowed —
+        // the address stays single-sourced in core/feedback.
+        const SnackBar(
+          content: Text(
+            "Couldn't open your mail app. Write to $feedbackEmail directly.",
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,8 +112,22 @@ class SettingsPage extends StatelessWidget {
             AnimatedBuilder(
               animation: _motionController,
               builder: (context, _) => _ReducedMotionCard(
-                reduced: _motionController.reducedMotion,
+                // The toggle reflects the USER's preference; the system
+                // reduce-motion setting ORs in on top (shown in the
+                // subtitle when active).
+                reduced: _motionController.userReducedMotion,
                 onChanged: _motionController.setReducedMotion,
+              ),
+            ),
+          ],
+
+          // -- atmosphere ----------------------------------------------------
+          if (sl.isRegistered<AtmosphereController>()) ...[
+            const _SectionHeader('Atmosphere'),
+            AnimatedBuilder(
+              animation: sl<AtmosphereController>(),
+              builder: (context, _) => _AtmosphereCard(
+                controller: sl<AtmosphereController>(),
               ),
             ),
           ],
@@ -159,12 +199,23 @@ class SettingsPage extends StatelessWidget {
           // -- about -------------------------------------------------------
           const _SectionHeader('About'),
           _SettingsNavTile(
+            glyph:            SketchGlyph(
+              kind: SketchIconKind.jaggedBubble,
+              color: theme.colorScheme.primary,
+            ),
+            label: "Tell me what's broken",
+            subtitle: 'Opens a prefilled message — version & platform '
+                'included, nothing personal.',
+            trailing: null,
+            onTap: () => _launchFeedback(context),
+          ),
+          _SettingsNavTile(
             glyph: SketchGlyph(
               kind: SketchIconKind.infoMark,
               color: theme.colorScheme.primary,
             ),
             label: 'Version',
-            subtitle: 'Echo Bay 0.1.0 · local-first build',
+            subtitle: 'Echo Bay $feedbackAppVersion · local-first build',
             trailing: null,
           ),
           _SettingsNavTile(
@@ -406,6 +457,68 @@ class _BackupCard extends StatelessWidget {
   }
 }
 
+/// Atmosphere opt-ins — paper/pen sounds and the rewind haptic tap.
+/// Both default OFF; when reduce-motion is on, the haptic toggle shows
+/// why it's idle (reduce-motion always wins).
+class _AtmosphereCard extends StatelessWidget {
+  const _AtmosphereCard({required this.controller});
+
+  final AtmosphereController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final reducedMotion = sl.isRegistered<MotionController>()
+        ? sl<MotionController>().reducedMotion
+        : false;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Column(
+          children: [
+            SwitchListTile(
+              secondary: SketchGlyph(
+                kind: SketchIconKind.scribbleMic,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Pen & paper sounds'),
+              subtitle: Text(
+                'A soft scratch when you post or send, a page settling '
+                'when you pin. Quiet by default.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              value: controller.soundsEnabled,
+              onChanged: controller.setSoundsEnabled,
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              secondary: SketchGlyph(
+                kind: SketchIconKind.rewindSpiral,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Rewind tap'),
+              subtitle: Text(
+                reducedMotion
+                    ? 'Idle while reduce-motion is on — your device\'s '
+                        'setting always wins.'
+                    : 'A light tick when a moment rewinds. Off by default.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              value: controller.hapticsEnabled && !reducedMotion,
+              onChanged: reducedMotion
+                  ? null
+                  : controller.setHapticsEnabled,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ReducedMotionCard extends StatelessWidget {
   const _ReducedMotionCard({required this.reduced, required this.onChanged});
 
@@ -421,8 +534,11 @@ class _ReducedMotionCard extends StatelessWidget {
         child: SwitchListTile(
           title: const Text('Reduce motion'),
           subtitle: Text(
-            'Disables staggered cascades and transitions. '
-            'Content appears instantly.',
+            reduced
+                ? 'Animations are off. Content appears instantly.'
+                : 'Disables staggered cascades and transitions. '
+                    'Content appears instantly. Your device\'s own '
+                    'reduce-motion setting is always honored.',
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
