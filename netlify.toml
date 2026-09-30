@@ -8,7 +8,11 @@
 
 [build]
   publish = "build/web"
-  command = "flutter build web --release"
+  # --no-wasm-dry-run: the WASM dry run compiles a second target
+  # (dart2wasm) alongside dart2js and OOMs Netlify's build instances
+  # (exit code 2). This app targets dart2js only; the dry run buys
+  # nothing here. Local CI repro confirmed the same crash without it.
+  command = "flutter build web --release --no-wasm-dry-run"
 
 # Flutter web is a single-page app: any deep link (e.g. /vault/conversation/1)
 # must fall back to index.html so the router can take over after boot.
