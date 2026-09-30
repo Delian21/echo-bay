@@ -38,3 +38,24 @@
   for = "/flutter_bootstrap.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Stale-deploy fixes: these override the /*.js immutable rule above (later
+# rules win on Netlify). The service workers and version.json MUST be
+# revalidated on every load, or browsers keep the old worker — which keeps
+# serving the old app shell from its cache — after a deploy. Both workers
+# are covered: flutter_service_worker.js (Flutter's generated stub) and
+# service-worker.js (Echo Bay's real offline worker).
+[[headers]]
+  for = "/flutter_service_worker.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-cache"
