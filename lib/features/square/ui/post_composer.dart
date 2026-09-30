@@ -162,8 +162,20 @@ class _PostComposerState extends State<_PostComposer> {
         maxWidth: 1920,
         imageQuality: 85,
       );
-    } catch (_) {
-      return; // picker unavailable/cancelled — keep the sheet usable
+    } on Object catch (e) {
+      if (!mounted) return;
+      final denied = e.toString().contains('permission') ||
+          e.toString().contains('denied');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(denied
+              ? 'The album stays shut. Grant the app access to your photos '
+                  'and try again.'
+              : "Couldn't open the album — the pen snapped. Try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
     if (picked == null || !mounted) return;
     setState(() {
@@ -176,7 +188,19 @@ class _PostComposerState extends State<_PostComposer> {
     final XFile? picked;
     try {
       picked = await _picker.pickVideo(source: ImageSource.gallery);
-    } catch (_) {
+    } on Object catch (e) {
+      if (!mounted) return;
+      final denied = e.toString().contains('permission') ||
+          e.toString().contains('denied');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(denied
+              ? 'The album stays shut. Grant the app access to your photos '
+                  'and try again.'
+              : "Couldn't open the album — the pen snapped. Try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     if (picked == null || !mounted) return;

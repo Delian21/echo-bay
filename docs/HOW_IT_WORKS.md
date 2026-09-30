@@ -22,7 +22,7 @@ folder under `lib/features/`:
 | Module | Folder | What it does |
 |---|---|---|
 | **The Square** | `features/square` | A photo-and-sentence journal feed. Posts can be **ephemeral** ("fades in 24h") or permanent. |
-| **The Vault** | `features/vault` | Private messaging (mock E2EE-ready) |
+| **The Vault** | `features/vault` | Private, local-first messaging (E2EE designed-for, not yet implemented) |
 | **The Hallway** | `features/nexus` | Community: the Board (broadcast) + Dorms (group chats) |
 | **The Landline** | `features/calls` | Call log and a mock call screen |
 | **Social** | `features/social` | Comments on Square posts + a notices feed. Mock peers (Rune, Mila, Ops) may comment or react after a realistic delay — capped and spaced, never spammy. |
@@ -68,12 +68,12 @@ polls.
 
 ## 3. The database: drift + SQLite
 
-`lib/core/database/app_database.dart` declares the schema (14 versions so
+`lib/core/database/app_database.dart` declares the schema (15 versions so
 far — posts, messages, group messages, reactions, read cursors, FTS5
 search tables, tombstone columns, attachment columns, post comments,
-social notifications, keepsake items, and the `unpinned_at` soft-unpin
-column). Drift generates type-safe code from it (`app_database.g.dart` —
-never edit).
+social notifications, keepsake items, the `unpinned_at` soft-unpin
+column, and the `unliked_at` soft-unlike column). Drift generates
+type-safe code from it (`app_database.g.dart` — never edit).
 
 Key rule: **migrations must be idempotent.** Each `onUpgrade` step checks
 whether a column/table already exists before acting, because a crash

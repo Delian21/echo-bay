@@ -34,7 +34,22 @@ Future<void> _handOut(
       'echo-bay-square-${post.createdAt.millisecondsSinceEpoch}.png';
   if (kIsWeb) {
     // Browser: object-URL download through the IO seam's web impl.
-    await writeBytes(fileName, bytes);
+    try {
+      await writeBytes(fileName, bytes);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Card inked — check your downloads.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on Object {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text("Couldn't set that down — try the share again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
     return;
   }
   // Native: write through the seam, share the file path.

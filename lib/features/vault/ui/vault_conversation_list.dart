@@ -311,7 +311,7 @@ class _ConversationTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'End-to-end encrypted · tap to open',
+                        'Private · local-first · tap to open',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

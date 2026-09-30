@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#F5EFE2",
     "theme_color": "#F5EFE2",
-    "description": "An analog sketchbook of a town square: posts, encrypted chats, and a keepsake wall - all on your device.",
+    "description": "An analog sketchbook of a town square: posts, private chats, and a keepsake wall - all on your device.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

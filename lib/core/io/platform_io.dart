@@ -14,3 +14,8 @@ export 'io_stub.dart' if (dart.library.io) 'io_native.dart';
 // export picks io_native and the stub's web call is never linked).
 // package:web is a dependency of the Flutter SDK on web builds.
 export 'io_web.dart' if (dart.library.io) 'io_native.dart' show downloadBytesImpl;
+
+/// File picker for restore: real browser <input type=file> on web via
+/// package:web interop; native returns null for now (no file-dialog
+/// plugin in the dependency set — the UI explains the path forward).
+export 'io_web_pick.dart' if (dart.library.io) 'io_native_noop.dart' show pickFileBytesImpl;

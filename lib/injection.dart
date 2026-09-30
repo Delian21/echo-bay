@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 
 import 'core/auth/auth_repository.dart';
 import 'core/auth/session_store.dart';
+import 'core/backup/backup_service.dart';
 import 'core/database/app_database.dart';
 import 'core/motion/motion_controller.dart';
 import 'core/notifications/prompt_notifier.dart';
@@ -61,6 +62,8 @@ Future<void> configureDependencies() async {
   );
   // Unsent-text drafts (composer autosave) over the settings KV table.
   sl.registerLazySingleton<DraftStore>(() => DraftStore(sl()));
+  // Full-app export/import (Settings).
+  sl.registerLazySingleton<BackupService>(() => BackupService(sl()));
   // Local full-text search over all three modules' content (FTS5).
   sl.registerLazySingleton<SearchRepository>(
     () => DriftSearchRepository(sl()),

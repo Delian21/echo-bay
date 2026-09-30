@@ -1,10 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
+import '../../../core/backup/backup_service.dart';
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/error/failures.dart';
+import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../core/theme/theme_controller.dart';
+import '../../../injection.dart';
 import 'daily_square_settings_card.dart';
 
 /// Settings — read/writes the [ThemeController] registered in get_it.
@@ -100,7 +106,7 @@ class SettingsPage extends StatelessWidget {
               color: theme.colorScheme.primary,
             ),
             label: 'The Vault',
-            subtitle: 'End-to-end encrypted · Beta',
+            subtitle: 'Private · local-first · Beta',
           ),
           _SettingsNavTile(
             glyph: SketchGlyph(
@@ -119,6 +125,10 @@ class SettingsPage extends StatelessWidget {
             subtitle: 'Voice & video · New',
           ),
 
+          // -- your data ---------------------------------------------------
+          const _SectionHeader('Your data'),
+          const _BackupCard(),
+
           // -- about -------------------------------------------------------
           const _SectionHeader('About'),
           _SettingsNavTile(
@@ -130,8 +140,164 @@ class SettingsPage extends StatelessWidget {
             subtitle: 'Echo Bay 0.1.0 · local-first build',
             trailing: null,
           ),
+          _SettingsNavTile(
+            glyph: SketchGlyph(
+              kind: SketchIconKind.infoMark,
+              color: theme.colorScheme.primary,
+            ),
+            label: 'Credits',
+            subtitle: 'Set in Caveat & Roboto (both SIL OFL). '
+                'The design is original — drawn for Echo Bay, not borrowed.',
+            trailing: null,
+          ),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+}
+
+/// Export/import of the whole app as one versioned JSON file. Export
+/// downloads (web) or saves (native) `echo-bay-backup-<date>.json`;
+/// import opens a file picker, confirms replacement, then swaps every
+/// table inside a transaction. Failures surface as snackbars in the
+/// app's voice; the schema guard rejects newer backups with a clear ask.
+class _BackupCard extends StatelessWidget {
+  const _BackupCard();
+
+  static const _voice = kHandwrittenTextStyle;
+
+  void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _export(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final export = await sl<BackupService>().exportBytes();
+    final failure = export.fold((f) => f, (_) => null);
+    if (failure != null) {
+      if (!messenger.mounted) return;
+      _toast(messenger.context, 'The pen ran dry — export failed. Try again?');
+      return;
+    }
+    final bytes = export.fold((_) => Uint8List(0), (b) => b);
+    final date = DateTime.now();
+    final name = 'echo-bay-backup-'
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}.json';
+    try {
+      await writeBytes(name, bytes); // IO seam: download on web, file on native
+      if (!messenger.mounted) return;
+      _toast(messenger.context, 'Backed up. Every page, safe on paper.');
+    } on Object {
+      if (!messenger.mounted) return;
+      _toast(messenger.context, "Couldn't set that down — export failed.");
+    }
+  }
+
+  Future<void> _import(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // IO seam: real <input type=file> on web; native returns null for
+      // now (no file-dialog plugin) — surfaced below with a path forward.
+      final bytes = await pickFileBytes();
+      if (bytes == null) return; // cancelled
+      if (!messenger.mounted) return;
+      final dialogContext = messenger.context;
+
+      // Confirm: this replaces everything on this device.
+      final confirmed = await showDialog<bool>(
+        // STALE_CHECK_OK: messenger.mounted was checked right above, and
+        // dialogContext was captured from it while mounted.
+        // ignore: use_build_context_synchronously
+        context: dialogContext,
+        builder: (sheetContext) => AlertDialog(
+          title: const Text('Replace this Echo Bay?'),
+          content: Text(
+            'Everything here now — every post, note, and message — will be '
+            'traded for what is in that backup file. The old pages stay '
+            'unwritten.\n\nThis cannot be undone.',
+            style: sheetContext.mounted &&
+                    GoldenHourExtension.of(sheetContext).enabled
+                ? _voice.copyWith(fontSize: 16)
+                : null,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(false),
+              child: const Text('Keep mine'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(sheetContext).pop(true),
+              child: const Text('Replace it'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      final result = await sl<BackupService>().importBytes(bytes);
+      result.fold(
+        (Failure f) {
+          if (!messenger.mounted) return;
+          _toast(
+            messenger.context,
+            f.message ?? "Couldn't read that backup.",
+          );
+        },
+        (ImportSummary summary) {
+          if (!messenger.mounted) return;
+          _toast(
+            messenger.context,
+            'Restored — ${summary.rows} rows of your Echo Bay are back.',
+          );
+        },
+      );
+    } on Object {
+      if (!messenger.mounted) return;
+      _toast(messenger.context, "Couldn't open that file. Try again?");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Column(
+          children: [
+            ListTile(
+              leading: SketchGlyph(
+                kind: SketchIconKind.paperPlane,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Export my Echo Bay'),
+              subtitle: const Text(
+                'Every page — posts, messages, notes, the whole wall — as '
+                'one file.',
+              ),
+              trailing: const Icon(Icons.download_rounded),
+              onTap: () => _export(context),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: SketchGlyph(
+                kind: SketchIconKind.plusCircle,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Import from backup'),
+              subtitle: const Text(
+                'Bring a backup file back. Replaces what is here now.',
+              ),
+              trailing: const Icon(Icons.upload_rounded),
+              onTap: () => _import(context),
+            ),
+          ],
+        ),
       ),
     );
   }

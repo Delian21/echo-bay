@@ -101,10 +101,21 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
       ),
     );
     if (text == null || text.isEmpty) return;
-    await widget.repository.addNote(
+    final result = await widget.repository.addNote(
       noteText: text,
       posX: 0.1 + math.Random().nextDouble() * 0.5,
       posY: 0.1 + math.Random().nextDouble() * 0.5,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              failure.message ?? "Couldn't pin that note. Try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
     );
   }
 

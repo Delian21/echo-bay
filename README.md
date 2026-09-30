@@ -3,7 +3,7 @@
 *Capture the day before it fades.*
 
 A local-first life-logging social app in Flutter — a photo journal (The
-Square), end-to-end-encrypted messaging (The Vault), and community
+Square), private local-first messaging (The Vault), and community
 boards and dorms (The Hallway), designed to look like it was drawn in a
 0.5mm gel pen on the pages of a well-loved sketchbook.
 
@@ -16,22 +16,42 @@ record.
 - **The Square** — a chronological photo-and-sentence feed. Polaroid
   framed cards that "develop" in from their blurhash, a handwritten
   journal header, one Daily Square prompt a day (opt-in, pausable, no
-  streaks). Un-liking and un-posting play the signature **rewind** — the
-  app-wide undo gesture.
-- **The Vault** — offline-first secure messaging. Messages are local-first
-  with a full delivery lifecycle (pending → sent → delivered → read),
-  reactions, read cursors, edit and delete-for-everyone tombstones (undone
-  by the rewind). On desktop the list and the open chat sit side by side,
-  Telegram-style. The mock peers (Rune, Mila, the Ops channel) answer in
-  character, with typing indicators and realistic delays. The composer is
-  an inked note box with a paper-plane send and photo/video/voice attach
-  slots.
+  streaks). Posts can be **ephemeral** ("fades in 24h", with a keep-it
+  action) or permanent. Un-liking and un-posting play the signature
+  **rewind** — the app-wide undo gesture. Comments with mock-peer
+  replies, a notices bell with unread badges, share-any-post-as-image
+  export cards, and a **time travel** scrubber that rewinds the whole
+  app to any past day (read-only; deletes are soft, so the past stays
+  recoverable).
+- **The Vault** — private, local-first messaging. Messages live in a
+  local database with a full delivery lifecycle (pending → sent →
+  delivered → read), reactions, read cursors, edit and
+  delete-for-everyone tombstones (undone by the rewind), and
+  photo/video/voice attachments with playable waveform chips. On
+  desktop the list and the open chat sit side by side, Telegram-style.
+  The mock peers (Rune, Mila, the Ops channel) answer in character,
+  with typing indicators and realistic delays. The composer is an
+  inked note box with a paper-plane send. The schema carries an
+  unused ciphertext column for end-to-end encryption — a design goal,
+  not a shipped feature.
 - **The Hallway** — community bulletin: the Board (broadcast channels,
   remote-first cache model) and the Dorms (group chats, local-first
   outbox model), each with its own notebook-box treatment.
 - **The Landline** — a deliberate utility island: the cleanest module in
   the app (a handwritten masthead, nothing more), because a dialer with
-  decorative grain is a dialer that's harder to read mid-call.
+  decorative grain is a dialer that's harder to read mid-call. Redial
+  from the log or straight from a Vault conversation.
+- **Profile** — name, picture, and accent color (six-ink palette,
+  golden-hour amber by default), with your own posts gathered as
+  polaroid thumbnails that open the day they belong to.
+- **Keepsake wall** — a corkboard where you pin your own posts and
+  handwritten notes; items drag, tilt, and string together with an
+  inked line. Unpinning is a soft tombstone, so time travel can show
+  the board as it was.
+- **Search** — one box across posts, board posts, and messages (FTS5,
+  tombstone-aware) with recent searches.
+- **Settings** — theme, reduced motion, Daily Square prefs, and profile
+  entry.
 
 ## The look
 
@@ -81,5 +101,5 @@ First Windows build needs the C++ ATL component (see `ARCHITECTURE.md`
 flutter test
 ```
 
-122 tests across the data layer, UI, motion, theme, goldens, and the
+The suite covers the data layer, UI, motion, theme, goldens, and the
 Daily Square anti-chore rules.

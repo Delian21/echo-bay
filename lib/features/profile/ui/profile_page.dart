@@ -397,7 +397,17 @@ class _ProfileDayLoader extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(title: const Text('That day')),
           body: posts.isEmpty
-              ? const Center(child: Text('Nothing was written this day.'))
+              ? Center(
+                  child: Text(
+                    'Nothing was written this day.\nThe page stays blank.',
+                    textAlign: TextAlign.center,
+                    style: kHandwrittenTextStyle.copyWith(
+                      fontSize: 18,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
               : ListView(
                   padding: const EdgeInsets.all(12),
                   children: [

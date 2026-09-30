@@ -101,24 +101,39 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     _pendingLikes.remove(post.id);
     result.fold(
       (failure) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(failure.message ?? 'Like failed')),
+        SnackBar(
+          content: Text(failure.message ??
+              "Couldn't leave that heart — try again in a moment."),
+          behavior: SnackBarBehavior.floating,
+        ),
       ),
       (_) {},
     );
   }
 
-  /// Pin one of the user's own posts to the keepsake wall.
+  /// Pin one of the user's own posts to the keepsake wall. Failure is
+  /// surfaced — a silent pin that never lands is a lost memory.
   Future<void> _pinToWall(Post post) async {
-    await sl<KeepsakeRepository>().pinPost(
+    final result = await sl<KeepsakeRepository>().pinPost(
           postId: post.id,
           posX: 0.1 + math.Random().nextDouble() * 0.5,
           posY: 0.1 + math.Random().nextDouble() * 0.5,
         );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pinned to the keepsake wall.'),
-        behavior: SnackBarBehavior.floating,
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ??
+              'Couldn\'t pin that one — the wall is out of thumbtacks. '
+              'Try again?'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pinned to the keepsake wall.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       ),
     );
   }

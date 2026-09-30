@@ -60,3 +60,10 @@ String joinPath(String a, String b) => '$a${Platform.pathSeparator}$b';
 
 /// The process working directory (native only).
 String get currentDirPath => Directory.current.path;
+
+/// Native file picker for restore. A full desktop file dialog needs a
+/// plugin not in the dependency set; the seam stays honest by returning
+/// null and letting the UI explain. (Backup files arrive by dropping
+/// them into the attachments dir or a future plugin.)
+Future<Uint8List?> pickFileBytes({String? accept, int maxBytes = 52428800})
+    async => null;

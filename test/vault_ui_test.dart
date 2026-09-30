@@ -48,9 +48,9 @@ void main() {
       expect(find.text('Rune Virtanen'), findsOneWidget);
       expect(find.text('Signal Ops Team'), findsOneWidget);
       expect(find.text('Mila Kang'), findsOneWidget);
-      // Every tile advertises encryption. Lock badges are the chalk
+      // Every tile advertises privacy. Lock badges are the chalk
       // padlock glyph now (SketchIcon), not a Material icon.
-      expect(find.text('End-to-end encrypted · tap to open'),
+      expect(find.text('Private · local-first · tap to open'),
           findsNWidgets(3));
       expect(
         find.byWidgetPredicate(
@@ -79,12 +79,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byType(VaultChatPage), findsOneWidget);
-      expect(find.text('End-to-end encrypted'), findsOneWidget);
+      expect(find.text('Private · local-first'), findsOneWidget);
     });
   });
 
   group('Vault chat page', () {
-    testWidgets('empty conversation shows encryption notice', (tester) async {
+    testWidgets('empty conversation shows privacy notice', (tester) async {
       final (repo, db) = _makeRepo();
       addTearDown(() async {
         repo.dispose();
@@ -107,7 +107,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(
-        find.textContaining('end-to-end encrypted'),
+        find.textContaining('Stays on this device'),
         findsOneWidget,
       );
     });

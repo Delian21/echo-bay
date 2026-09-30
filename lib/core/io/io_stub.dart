@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/painting.dart' show ImageProvider, NetworkImage;
 
 import 'io_web.dart' if (dart.library.io) 'io_native_noop.dart' show downloadBytesImpl;
+import 'io_web_pick.dart' if (dart.library.io) 'io_native_noop.dart' as pick_impl;
 
 /// Web stubs for the IO seam. The browser has no local filesystem, so
 /// existence checks are false, reads return null, writes are no-ops,
@@ -22,6 +23,9 @@ Future<String> writeBytes(String fileName, Uint8List bytes) async {
 /// Browser download via an object-URL anchor click.
 void downloadBytes(String fileName, Uint8List bytes) =>
     downloadBytesImpl(fileName, bytes);
+
+Future<Uint8List?> pickFileBytes({String? accept, int maxBytes = 52428800}) =>
+    pick_impl.pickFileBytesImpl(accept: accept, maxBytes: maxBytes);
 
 Future<bool> fileExists(String path) async => false;
 

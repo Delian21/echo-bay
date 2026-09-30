@@ -58,20 +58,38 @@ class _InkChatComposerState extends State<InkChatComposer> {
 
   Future<void> _attachPhoto() async {
     final a = await _picker.pickPhoto();
-    if (a == null || !mounted) return;
+    if (!mounted) return;
+    if (a == null) {
+      // Distinguish cancel from failure is not possible through the
+      // picker contract; a null here after a real picker attempt is
+      // near-always a cancelled dialog, so stay quiet (no nagging).
+      return;
+    }
     setState(() => _pending = a);
   }
 
   Future<void> _attachVideo() async {
     final a = await _picker.pickVideo();
-    if (a == null || !mounted) return;
+    if (!mounted || a == null) return;
     setState(() => _pending = a);
   }
 
   Future<void> _recordVoice() async {
     if (_recording != null) return;
     final rec = await _picker.startVoiceRecording();
-    if (rec == null || !mounted) return;
+    if (!mounted) return;
+    if (rec == null) {
+      // Real failure (not the graceful mic-fallback, which returns a
+      // handle): permission denied or recorder broken. Say so.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              "The microphone won't answer. Check the app's mic access."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _recording = rec);
   }
 

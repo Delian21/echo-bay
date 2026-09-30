@@ -4,3 +4,5 @@ import 'dart:typed_data';
 /// conditional import compiles this on native where package:web interop
 /// must not be linked; the function is never called there.
 void downloadBytesImpl(String fileName, Uint8List bytes) {}
+
+Future<Uint8List?> pickFileBytesImpl({String? accept, int? maxBytes}) async => null;

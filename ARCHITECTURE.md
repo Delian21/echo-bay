@@ -52,7 +52,7 @@ section then.
 | Module | Purpose | Read/write model | Source of truth |
 |---|---|---|---|
 | **The Square** (`features/square`) | Public text-and-media chronological feed; posts can be **ephemeral** ("fades in 24h") | Read-mostly; network-first | Remote (mocked for now); drift is a cache |
-| **The Vault** (`features/vault`) | Secure offline-first E2EE messaging | Write-heavy; local-first | **Local (drift)**; remote is a dumb sync transport |
+| **The Vault** (`features/vault`) | Private local-first messaging (E2EE designed-for: schema carries the ciphertext seam; not yet implemented) | Write-heavy; local-first | **Local (drift)**; remote is a dumb sync transport |
 | **The Hallway** (`features/nexus`) | Community hub: the **Board** (broadcast channels) + the **Dorms** (group chats) | Hybrid | Board: remote-first like Square. Dorms: local-first outbox like Vault minus E2EE |
 | **The Landline** (`features/calls`) | Voice & video call log + mock call flow | Read-mostly | Local log; transport mocked |
 | **Social** (`features/social`) | Comments on Square posts + the notices feed; mock peers (Rune, Mila, Ops) react to your posts on a capped, spaced schedule | Read-mostly; writes only in the present | Local (drift) |
