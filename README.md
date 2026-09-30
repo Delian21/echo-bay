@@ -20,9 +20,17 @@ record.
   action) or permanent. Un-liking and un-posting play the signature
   **rewind** — the app-wide undo gesture. Comments with mock-peer
   replies, a notices bell with unread badges, share-any-post-as-image
-  export cards, and a **time travel** scrubber that rewinds the whole
-  app to any past day (read-only; deletes are soft, so the past stays
-  recoverable).
+  export cards, an audience switch between **Everyone** and **My
+  Window** (only people you keep close), and a **time travel** scrubber
+  that rewinds the whole app to any past day (read-only; deletes are
+  soft, so the past stays recoverable). Peers' names and avatars open
+  their profile, where you can **Keep close** (follow) or **Drift
+  apart** (unfollow) — no confirm, no fuss. From your own profile, **My
+  Circle** lists who keeps you close and **My Window** lists who you
+  keep close; drifts are soft, so time travel shows past states. Once
+  in a while a peer starts keeping you close on their own — you get a
+  quiet "Mila kept you close" notice. Nobody ever announces drifting
+  apart.
 - **The Vault** — private, local-first messaging. Messages live in a
   local database with a full delivery lifecycle (pending → sent →
   delivered → read), reactions, read cursors, edit and

@@ -36,6 +36,16 @@ int _filledHearts(WidgetTester tester) => tester
         i.size == 22.0)
     .length;
 
+/// The feed now carries an audience switch row above the journal
+/// header, so the third seeded card can land below the fold — ListView
+/// lazily builds, so scroll a drag's worth before counting items.
+Future<void> _scrollFeed(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+  await tester.pump(const Duration(milliseconds: 200));
+  // Stay scrolled: returning to the top would dispose the off-viewport
+  // card again (ListView.builder cache extent is tight).
+}
+
 Future<void> _doubleTapMedia(WidgetTester tester) async {
   final media = find.descendant(
     of: find.byType(SquareFeedCard),
@@ -119,6 +129,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         // Seeded authors visible; repository emits newest-first.
+        await _scrollFeed(tester);
         expect(find.byType(SquareFeedCard), findsNWidgets(3));
         expect(find.text('Kai Meridian'), findsOneWidget);
       });
@@ -167,6 +178,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         // Seeded posts have zero likes; label shows '0'.
+        await _scrollFeed(tester);
         expect(find.text('0'), findsNWidgets(3));
 
         await _doubleTapMedia(tester);

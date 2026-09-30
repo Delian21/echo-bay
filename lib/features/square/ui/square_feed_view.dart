@@ -433,7 +433,8 @@ class _SquareFeedViewState extends State<SquareFeedView> {
         if (index == 1) {
           return _JournalHeader(repository: widget.repository);
         }
-        final postIndex = index - 1;
+        // -2: audience switch + journal header above the cards.
+        final postIndex = index - 2;
         final focused = postIndex == _focusedIndex;
         return StaggeredEntrance(
           index: postIndex,

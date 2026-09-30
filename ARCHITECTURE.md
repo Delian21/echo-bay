@@ -484,13 +484,27 @@ undo snackbar.
 
 **Social layer** (`features/social`, schema v13). Comments on Square
 posts (`post_comments`) plus a notices feed (`social_notifications`,
-kind ∈ {comment, reaction, reply}, `readAt` unread tracking, `deepLink`
+kind ∈ {comment, reaction, reply, follow}, `readAt` unread tracking, `deepLink`
 navigation). The **peer engine** lives in the domain: `PeerPlanner`
 (injectable RNG) plans 0–2 events per own post — distinct peers,
 first ≥20s out, ≥25s spacing, ~1-in-6 posts draw silence (the no-chore
 rule). The drift repository schedules real timers per plan and inserts
 comment/notification rows; the UI consumes only the `SocialRepository`
 contract. Unread badge = live count query on the shell.
+
+**Follow graph** (`features/social`, schema v16, `follows`). Who keeps
+whom close, mock peers only. Vocabulary is fixed: follow = **Keep
+close**, unfollow = **Drift apart**; **My Circle** = who keeps the
+local user close, **My Window** = who they keep close. Drifting apart
+stamps `drifted_at` — the row survives, so time travel can show past
+circle/window states (reads are as-of filtered, writes refused while
+time traveling, same rules as every other datasource). The contract is
+the domain-layer `FollowRepository` — no drift types leak; a future
+backend replaces the implementation wholesale. Spontaneous follows:
+`PeerPlanner.planFollow` fires at most once per four own posts, after
+a quiet-in, with a hard lifetime cap; the one announcement reads
+"Mila kept you close". Drifting apart is never planned and never
+announced.
 
 **Keepsake wall** (`features/keepsake`, schema v13/v14). A corkboard of
 pinned own-posts and freehand notes. Geometry is stored as
