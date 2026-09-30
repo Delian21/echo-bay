@@ -189,10 +189,13 @@ class ComposeFab extends StatelessWidget {
   final ValueChanged<String>? onQuickAction;
 
   /// (shape, icon, label) — labels mirror the prompt shape names.
+  /// The 4th entry is not a prompt shape: 'timetravel' is a plain
+  /// action token the shell interprets (opens the scrubber).
   static const _quickActions = [
     ('photo', Icons.photo_outlined, 'Photo'),
     ('sentence', Icons.short_text_rounded, 'Sentence'),
     ('sound', Icons.music_note_outlined, 'Sound'),
+    ('timetravel', Icons.history_rounded, 'Time travel'),
   ];
 
   Future<void> _showQuickActions(BuildContext context) async {
@@ -208,7 +211,11 @@ class ComposeFab extends StatelessWidget {
                 title: Text(label),
                 // Same copy as the prompt body for that shape — one
                 // vocabulary across notification, FAB, and composer.
-                subtitle: Text(promptShapeHint(shape)),
+                // The time-travel token isn't a prompt shape and has
+                // no composer copy.
+                subtitle: shape == 'timetravel'
+                    ? const Text('Flip through the sketchbook\'s past days.')
+                    : Text(promptShapeHint(shape)),
                 onTap: () => Navigator.of(sheetContext).pop(shape),
               ),
           ],

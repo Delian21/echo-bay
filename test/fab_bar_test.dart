@@ -192,10 +192,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // One entry per interactive prompt shape of the Daily Square
-      // rotation; 'desk' has no distinct compose affordance.
+      // rotation; 'desk' has no distinct compose affordance. The 4th
+      // entry is the time-travel action (moved out of the app bar).
       expect(find.text('Photo'), findsOneWidget);
       expect(find.text('Sentence'), findsOneWidget);
       expect(find.text('Sound'), findsOneWidget);
+      expect(find.text('Time travel'), findsOneWidget);
 
       await tester.tap(find.text('Sentence'));
       await tester.pumpAndSettle();

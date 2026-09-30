@@ -99,7 +99,14 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Embedded (first-run setup): shrink-wrap to content and let the
+    // host's scroll view own the physics — a full ListView inside a
+    // CustomScrollView sliver gets unbounded height and paints nothing.
     final body = ListView(
+      shrinkWrap: widget.embedInOnboarding,
+      physics: widget.embedInOnboarding
+          ? const NeverScrollableScrollPhysics()
+          : null,
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
           // -- identity preview ------------------------------------------

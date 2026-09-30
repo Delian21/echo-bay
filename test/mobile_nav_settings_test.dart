@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 
 import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/profile/profile_controller.dart';
 import 'package:echo_bay/core/theme/theme_controller.dart';
 import 'package:echo_bay/features/calls/data/repositories/mock_calls_repository.dart';
 import 'package:echo_bay/features/calls/domain/entities/call.dart';
@@ -175,7 +176,10 @@ void main() {
       di.sl
         ..registerLazySingleton<AppDatabase>(() => db)
         ..registerLazySingleton<FeedRepository>(() => feedRepo)
-        ..registerLazySingleton<ThemeController>(() => ThemeController());
+        ..registerLazySingleton<ThemeController>(() => ThemeController())
+        // Profile is a pushed page from the bar on mobile; the shell
+        // resolves the controller from DI (a bare one suffices here).
+        ..registerLazySingleton<ProfileController>(ProfileController.new);
       addTearDown(() async {
         callsRepo.dispose();
         await di.sl.reset();
@@ -196,8 +200,26 @@ void main() {
         // Square app bar on mobile). Extra pump after each switch: the
         // StreamBuilder's first event lands one frame after the body.
         expect(find.byKey(const ValueKey('fab-bottom-bar')), findsOneWidget);
-        // Two "New post" tooltips: Square app-bar icon + compose FAB.
-        expect(find.byTooltip('New post'), findsNWidgets(2));
+        // One "New post" tooltip: the compose FAB only. The app-bar
+        // duplicate was removed (the FAB owns that action).
+        expect(find.byTooltip('New post'), findsOneWidget);
+        // The Landline moved into the Square app bar as a pushed page.
+        expect(find.byTooltip('The Landline'), findsOneWidget);
+
+        // The Landline: pushed page from the header (an action, not a
+        // module body on mobile — Profile took its bar slot).
+        await tester.tap(find.byTooltip('The Landline'));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 300));
+        // One row per seeded call — the mock recents include Kai
+        // Meridian twice, so assert presence, not uniqueness.
+        expect(find.text('Kai Meridian'), findsWidgets);
+        await tester.pageBack();
+        // Let the popped route's barrier finish fading before the next
+        // tap — 300ms leaves the overlay scrim mid-fade and it swallows
+        // the Settings tap (hit-test lands on the barrier ColoredBox).
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 400));
 
         // Settings: gear icon in the Square app bar (no bottom destination).
         // Only reachable while the Square is the active module — its app
@@ -210,7 +232,7 @@ void main() {
         // Settings is a module body swap (not a pushed route): return by
         // selecting Square on the bar (bar labels are the short forms;
         // scoped because the app bar title reads "The Square"), then
-        // move on to the Landline.
+        // open Profile from the bar (pushed page, like the Landline).
         await tester.tap(
           find.descendant(
             of: find.byKey(const ValueKey('fab-bottom-bar')),
@@ -219,10 +241,11 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
-        await tester.tap(find.text('Landline'));
+        await tester.tap(find.text('Profile'));
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
-        expect(find.text('Kai Meridian'), findsOneWidget);
+        // _SectionHeader uppercases: 'Display name' renders 'DISPLAY NAME'.
+        expect(find.text('DISPLAY NAME'), findsOneWidget);
       });
     });
 

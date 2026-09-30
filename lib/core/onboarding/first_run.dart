@@ -54,6 +54,44 @@ class FirstRun {
 class FirstRunFlow extends StatefulWidget {
   const FirstRunFlow({super.key});
 
+  /// The "who are you" step's scroll structure, shared with the
+  /// regression test (onboarding_setup_step_test.dart). CustomScrollView
+  /// — not SingleChildScrollView+Column: ProfilePage is a ListView, and
+  /// a ListView inside a Column inside an unbounded scroll view gets
+  /// zero height, which painted this step blank. The heading is a sliver
+  /// header; the shrink-wrapped profile list scrolls beneath it.
+  static Widget setupProfileStep({
+    required ProfileController controller,
+    FeedRepository? feedRepository,
+  }) {
+    return Builder(builder: (context) {
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(40, 8, 40, 0),
+              child: Text(
+                'What should the town call you?',
+                textAlign: TextAlign.center,
+                style: kHandwrittenTextStyle.copyWith(
+                  fontSize: 26,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: ProfilePage(
+              profileController: controller,
+              feedRepository: feedRepository,
+              embedInOnboarding: true,
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
   @override
   State<FirstRunFlow> createState() => _FirstRunFlowState();
 }
@@ -224,28 +262,10 @@ class _SetupProfileStep extends StatelessWidget {
       // DI-less tests: skip setup entirely.
       return const Center(child: Text('Welcome to Echo Bay.'));
     }
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(40, 8, 40, 0),
-            child: Text(
-              'What should the town call you?',
-              textAlign: TextAlign.center,
-              style: kHandwrittenTextStyle.copyWith(
-                fontSize: 26,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ),
-          ProfilePage(
-            profileController: controller,
-            feedRepository:
-                sl.isRegistered<FeedRepository>() ? sl<FeedRepository>() : null,
-            embedInOnboarding: true,
-          ),
-        ],
-      ),
+    return FirstRunFlow.setupProfileStep(
+      controller: controller,
+      feedRepository:
+          sl.isRegistered<FeedRepository>() ? sl<FeedRepository>() : null,
     );
   }
 }

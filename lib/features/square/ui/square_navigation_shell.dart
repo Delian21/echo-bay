@@ -193,15 +193,23 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     return _unreadStream ?? const Stream<int>.empty();
   }
 
+  /// Whether the pushed Profile page is open (bottom-bar highlight).
+  bool _profileOpen = false;
+
   void _openProfile() {
     final controller = _profileController;
     if (controller == null) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    setState(() => _profileOpen = true);
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(
       builder: (_) => ProfilePage(
         profileController: controller,
         feedRepository: sl<FeedRepository>(),
       ),
-    ));
+    ))
+        .whenComplete(() {
+      if (mounted) setState(() => _profileOpen = false);
+    });
   }
 
   /// Settings from the Square app bar (mobile). On the rail this is the
@@ -325,8 +333,8 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
 
   // -- shared module bodies ---------------------------------------------------
 
-  Widget _buildModuleBody() {
-    final current = _moduleBodyFor(_moduleIndex);
+  Widget _buildModuleBody({bool mobile = false}) {
+    final current = _moduleBodyFor(_moduleIndex, mobile: mobile);
 
     // No transition needed when first mounting (value already at 1) — the
     // fade-through only plays on module *switches*. Only the incoming body
@@ -351,8 +359,12 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     );
   }
 
-  Widget _moduleBodyFor(int index) {
-    return switch (index) {
+  Widget _moduleBodyFor(int index, {bool mobile = false}) {
+    // On mobile, bottom-bar index 3 is Profile — a pushed page, never
+    // a module body (the bar's onSelected routes it to _openProfile).
+    // On the rail, index 3 is still the Landline.
+    final bodyIndex = (mobile && index == 3) ? 0 : index;
+    return switch (bodyIndex) {
       0 => _squareBody(),
       1 => VaultConversationList(
           repository: _vaultRepository,
@@ -383,30 +395,6 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         title: const Text('The Square'),
         centerTitle: false,
         actions: [
-          // Profile entry: the local user's page (identity + pinned grid).
-          // AnimatedBuilder so the initials avatar tracks profile edits.
-          AnimatedBuilder(
-            animation: _profileController ?? ChangeNotifier(),
-            builder: (context, _) {
-              final profile =
-                  _profileController?.profile ?? const UserProfile();
-              return IconButton(
-                tooltip: 'Your profile',
-                onPressed: _openProfile,
-                icon: profile.avatarPath != null
-                    ? CircleAvatar(
-                        radius: 12,
-                        backgroundImage:
-                            platformImageProvider(profile.avatarPath!),
-                        onBackgroundImageError: (_, __) {},
-                      )
-                    : SketchGlyph(
-                        kind: SketchIconKind.personGlyph,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-              );
-            },
-          ),
           IconButton(
             tooltip: 'Search',
             icon: const SketchGlyph(kind: SketchIconKind.searchGlass),
@@ -416,6 +404,21 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                   searchRepository: sl<SearchRepository>(),
                   settingsStore: sl<AppSettingsStore>(),
                 ),
+              ));
+            },
+          ),
+          // The Landline: a pushed page, like Search. Calls are an
+          // action (a recents visit), not a place you live — the chat
+          // headers carry the actual call buttons. Profile took the
+          // Landline's bottom-bar slot on mobile; the desktop rail is
+          // unchanged (Landline remains a rail destination there).
+          IconButton(
+            tooltip: 'The Landline',
+            icon: const SketchGlyph(kind: SketchIconKind.handset),
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) =>
+                    CallsModuleView(repository: _callsRepository),
               ));
             },
           ),
@@ -458,27 +461,13 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
               repository: sl<KeepsakeRepository>(),
             ),
           ),
-          // Time travel: flip through the sketchbook's past days.
-          // Read-only — the datasources refuse writes while active.
-          IconButton(
-            tooltip: 'Time travel',
-            icon: const SketchGlyph(kind: SketchIconKind.rewindSpiral),
-            onPressed: () {
-              final travel = TimeTravelScope.of(context);
-              if (travel.isActive) {
-                RewindScope.rewind(context, travel.exit);
-              } else {
-                travel.enter(
-                  DateTime.now().subtract(const Duration(days: 1)),
-                );
-              }
-            },
-          ),
-          IconButton(
-            tooltip: 'New post',
-            icon: const SketchGlyph(kind: SketchIconKind.plusCircle),
-            onPressed: _openComposer,
-          ),
+          // Time travel lives in the FAB long-press quick actions now
+          // (read-only — the datasources refuse writes while active);
+          // this keeps the app bar at five icons.
+          // No New post button here: the compose FAB owns that action
+          // (the duplicate button doubled the entry points for no
+          // reason). No Profile button either: the bottom bar carries
+          // Profile on mobile; the desktop rail leads with the avatar.
           // Mobile bottom bar has no Settings destination (compose FAB
           // owns the center) — the gear lives here on every platform.
           IconButton(
@@ -595,26 +584,39 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
 
   // -- mobile: hybrid bottom bar (compose FAB + 4 destinations) --------------
 
-  /// Mobile shows four destinations; Settings moves to the Square app bar
-  /// (gear icon) so the compose FAB can own the bar's center. Labels use
-  /// the short forms — the 64dp bar clips "The Hallway"/"The Landline"
-  /// at phone widths; full names live on the desktop rail and mastheads.
+  /// Mobile shows four destinations; Landline moves to the Square app
+  /// bar (it's an action — a recents/call-log visit — not a place you
+  /// live) and Profile takes the fourth slot so the bar reads
+  /// "places": Square, Vault, [FAB], Hallway, you. The FAB owns the
+  /// center. Labels use the short forms — the 64dp bar clips the
+  /// "The …" full names at phone widths; full names live on the
+  /// desktop rail and mastheads.
   static const _mobileModules = [
     ('Square', SketchIconKind.slateGrid),
     ('Vault', SketchIconKind.padlock),
     ('Hallway', SketchIconKind.spiralHub),
-    ('Landline', SketchIconKind.handset),
+    ('Profile', SketchIconKind.personGlyph),
   ];
 
   Widget _buildBottomNavScaffold() {
     // Subscribe lazily on first build; see _totalUnreadStream.
     _totalUnreadStream;
     return Scaffold(
-      body: _buildModuleBody(),
+      body: _buildModuleBody(mobile: true),
       bottomNavigationBar: FabBottomBar(
         modules: _mobileModules,
-        selectedIndex: _moduleIndex,
-        onSelected: _selectModule,
+        selectedIndex:
+            _moduleIndex == 3 && !_profileOpen ? 3 : (_moduleIndex < 3 ? _moduleIndex : -1),
+        onSelected: (i) {
+          // Profile (index 3): a pushed page like the Landline before it
+          // — the bar highlights it while open (no double-back), then
+          // selection returns to the module you came from.
+          if (i == 3) {
+            _openProfile();
+          } else {
+            _selectModule(i);
+          }
+        },
         onCompose: _openComposer,
         // Vault badge (index 1); hidden while the Vault is open — a badge
         // that persists on the screen you're looking at is noise.
@@ -633,7 +635,23 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
       // the Daily Square notification tap path.
       floatingActionButton: ComposeFab(
         onPressed: _openComposer,
-        onQuickAction: (shape) => _openComposer(promptShape: shape),
+        onQuickAction: (shape) {
+          // 'timetravel' is a plain action (the FAB sheet's 4th entry
+          // — it moved out of the app bar to slim it); everything else
+          // is a composer prompt shape.
+          if (shape == 'timetravel') {
+            final travel = TimeTravelScope.of(context);
+            if (travel.isActive) {
+              RewindScope.rewind(context, travel.exit);
+            } else {
+              travel.enter(
+                DateTime.now().subtract(const Duration(days: 1)),
+              );
+            }
+            return;
+          }
+          _openComposer(promptShape: shape);
+        },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
