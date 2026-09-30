@@ -10,6 +10,10 @@ import '../../../core/profile/user_profile.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
+import '../../../injection.dart';
+import '../../social/domain/repositories/follow_repository.dart';
+import '../../social/ui/circle_window_page.dart';
+
 import '../../square/domain/entities/post.dart';
 import '../../square/domain/repositories/feed_repository.dart';
 
@@ -153,6 +157,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
 
           // -- editable fields -------------------------------------------
+          if (!widget.embedInOnboarding) ...[
+            const _SectionHeader('My Circle'),
+            const _CircleWindowTiles(),
+          ],
           const _SectionHeader('Display name'),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -573,6 +581,69 @@ class _PreviewProfile extends UserProfile {
 
   factory _PreviewProfile.from(String name) =>
       _PreviewProfile(name.trim().isEmpty ? 'You' : name.trim());
+}
+
+/// My Circle / My Window entry tiles with live counts, shown on the
+/// local user's profile. Vocabulary is fixed: "My Circle" (who keeps me
+/// close), "My Window" (who I keep close).
+class _CircleWindowTiles extends StatelessWidget {
+  const _CircleWindowTiles();
+
+  Stream<int> _count(BuildContext context, {required bool circle}) {
+    if (!sl.isRegistered<FollowRepository>()) return const Stream.empty();
+    final repo = sl<FollowRepository>();
+    final stream = circle ? repo.watchCircle() : repo.watchWindow();
+    return stream
+        .map((either) => either.fold((_) => -1, (l) => l.length));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Column(
+          children: [
+            StreamBuilder<int?>(
+              stream: _count(context, circle: true),
+              builder: (context, snap) => ListTile(
+                leading: const Icon(Icons.favorite_border_rounded),
+                title: const Text('My Circle'),
+                subtitle: const Text('People who keep you close'),
+                trailing: snap.data != null && snap.data! >= 0
+                    ? Text('${snap.data}',
+                        style: Theme.of(context).textTheme.titleMedium)
+                    : null,
+                onTap: () => Navigator.of(context)
+                    .push<void>(MaterialPageRoute<void>(
+                  builder: (_) => const CircleWindowPage(initiallyCircle: true),
+                )),
+              ),
+            ),
+            const Divider(height: 1),
+            StreamBuilder<int?>(
+              stream: _count(context, circle: false),
+              builder: (context, snap) => ListTile(
+                leading: const Icon(Icons.window_outlined),
+                title: const Text('My Window'),
+                subtitle: const Text('People you keep close'),
+                trailing: snap.data != null && snap.data! >= 0
+                    ? Text('${snap.data}',
+                        style: Theme.of(context).textTheme.titleMedium)
+                    : null,
+                onTap: () => Navigator.of(context)
+                    .push<void>(MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const CircleWindowPage(initiallyCircle: false),
+                )),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

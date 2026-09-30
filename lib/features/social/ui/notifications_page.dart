@@ -112,6 +112,7 @@ class _NoticeTile extends StatelessWidget {
       NotificationKind.comment => (Icons.chat_bubble_outline_rounded, 'left a note'),
       NotificationKind.reaction => (Icons.favorite_border_rounded, 'reacted'),
       NotificationKind.reply => (Icons.reply_rounded, 'replied'),
+      NotificationKind.follow => (Icons.person_add_alt_1_rounded, 'kept you close'),
     };
     final personName = notification.peerName;
     return ListTile(

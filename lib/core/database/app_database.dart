@@ -276,7 +276,7 @@ class SocialNotifications extends Table {
 }
 
 /// Kind of social notification.
-enum NotificationKind { comment, reaction, reply }
+enum NotificationKind { comment, reaction, reply, follow }
 
 // ---------------------------------------------------------------------------
 // Keepsake wall — schema v13
@@ -322,6 +322,43 @@ class KeepsakeItems extends Table {
 
 /// Kind of keepsake item.
 enum KeepsakeKind { post, note }
+
+// ---------------------------------------------------------------------------
+// Follows — schema v16. Mock-stage peer graph: who keeps whom close.
+// Soft removal (drifted_at) so time travel can show past states.
+// ---------------------------------------------------------------------------
+
+/// One follow edge between the local user and a peer (or seeded
+/// peer-to-local). Drifting apart stamps [driftedAt] — the row survives
+/// so the circle and window can be reconstructed as of any moment.
+@DataClassName('FollowRow')
+class Follows extends Table {
+  TextColumn get id => text()(); // uuid
+
+  /// Display name of the person who keeps the other close. Mock peers
+  /// are name-keyed in this stage; ids become stable when a backend
+  /// replaces the mock.
+  TextColumn get followerId => text()();
+  TextColumn get followerName => text()();
+
+  /// Whom they keep close.
+  TextColumn get followedId => text()();
+  TextColumn get followedName => text()();
+
+  DateTimeColumn get followedAt => dateTime()();
+
+  /// Soft-removal tombstone (mirrors unpinned_at / unliked_at). Null =
+  /// still close; non-null = drifted apart at that instant.
+  DateTimeColumn get driftedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {followerId, followedId},
+      ];
+}
 
 // ---------------------------------------------------------------------------
 // The Daily Square (§6c): a recurring, guilt-free posting prompt. The
@@ -467,6 +504,7 @@ class Settings extends Table {
   PostComments,
   SocialNotifications,
   KeepsakeItems,
+  Follows,
   Settings,
 ])
 class AppDatabase extends _$AppDatabase {
@@ -490,7 +528,7 @@ class AppDatabase extends _$AppDatabase {
   DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -743,6 +781,11 @@ class AppDatabase extends _$AppDatabase {
             await addColumnIfMissing(
               'post_likes', 'unliked_at', 'INTEGER NULL',
             );
+          }
+          // v15 -> v16: follows (peer graph). All-new table — no data
+          // moves. Soft-removal tombstone lives in the table itself.
+          if (from < 16) {
+            await m.createTable(follows);
           }
         },
       );

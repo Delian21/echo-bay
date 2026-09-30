@@ -6405,6 +6405,427 @@ class KeepsakeItemsCompanion extends UpdateCompanion<KeepsakeItemRow> {
   }
 }
 
+class $FollowsTable extends Follows with TableInfo<$FollowsTable, FollowRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FollowsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _followerIdMeta =
+      const VerificationMeta('followerId');
+  @override
+  late final GeneratedColumn<String> followerId = GeneratedColumn<String>(
+      'follower_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _followerNameMeta =
+      const VerificationMeta('followerName');
+  @override
+  late final GeneratedColumn<String> followerName = GeneratedColumn<String>(
+      'follower_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _followedIdMeta =
+      const VerificationMeta('followedId');
+  @override
+  late final GeneratedColumn<String> followedId = GeneratedColumn<String>(
+      'followed_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _followedNameMeta =
+      const VerificationMeta('followedName');
+  @override
+  late final GeneratedColumn<String> followedName = GeneratedColumn<String>(
+      'followed_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _followedAtMeta =
+      const VerificationMeta('followedAt');
+  @override
+  late final GeneratedColumn<DateTime> followedAt = GeneratedColumn<DateTime>(
+      'followed_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _driftedAtMeta =
+      const VerificationMeta('driftedAt');
+  @override
+  late final GeneratedColumn<DateTime> driftedAt = GeneratedColumn<DateTime>(
+      'drifted_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        followerId,
+        followerName,
+        followedId,
+        followedName,
+        followedAt,
+        driftedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'follows';
+  @override
+  VerificationContext validateIntegrity(Insertable<FollowRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('follower_id')) {
+      context.handle(
+          _followerIdMeta,
+          followerId.isAcceptableOrUnknown(
+              data['follower_id']!, _followerIdMeta));
+    } else if (isInserting) {
+      context.missing(_followerIdMeta);
+    }
+    if (data.containsKey('follower_name')) {
+      context.handle(
+          _followerNameMeta,
+          followerName.isAcceptableOrUnknown(
+              data['follower_name']!, _followerNameMeta));
+    } else if (isInserting) {
+      context.missing(_followerNameMeta);
+    }
+    if (data.containsKey('followed_id')) {
+      context.handle(
+          _followedIdMeta,
+          followedId.isAcceptableOrUnknown(
+              data['followed_id']!, _followedIdMeta));
+    } else if (isInserting) {
+      context.missing(_followedIdMeta);
+    }
+    if (data.containsKey('followed_name')) {
+      context.handle(
+          _followedNameMeta,
+          followedName.isAcceptableOrUnknown(
+              data['followed_name']!, _followedNameMeta));
+    } else if (isInserting) {
+      context.missing(_followedNameMeta);
+    }
+    if (data.containsKey('followed_at')) {
+      context.handle(
+          _followedAtMeta,
+          followedAt.isAcceptableOrUnknown(
+              data['followed_at']!, _followedAtMeta));
+    } else if (isInserting) {
+      context.missing(_followedAtMeta);
+    }
+    if (data.containsKey('drifted_at')) {
+      context.handle(_driftedAtMeta,
+          driftedAt.isAcceptableOrUnknown(data['drifted_at']!, _driftedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+        {followerId, followedId},
+      ];
+  @override
+  FollowRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FollowRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      followerId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}follower_id'])!,
+      followerName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}follower_name'])!,
+      followedId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}followed_id'])!,
+      followedName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}followed_name'])!,
+      followedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}followed_at'])!,
+      driftedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}drifted_at']),
+    );
+  }
+
+  @override
+  $FollowsTable createAlias(String alias) {
+    return $FollowsTable(attachedDatabase, alias);
+  }
+}
+
+class FollowRow extends DataClass implements Insertable<FollowRow> {
+  final String id;
+
+  /// Display name of the person who keeps the other close. Mock peers
+  /// are name-keyed in this stage; ids become stable when a backend
+  /// replaces the mock.
+  final String followerId;
+  final String followerName;
+
+  /// Whom they keep close.
+  final String followedId;
+  final String followedName;
+  final DateTime followedAt;
+
+  /// Soft-removal tombstone (mirrors unpinned_at / unliked_at). Null =
+  /// still close; non-null = drifted apart at that instant.
+  final DateTime? driftedAt;
+  const FollowRow(
+      {required this.id,
+      required this.followerId,
+      required this.followerName,
+      required this.followedId,
+      required this.followedName,
+      required this.followedAt,
+      this.driftedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['follower_id'] = Variable<String>(followerId);
+    map['follower_name'] = Variable<String>(followerName);
+    map['followed_id'] = Variable<String>(followedId);
+    map['followed_name'] = Variable<String>(followedName);
+    map['followed_at'] = Variable<DateTime>(followedAt);
+    if (!nullToAbsent || driftedAt != null) {
+      map['drifted_at'] = Variable<DateTime>(driftedAt);
+    }
+    return map;
+  }
+
+  FollowsCompanion toCompanion(bool nullToAbsent) {
+    return FollowsCompanion(
+      id: Value(id),
+      followerId: Value(followerId),
+      followerName: Value(followerName),
+      followedId: Value(followedId),
+      followedName: Value(followedName),
+      followedAt: Value(followedAt),
+      driftedAt: driftedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(driftedAt),
+    );
+  }
+
+  factory FollowRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FollowRow(
+      id: serializer.fromJson<String>(json['id']),
+      followerId: serializer.fromJson<String>(json['followerId']),
+      followerName: serializer.fromJson<String>(json['followerName']),
+      followedId: serializer.fromJson<String>(json['followedId']),
+      followedName: serializer.fromJson<String>(json['followedName']),
+      followedAt: serializer.fromJson<DateTime>(json['followedAt']),
+      driftedAt: serializer.fromJson<DateTime?>(json['driftedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'followerId': serializer.toJson<String>(followerId),
+      'followerName': serializer.toJson<String>(followerName),
+      'followedId': serializer.toJson<String>(followedId),
+      'followedName': serializer.toJson<String>(followedName),
+      'followedAt': serializer.toJson<DateTime>(followedAt),
+      'driftedAt': serializer.toJson<DateTime?>(driftedAt),
+    };
+  }
+
+  FollowRow copyWith(
+          {String? id,
+          String? followerId,
+          String? followerName,
+          String? followedId,
+          String? followedName,
+          DateTime? followedAt,
+          Value<DateTime?> driftedAt = const Value.absent()}) =>
+      FollowRow(
+        id: id ?? this.id,
+        followerId: followerId ?? this.followerId,
+        followerName: followerName ?? this.followerName,
+        followedId: followedId ?? this.followedId,
+        followedName: followedName ?? this.followedName,
+        followedAt: followedAt ?? this.followedAt,
+        driftedAt: driftedAt.present ? driftedAt.value : this.driftedAt,
+      );
+  FollowRow copyWithCompanion(FollowsCompanion data) {
+    return FollowRow(
+      id: data.id.present ? data.id.value : this.id,
+      followerId:
+          data.followerId.present ? data.followerId.value : this.followerId,
+      followerName: data.followerName.present
+          ? data.followerName.value
+          : this.followerName,
+      followedId:
+          data.followedId.present ? data.followedId.value : this.followedId,
+      followedName: data.followedName.present
+          ? data.followedName.value
+          : this.followedName,
+      followedAt:
+          data.followedAt.present ? data.followedAt.value : this.followedAt,
+      driftedAt: data.driftedAt.present ? data.driftedAt.value : this.driftedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FollowRow(')
+          ..write('id: $id, ')
+          ..write('followerId: $followerId, ')
+          ..write('followerName: $followerName, ')
+          ..write('followedId: $followedId, ')
+          ..write('followedName: $followedName, ')
+          ..write('followedAt: $followedAt, ')
+          ..write('driftedAt: $driftedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, followerId, followerName, followedId,
+      followedName, followedAt, driftedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FollowRow &&
+          other.id == this.id &&
+          other.followerId == this.followerId &&
+          other.followerName == this.followerName &&
+          other.followedId == this.followedId &&
+          other.followedName == this.followedName &&
+          other.followedAt == this.followedAt &&
+          other.driftedAt == this.driftedAt);
+}
+
+class FollowsCompanion extends UpdateCompanion<FollowRow> {
+  final Value<String> id;
+  final Value<String> followerId;
+  final Value<String> followerName;
+  final Value<String> followedId;
+  final Value<String> followedName;
+  final Value<DateTime> followedAt;
+  final Value<DateTime?> driftedAt;
+  final Value<int> rowid;
+  const FollowsCompanion({
+    this.id = const Value.absent(),
+    this.followerId = const Value.absent(),
+    this.followerName = const Value.absent(),
+    this.followedId = const Value.absent(),
+    this.followedName = const Value.absent(),
+    this.followedAt = const Value.absent(),
+    this.driftedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FollowsCompanion.insert({
+    required String id,
+    required String followerId,
+    required String followerName,
+    required String followedId,
+    required String followedName,
+    required DateTime followedAt,
+    this.driftedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        followerId = Value(followerId),
+        followerName = Value(followerName),
+        followedId = Value(followedId),
+        followedName = Value(followedName),
+        followedAt = Value(followedAt);
+  static Insertable<FollowRow> custom({
+    Expression<String>? id,
+    Expression<String>? followerId,
+    Expression<String>? followerName,
+    Expression<String>? followedId,
+    Expression<String>? followedName,
+    Expression<DateTime>? followedAt,
+    Expression<DateTime>? driftedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (followerId != null) 'follower_id': followerId,
+      if (followerName != null) 'follower_name': followerName,
+      if (followedId != null) 'followed_id': followedId,
+      if (followedName != null) 'followed_name': followedName,
+      if (followedAt != null) 'followed_at': followedAt,
+      if (driftedAt != null) 'drifted_at': driftedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FollowsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? followerId,
+      Value<String>? followerName,
+      Value<String>? followedId,
+      Value<String>? followedName,
+      Value<DateTime>? followedAt,
+      Value<DateTime?>? driftedAt,
+      Value<int>? rowid}) {
+    return FollowsCompanion(
+      id: id ?? this.id,
+      followerId: followerId ?? this.followerId,
+      followerName: followerName ?? this.followerName,
+      followedId: followedId ?? this.followedId,
+      followedName: followedName ?? this.followedName,
+      followedAt: followedAt ?? this.followedAt,
+      driftedAt: driftedAt ?? this.driftedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (followerId.present) {
+      map['follower_id'] = Variable<String>(followerId.value);
+    }
+    if (followerName.present) {
+      map['follower_name'] = Variable<String>(followerName.value);
+    }
+    if (followedId.present) {
+      map['followed_id'] = Variable<String>(followedId.value);
+    }
+    if (followedName.present) {
+      map['followed_name'] = Variable<String>(followedName.value);
+    }
+    if (followedAt.present) {
+      map['followed_at'] = Variable<DateTime>(followedAt.value);
+    }
+    if (driftedAt.present) {
+      map['drifted_at'] = Variable<DateTime>(driftedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FollowsCompanion(')
+          ..write('id: $id, ')
+          ..write('followerId: $followerId, ')
+          ..write('followerName: $followerName, ')
+          ..write('followedId: $followedId, ')
+          ..write('followedName: $followedName, ')
+          ..write('followedAt: $followedAt, ')
+          ..write('driftedAt: $driftedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SettingsTable extends Settings
     with TableInfo<$SettingsTable, SettingRow> {
   @override
@@ -6617,6 +7038,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SocialNotificationsTable socialNotifications =
       $SocialNotificationsTable(this);
   late final $KeepsakeItemsTable keepsakeItems = $KeepsakeItemsTable(this);
+  late final $FollowsTable follows = $FollowsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -6640,6 +7062,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         postComments,
         socialNotifications,
         keepsakeItems,
+        follows,
         settings
       ];
 }
@@ -9947,6 +10370,203 @@ typedef $$KeepsakeItemsTableProcessedTableManager = ProcessedTableManager<
     ),
     KeepsakeItemRow,
     PrefetchHooks Function()>;
+typedef $$FollowsTableCreateCompanionBuilder = FollowsCompanion Function({
+  required String id,
+  required String followerId,
+  required String followerName,
+  required String followedId,
+  required String followedName,
+  required DateTime followedAt,
+  Value<DateTime?> driftedAt,
+  Value<int> rowid,
+});
+typedef $$FollowsTableUpdateCompanionBuilder = FollowsCompanion Function({
+  Value<String> id,
+  Value<String> followerId,
+  Value<String> followerName,
+  Value<String> followedId,
+  Value<String> followedName,
+  Value<DateTime> followedAt,
+  Value<DateTime?> driftedAt,
+  Value<int> rowid,
+});
+
+class $$FollowsTableFilterComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get followerId => $composableBuilder(
+      column: $table.followerId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get followerName => $composableBuilder(
+      column: $table.followerName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get followedId => $composableBuilder(
+      column: $table.followedId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get followedName => $composableBuilder(
+      column: $table.followedName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get followedAt => $composableBuilder(
+      column: $table.followedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get driftedAt => $composableBuilder(
+      column: $table.driftedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$FollowsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get followerId => $composableBuilder(
+      column: $table.followerId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get followerName => $composableBuilder(
+      column: $table.followerName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get followedId => $composableBuilder(
+      column: $table.followedId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get followedName => $composableBuilder(
+      column: $table.followedName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get followedAt => $composableBuilder(
+      column: $table.followedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get driftedAt => $composableBuilder(
+      column: $table.driftedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$FollowsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get followerId => $composableBuilder(
+      column: $table.followerId, builder: (column) => column);
+
+  GeneratedColumn<String> get followerName => $composableBuilder(
+      column: $table.followerName, builder: (column) => column);
+
+  GeneratedColumn<String> get followedId => $composableBuilder(
+      column: $table.followedId, builder: (column) => column);
+
+  GeneratedColumn<String> get followedName => $composableBuilder(
+      column: $table.followedName, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get followedAt => $composableBuilder(
+      column: $table.followedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get driftedAt =>
+      $composableBuilder(column: $table.driftedAt, builder: (column) => column);
+}
+
+class $$FollowsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $FollowsTable,
+    FollowRow,
+    $$FollowsTableFilterComposer,
+    $$FollowsTableOrderingComposer,
+    $$FollowsTableAnnotationComposer,
+    $$FollowsTableCreateCompanionBuilder,
+    $$FollowsTableUpdateCompanionBuilder,
+    (FollowRow, BaseReferences<_$AppDatabase, $FollowsTable, FollowRow>),
+    FollowRow,
+    PrefetchHooks Function()> {
+  $$FollowsTableTableManager(_$AppDatabase db, $FollowsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FollowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FollowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FollowsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> followerId = const Value.absent(),
+            Value<String> followerName = const Value.absent(),
+            Value<String> followedId = const Value.absent(),
+            Value<String> followedName = const Value.absent(),
+            Value<DateTime> followedAt = const Value.absent(),
+            Value<DateTime?> driftedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              FollowsCompanion(
+            id: id,
+            followerId: followerId,
+            followerName: followerName,
+            followedId: followedId,
+            followedName: followedName,
+            followedAt: followedAt,
+            driftedAt: driftedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String followerId,
+            required String followerName,
+            required String followedId,
+            required String followedName,
+            required DateTime followedAt,
+            Value<DateTime?> driftedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              FollowsCompanion.insert(
+            id: id,
+            followerId: followerId,
+            followerName: followerName,
+            followedId: followedId,
+            followedName: followedName,
+            followedAt: followedAt,
+            driftedAt: driftedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$FollowsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $FollowsTable,
+    FollowRow,
+    $$FollowsTableFilterComposer,
+    $$FollowsTableOrderingComposer,
+    $$FollowsTableAnnotationComposer,
+    $$FollowsTableCreateCompanionBuilder,
+    $$FollowsTableUpdateCompanionBuilder,
+    (FollowRow, BaseReferences<_$AppDatabase, $FollowsTable, FollowRow>),
+    FollowRow,
+    PrefetchHooks Function()>;
 typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   required String key,
   required String value,
@@ -10105,6 +10725,8 @@ class $AppDatabaseManager {
       $$SocialNotificationsTableTableManager(_db, _db.socialNotifications);
   $$KeepsakeItemsTableTableManager get keepsakeItems =>
       $$KeepsakeItemsTableTableManager(_db, _db.keepsakeItems);
+  $$FollowsTableTableManager get follows =>
+      $$FollowsTableTableManager(_db, _db.follows);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
 }

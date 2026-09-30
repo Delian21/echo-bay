@@ -24,7 +24,9 @@ import 'features/nexus/data/datasources/nexus_local_datasource.dart';
 import 'features/nexus/data/repositories/mock_nexus_repository.dart';
 import 'features/nexus/domain/repositories/nexus_repository.dart';
 import 'features/profile/data/repositories/drift_profile_repository.dart';
+import 'features/social/data/repositories/drift_follow_repository.dart';
 import 'features/social/data/repositories/drift_social_repository.dart';
+import 'features/social/domain/repositories/follow_repository.dart';
 import 'features/social/domain/repositories/social_repository.dart';
 import 'features/keepsake/data/repositories/drift_keepsake_repository.dart';
 import 'features/keepsake/domain/repositories/keepsake_repository.dart';
@@ -131,6 +133,11 @@ Future<void> configureDependencies() async {
   // Social layer: comments + peer notifications (mock-peer engine).
   sl.registerLazySingleton<SocialRepository>(
     () => DriftSocialRepository(sl()),
+  );
+  // Follow graph: who keeps whom close (mock peers, soft-removed rows).
+  sl.registerLazySingleton<FollowRepository>(
+    () => DriftFollowRepository(sl(), localUserId: sessionUserId)
+      ..seedIfEmpty(),
   );
   // Keepsake wall: pinned posts + handwritten notes.
   sl.registerLazySingleton<KeepsakeRepository>(

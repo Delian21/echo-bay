@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
+import '../../features/social/domain/entities/social_entities.dart';
+import '../../features/social/domain/repositories/follow_repository.dart';
 import '../../injection.dart';
 import '../error/failures.dart';
 import '../profile/profile_controller.dart';
@@ -43,9 +45,10 @@ Future<void> openPerson(
   );
 }
 
-/// A person at a glance: initials avatar, name, and their recent Square
-/// posts. Mock peers have no rich profile yet — the sheet is honest
-/// about that with its empty state instead of faking one.
+/// A peer's profile: initials avatar, name, a line of bio in their own
+/// voice, their recent Square posts, and the Keep close / Drift apart
+/// button. Vocabulary is fixed app-wide: "Keep close", "Drift apart",
+/// "Keeping close".
 class PersonSheet extends StatefulWidget {
   const PersonSheet({super.key, required this.name});
 
@@ -114,6 +117,32 @@ class _PersonSheetState extends State<PersonSheet> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: 4),
+          StreamBuilder<Either<Failure, PeerProfile>>(
+            stream: sl.isRegistered<FollowRepository>()
+                ? sl<FollowRepository>().watchPeerProfile(widget.name)
+                : null,
+            builder: (context, snap) {
+              final String? bioText = snap.data?.fold(
+                (_) => null,
+                (p) => p.bio,
+              );
+              if (bioText == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Text(
+                  bioText,
+                  textAlign: TextAlign.center,
+                  style: useInk
+                      ? kHandwrittenTextStyle.copyWith(
+                          fontSize: 15, height: 1.35)
+                      : theme.textTheme.bodySmall,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _KeepCloseButton(name: widget.name),
           const SizedBox(height: 8),
           Expanded(
             child: FutureBuilder<List<Post>>(
@@ -181,6 +210,64 @@ class _PersonSheetState extends State<PersonSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The follow button on a peer's profile. Three honest states:
+/// "Keep close" (not following), "Keeping close" (following, filled),
+/// and "Drift apart" (the action while following). Drifting apart asks
+/// nothing, confirms nothing, announces nothing — the button just
+/// returns to "Keep close".
+class _KeepCloseButton extends StatefulWidget {
+  const _KeepCloseButton({required this.name});
+
+  final String name;
+
+  @override
+  State<_KeepCloseButton> createState() => _KeepCloseButtonState();
+}
+
+class _KeepCloseButtonState extends State<_KeepCloseButton> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool following) async {
+    if (_busy || !sl.isRegistered<FollowRepository>()) return;
+    setState(() => _busy = true);
+    final repo = sl<FollowRepository>();
+    final result = following
+        ? await repo.driftApart(widget.name)
+        : await repo.keepClose(widget.name);
+    result.fold((_) {}, (_) {});
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Either<Failure, PeerFollow?>>(
+      stream: sl.isRegistered<FollowRepository>()
+          ? sl<FollowRepository>().watchRelationship(widget.name)
+          : null,
+      builder: (context, snap) {
+        final following =
+            snap.data?.fold((_) => false, (f) => f != null) ?? false;
+        return Semantics(
+          label: following ? 'Keeping close' : 'Keep close',
+          button: true,
+          child: FilledButton.tonalIcon(
+            onPressed: _busy ? null : () => _toggle(following),
+            icon: Icon(following
+                ? Icons.favorite_rounded
+                : Icons.person_add_alt_1_rounded),
+            label: Text(following ? 'Keeping close' : 'Keep close'),
+            style: FilledButton.styleFrom(
+              foregroundColor: following
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        );
+      },
     );
   }
 }

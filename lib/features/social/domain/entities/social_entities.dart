@@ -56,3 +56,53 @@ class SocialNotification extends Equatable {
   List<Object?> get props =>
       [id, kind, peerName, body, deepLink, createdAt, readAt];
 }
+
+/// One follow edge, pure domain — no drift. [driftedAt] non-null means
+/// the two have drifted apart (soft removal keeps history for time
+/// travel). UI vocabulary: "Keep close" / "Drift apart".
+class PeerFollow extends Equatable {
+  const PeerFollow({
+    required this.id,
+    required this.followerId,
+    required this.followerName,
+    required this.followedId,
+    required this.followedName,
+    required this.followedAt,
+    this.driftedAt,
+  });
+
+  final String id;
+  final String followerId;
+  final String followerName;
+  final String followedId;
+  final String followedName;
+  final DateTime followedAt;
+  final DateTime? driftedAt;
+
+  bool get isActive => driftedAt == null;
+
+  @override
+  List<Object?> get props =>
+      [id, followerId, followedId, followedAt, driftedAt];
+}
+
+/// A mock peer's profile. Mock-stage peers are name-keyed; a real
+/// backend swaps ids in behind the repository without touching callers.
+class PeerProfile extends Equatable {
+  const PeerProfile({
+    required this.name,
+    required this.bio,
+    required this.avatarSeed,
+  });
+
+  final String name;
+
+  /// One hand-written line in the peer's own voice.
+  final String bio;
+
+  /// Stable hash seed for deterministic avatar tint per peer.
+  final int avatarSeed;
+
+  @override
+  List<Object?> get props => [name, bio, avatarSeed];
+}

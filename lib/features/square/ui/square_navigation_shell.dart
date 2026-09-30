@@ -19,6 +19,7 @@ import '../../keepsake/domain/repositories/keepsake_repository.dart';
 import '../../keepsake/ui/keepsake_board_page.dart';
 import '../../square/data/datasources/square_local_datasource.dart';
 import '../../profile/ui/profile_page.dart';
+import '../../social/domain/repositories/follow_repository.dart';
 import '../../social/domain/repositories/social_repository.dart';
 import '../../social/ui/notifications_page.dart';
 import '../../settings/ui/settings_page.dart';
@@ -132,6 +133,9 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     }
     if (sl.isRegistered<SocialRepository>()) {
       (sl<SocialRepository>() as dynamic).setAsOf(moment);
+    }
+    if (sl.isRegistered<FollowRepository>()) {
+      (sl<FollowRepository>() as dynamic).setAsOf(moment);
     }
     if (sl.isRegistered<KeepsakeRepository>()) {
       (sl<KeepsakeRepository>() as dynamic).setAsOf(moment);
