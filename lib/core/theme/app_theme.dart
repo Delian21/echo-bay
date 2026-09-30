@@ -208,7 +208,10 @@ class AppColors {
     enabled: true,
     polaroidPaper: Color(0xFFFDFBF5),
     polaroidShadow: Color(0x33806F4A),
-    amberAccent: Color(0xFFB8860B),
+    // DarkGoldenrod deepened from #B8860B: the original measured 2.8:1
+    // against the warm paper — under WCAG AA for text. #805C08 keeps the
+    // golden hue and reads 5.3:1+ on every light surface in use.
+    amberAccent: Color(0xFF805C08),
   );
 
   static const _goldenDark = GoldenHourExtension(

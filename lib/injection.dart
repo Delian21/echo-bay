@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:get_it/get_it.dart';
 
+import 'core/atmosphere/atmosphere_controller.dart';
 import 'core/auth/auth_repository.dart';
 import 'core/auth/session_store.dart';
 import 'core/backup/backup_service.dart';
@@ -16,6 +17,7 @@ import 'core/profile/profile_controller.dart';
 import 'core/settings/app_settings_store.dart';
 import 'core/settings/draft_store.dart';
 import 'core/theme/theme_controller.dart';
+import 'core/version/version_checker.dart';
 import 'features/calls/data/repositories/mock_calls_repository.dart';
 import 'features/calls/domain/repositories/calls_repository.dart';
 import 'features/nexus/data/datasources/nexus_local_datasource.dart';
@@ -91,6 +93,20 @@ Future<void> configureDependencies() async {
     final store = sl<AppSettingsStore>();
     return MotionController(
       onReducedMotionChanged: store.writeReducedMotion,
+    );
+  });
+  // Web-deploy watcher: notices a fresh version.json (new deploy) and
+  // offers a refresh. Web-only; inert on native.
+  sl.registerLazySingleton<VersionChecker>(
+    () => VersionChecker(),
+  );
+  // Atmosphere: opt-in paper/pen sounds (posting, pinning). Default off;
+  // persisted through the same store seam as theme and reduced-motion.
+  sl.registerLazySingleton<AtmosphereController>(() {
+    final store = sl<AppSettingsStore>();
+    return AtmosphereController(
+      onSoundsChanged: store.writeAtmosphereSounds,
+      onHapticsChanged: store.writeAtmosphereHaptics,
     );
   });
   // Profile: display name, avatar, accent color. Persisted through the
@@ -190,6 +206,10 @@ Future<void> _restorePreferences() async {
   if (storedReduced != null) {
     sl<MotionController>().setReducedMotion(storedReduced);
   }
+  sl<AtmosphereController>().restore(
+    sounds: await store.readAtmosphereSounds(),
+    haptics: await store.readAtmosphereHaptics(),
+  );
   final storedProfile = await store.readProfile();
   sl<ProfileController>().update(storedProfile);
 }

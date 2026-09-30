@@ -85,6 +85,9 @@ class FabBottomBar extends StatelessWidget {
                     key: ValueKey(selected),
                     size: 24,
                     color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                    // The tile's Text label carries the semantics; the
+                    // glyph would double-speak the destination name.
+                    excludeFromSemantics: true,
                   ),
                 ),
                 // Unread scribble-dot: a pen-drawn filled blob, not a

@@ -57,5 +57,17 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Offline support: Flutter's generated service worker is a deprecated
+    // no-op stub in this Flutter version, so Echo Bay ships its own.
+    // Registers after load; fails silently in browsers without SW support.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('service-worker.js').catch(function (e) {
+          console.warn('Service worker registration failed:', e);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

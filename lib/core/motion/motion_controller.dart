@@ -6,25 +6,44 @@ import 'package:flutter/material.dart';
 /// also collapses to an instant swap.
 ///
 /// A [ChangeNotifier] like [ThemeController] — one boolean, no side
-/// effects. Sources: the settings toggle and (later) the platform
-/// accessibility flag, wired through the factory seam in injection.dart.
+/// effects. Sources: the in-app settings toggle AND the system
+/// reduce-motion accessibility setting — the effective value is their
+/// OR (the app must honor the OS even if the in-app toggle is off).
+/// [syncSystemReducedMotion] is called by the app root whenever the
+/// MediaQuery changes.
 class MotionController extends ChangeNotifier {
   MotionController({
     this.onReducedMotionChanged,
     bool reducedMotion = false,
-  })  : _reducedMotion = reducedMotion;
+  })  : _userReducedMotion = reducedMotion,
+        _systemReducedMotion = false;
 
   /// Called after [setReducedMotion] applies a new value. Fire-and-forget
   /// by contract — implementers must not throw synchronously.
   final void Function(bool reduced)? onReducedMotionChanged;
 
-  bool _reducedMotion;
-  bool get reducedMotion => _reducedMotion;
+  bool _userReducedMotion;
+  bool _systemReducedMotion;
+
+  /// Effective preference: the user asked OR the OS asked.
+  bool get reducedMotion => _userReducedMotion || _systemReducedMotion;
+
+  /// The in-app toggle's own value (what settings displays).
+  bool get userReducedMotion => _userReducedMotion;
 
   void setReducedMotion(bool reduced) {
-    if (reduced == _reducedMotion) return;
-    _reducedMotion = reduced;
+    if (reduced == _userReducedMotion) return;
+    _userReducedMotion = reduced;
     notifyListeners();
     onReducedMotionChanged?.call(reduced);
+  }
+
+  /// Pushes the system accessibility flag (MediaQuery.disableAnimations)
+  /// into the effective value. Called on every metrics change; no-op when
+  /// unchanged so the tree doesn't rebuild spuriously.
+  void syncSystemReducedMotion(bool systemReduced) {
+    if (systemReduced == _systemReducedMotion) return;
+    _systemReducedMotion = systemReduced;
+    notifyListeners();
   }
 }

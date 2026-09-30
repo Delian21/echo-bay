@@ -478,9 +478,59 @@ enum SketchIconKind {
   autoA,
 }
 
+/// Screen-reader names for every hand-drawn glyph — a CustomPaint is
+/// invisible to TalkBack/VoiceOver without a label. Keys mirror the
+/// kinds; icons that are purely decorative sit inside labeled buttons
+/// (IconButton.tooltip supplies the semantics) so a null here means
+/// "hide from the tree", applied via [excludeFromSemantics].
+const Map<SketchIconKind, String> kSketchIconLabel = {
+  SketchIconKind.scribbleHeart: 'heart',
+  SketchIconKind.rewindSpiral: 'rewind',
+  SketchIconKind.xHeart: 'un-liked',
+  SketchIconKind.jaggedBubble: 'comment',
+  SketchIconKind.paperPlane: 'share',
+  SketchIconKind.playTriangle: 'play',
+  SketchIconKind.scribbleMic: 'voice note',
+  SketchIconKind.slateGrid: 'the Square',
+  SketchIconKind.padlock: 'the Vault',
+  SketchIconKind.spiralHub: 'the Hallway',
+  SketchIconKind.handset: 'the Landline',
+  SketchIconKind.cog: 'Settings',
+  SketchIconKind.megaphone: 'the Board',
+  SketchIconKind.threeHeads: 'Dorms',
+  SketchIconKind.personGlyph: 'profile',
+  SketchIconKind.searchGlass: 'Search',
+  SketchIconKind.plusCircle: 'New post',
+  SketchIconKind.infoMark: 'info',
+  SketchIconKind.photoFrame: 'photo',
+  SketchIconKind.videoCam: 'video',
+  SketchIconKind.clockTick: 'timer',
+  SketchIconKind.singleTick: 'sent',
+  SketchIconKind.doubleTick: 'read',
+  SketchIconKind.refreshLoop: 'refresh',
+  SketchIconKind.plusBubble: 'New conversation',
+  SketchIconKind.dialPad: 'New call',
+  SketchIconKind.arrowDownLeft: 'incoming call',
+  SketchIconKind.arrowUpRight: 'outgoing call',
+  SketchIconKind.arrowMissed: 'missed call',
+  SketchIconKind.speakerWave: 'speaker',
+  SketchIconKind.micOff: 'microphone off',
+  SketchIconKind.hangUp: 'end call',
+  SketchIconKind.arrowBack: 'back',
+  SketchIconKind.closeX: 'close',
+  SketchIconKind.brokenImage: 'image unavailable',
+  SketchIconKind.sunMark: 'day',
+  SketchIconKind.moonCrescent: 'night',
+  SketchIconKind.autoA: 'automatic',
+};
+
 /// The five icon set (docs/ART_DIRECTION.md §2), drawn as raw paths with
 /// the deterministic wobble. [filled] cross-hatch-fills the shape in
 /// [accentColor] — the scribble-fill selection state.
+///
+/// Accessibility: each icon carries its screen-reader name from
+/// [kSketchIconLabel]; pass [excludeFromSemantics] for decorative uses
+/// that already sit inside a labeled control (avoids double-speaking).
 class SketchIcon extends StatelessWidget {
   const SketchIcon({
     super.key,
@@ -490,6 +540,7 @@ class SketchIcon extends StatelessWidget {
     this.filled = false,
     this.accentColor = SketchInk.graffitiRed,
     this.seed = 1,
+    this.excludeFromSemantics = false,
   });
 
   final SketchIconKind kind;
@@ -499,10 +550,15 @@ class SketchIcon extends StatelessWidget {
   final Color accentColor;
   final int seed;
 
+  /// True: the icon is decorative inside an already-labeled control —
+  /// dropped from the semantics tree so screen readers don't hear the
+  /// name twice.
+  final bool excludeFromSemantics;
+
   @override
   Widget build(BuildContext context) {
     final stroke = color ?? SketchInk.of(context);
-    return SizedBox.square(
+    final icon = SizedBox.square(
       dimension: size,
       child: CustomPaint(
         painter: _SketchIconPainter(
@@ -513,6 +569,13 @@ class SketchIcon extends StatelessWidget {
           accent: accentColor,
         ),
       ),
+    );
+    if (excludeFromSemantics) return icon;
+    final label = kSketchIconLabel[kind];
+    if (label == null) return icon;
+    return Semantics(
+      label: label,
+      child: ExcludeSemantics(child: icon),
     );
   }
 }
@@ -606,6 +669,7 @@ class SketchGlyph extends StatelessWidget {
     this.color,
     this.alwaysInk = true,
     this.seed = 7,
+    this.excludeFromSemantics = false,
   });
 
   final SketchIconKind kind;
@@ -617,6 +681,9 @@ class SketchGlyph extends StatelessWidget {
   final bool alwaysInk;
   final int seed;
 
+  /// Dropped from the semantics tree when decorative (see [SketchIcon]).
+  final bool excludeFromSemantics;
+
   @override
   Widget build(BuildContext context) {
     final golden = GoldenHourExtension.of(context);
@@ -626,6 +693,7 @@ class SketchGlyph extends StatelessWidget {
       size: size,
       color: color ?? SketchInk.of(context),
       seed: seed,
+      excludeFromSemantics: excludeFromSemantics,
     );
   }
 }

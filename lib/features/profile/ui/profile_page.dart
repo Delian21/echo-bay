@@ -209,12 +209,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     GestureDetector(
                       onTap: _pickAvatar,
-                      child: _Avatar(
-                        initials:
-                            _PreviewProfile.from(_name.text).initials(),
-                        avatarPath: _avatarPath,
-                        accent: _accent,
-                        radius: 28,
+                      // Raw tap target: give screen readers a name and
+                      // button role (the avatar itself is just initials).
+                      child: Semantics(
+                        button: true,
+                        label: 'Change profile picture',
+                        child: _Avatar(
+                          initials:
+                              _PreviewProfile.from(_name.text).initials(),
+                          avatarPath: _avatarPath,
+                          accent: _accent,
+                          radius: 28,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -237,8 +243,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       IconButton(
                         tooltip: 'Use initials avatar',
                         onPressed: _clearAvatar,
-                        icon: const SketchIcon(
-                            kind: SketchIconKind.closeX, size: 18, seed: 19),
+                        icon: Semantics(
+                          label: 'Use initials avatar',
+                          excludeSemantics: true,
+                          child: const SketchIcon(
+                              kind: SketchIconKind.closeX, size: 18, seed: 19),
+                        ),
                       ),
                   ],
                 ),
@@ -665,7 +675,10 @@ class _PreviewChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      // Min-height (not fixed) so the label survives large text scales;
+      // identical 40dp at default scale.
+      constraints: const BoxConstraints(minHeight: 40),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: background,

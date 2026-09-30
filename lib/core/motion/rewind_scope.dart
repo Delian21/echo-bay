@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'motion_scope.dart';
+import 'package:echo_bay/core/atmosphere/atmosphere_controller.dart';
+import 'package:echo_bay/injection.dart';
 
 /// The signature "rewind" interaction — the app's undo, staged like
 /// reversing a moment (inspired by, not copied from, a certain photo
@@ -58,17 +60,26 @@ class _RewindScopeState extends State<RewindScope>
     final reduced = MotionScope.maybeOf(context)?.reducedMotion ?? false;
     if (reduced) {
       action();
-      HapticFeedback.selectionClick();
       return;
+    }
+    // Light haptic tap — opt-in (atmosphere), never a jolt. Fire-and-
+    // forget: DI unavailable (tests) just means no tap.
+    try {
+      if (sl<AtmosphereController>().hapticsEnabled) {
+        HapticFeedback.lightImpact();
+      }
+    } on Object {
+      // No atmosphere controller: skip the tap.
     }
     _fired = false;
     _fx.forward(from: 0);
     // Midpoint state flip — the "moment" reverses while the wash is up.
+    // Haptic: a light tap, not a jolt (reduce-motion skips it entirely).
     Future.delayed(const Duration(milliseconds: 250), () {
       if (!mounted || _fired) return;
       _fired = true;
       action();
-      HapticFeedback.mediumImpact();
+      HapticFeedback.lightImpact();
     });
   }
 

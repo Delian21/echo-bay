@@ -40,6 +40,7 @@ dependencies:
   # media (feed pipeline)
   cached_network_image: ^3.4.1
   share_plus: ^13.3.0 # system share sheet for post share-cards
+  url_launcher: ^6.3.1 # feedback mailto (Settings → "tell me what's broken")
   web: ^1.1.0 # browser interop for the web download path (IO seam)
 
   # misc
@@ -54,7 +55,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0 # ATL-dependent on Windows (§1a)
   flutter_local_notifications: ^22.3.1 # ATL-dependent on Windows (§1a)
   record: ^7.1.1
-  audioplayers: ^6.8.1
+  audioplayers: ^6.8.1 # atmosphere sounds (see assets/audio/LICENSE.md)
   drift_flutter: ^0.2.8
   stream_transform: ^2.1.2
 
@@ -69,6 +70,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Atmosphere sounds (opt-in, see assets/audio/LICENSE.md — CC0).
+  assets:
+    - assets/audio/
 
   # OFL-licensed handwriting face (Caveat, SIL Open Font License 1.1) —
   # the Golden Hour display voice: prompt headers, module titles,

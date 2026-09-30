@@ -319,10 +319,17 @@ class _ConversationTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text(
-                  _timeLabel(conversation.lastActivityAt),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                // Flexible (not bare Text): at large system text scale
+                // the label yields space with an ellipsis instead of
+                // squeezing the middle column or overflowing the badge.
+                Flexible(
+                  child: Text(
+                    _timeLabel(conversation.lastActivityAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),

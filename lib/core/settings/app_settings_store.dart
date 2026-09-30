@@ -12,6 +12,8 @@ class AppSettingsStore {
 
   static const _themeModeKey = 'theme_mode';
   static const _reducedMotionKey = 'reduced_motion';
+  static const _atmosphereSoundsKey = 'atmosphere_sounds';
+  static const _atmosphereHapticsKey = 'atmosphere_haptics';
   static const _profileNameKey = 'profile_name';
   static const _profileBioKey = 'profile_bio';
   static const _profileAvatarKey = 'profile_avatar';
@@ -45,6 +47,28 @@ class AppSettingsStore {
 
   Future<void> writeReducedMotion(bool reduced) async {
     await _write(_reducedMotionKey, reduced.toString());
+  }
+
+  /// Atmosphere sounds opt-in; null when never set (default is off).
+  Future<bool?> readAtmosphereSounds() async {
+    final row = await _read(_atmosphereSoundsKey);
+    if (row == null) return null;
+    return row == 'true';
+  }
+
+  Future<void> writeAtmosphereSounds(bool enabled) async {
+    await _write(_atmosphereSoundsKey, enabled.toString());
+  }
+
+  /// Rewind haptic opt-in; null when never set (default is off).
+  Future<bool?> readAtmosphereHaptics() async {
+    final row = await _read(_atmosphereHapticsKey);
+    if (row == null) return null;
+    return row == 'true';
+  }
+
+  Future<void> writeAtmosphereHaptics(bool enabled) async {
+    await _write(_atmosphereHapticsKey, enabled.toString());
   }
 
   // -- profile ----------------------------------------------------------------

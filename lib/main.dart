@@ -12,6 +12,8 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/timetravel/time_travel_scope.dart';
+import 'core/version/version_banner.dart';
+import 'core/version/version_checker.dart';
 
 /// Duration + curve of the light/dark cross-fade on theme change.
 const _themeTransitionDuration = Duration(milliseconds: 350);
@@ -39,7 +41,7 @@ class SuperApp extends StatefulWidget {
   State<SuperApp> createState() => _SuperAppState();
 }
 
-class _SuperAppState extends State<SuperApp> {
+class _SuperAppState extends State<SuperApp> with WidgetsBindingObserver {
   // Registered in configureDependencies; the fallback keeps standalone
   // widget tests that pump SuperApp without full DI from crashing.
   late final ThemeController _theme =
@@ -61,6 +63,10 @@ class _SuperAppState extends State<SuperApp> {
   @override
   void initState() {
     super.initState();
+    // Without this registration the didChangeMetrics/Brightness overrides
+    // below never fire — the system reduce-motion setting would only be
+    // picked up on rebuilds.
+    WidgetsBinding.instance.addObserver(this);
     _theme.addListener(_onThemeChanged);
     // Accent changes ride the same cross-fade as mode changes — picking a
     // new accent fades the whole app instead of snapping.
@@ -74,6 +80,7 @@ class _SuperAppState extends State<SuperApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _theme
       ..removeListener(_onThemeChanged)
       // Only dispose what this State owns — the DI singleton outlives tests
@@ -117,6 +124,41 @@ class _SuperAppState extends State<SuperApp> {
   // datasources read the as-of instant from here.
   final TimeTravelController _timeTravel = TimeTravelController();
 
+  // Web-deploy watcher: a lazy fallback so standalone tests (no DI)
+  // still mount, and so the checker only exists where it's useful.
+  late final VersionChecker? _versionChecker =
+      sl.isRegistered<VersionChecker>() ? sl<VersionChecker>() : null;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Back from another tab/app: the most common moment a deploy that
+    // happened in the background is caught.
+    if (state == AppLifecycleState.resumed) {
+      _versionChecker?.onAppResumed();
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    _syncSystemMotion();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    super.didChangePlatformBrightness();
+    _syncSystemMotion();
+  }
+
+  /// The system reduce-motion accessibility setting joins the in-app
+  /// toggle (OR): the app honors the OS even when the toggle is off.
+  void _syncSystemMotion() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    _motion.syncSystemReducedMotion(
+        view.platformDispatcher.accessibilityFeatures.disableAnimations);
+  }
+
   @override
   Widget build(BuildContext context) {
     // theme/darkTheme: _displayed carries the resolved mode; themeMode stays
@@ -127,6 +169,10 @@ class _SuperAppState extends State<SuperApp> {
     // lerps racing toward different targets each frame — which is exactly
     // the jank/stutter seen on theme switches. MotionScope sits above
     // MaterialApp so every motion widget reads the same preference.
+    // System reduce-motion is synced before the first frame too.
+    _syncSystemMotion();
+    // Web-deploy watcher: first check + periodic poll.
+    _versionChecker?.start();
     return MotionScope(
       controller: _motion,
       child: TimeTravelScope(
@@ -140,6 +186,13 @@ class _SuperAppState extends State<SuperApp> {
               _motion.reducedMotion ? Duration.zero : _themeTransitionDuration,
           themeAnimationCurve: _themeTransitionCurve,
           routerConfig: appRouter,
+          builder: (context, child) => Stack(
+            children: [
+              if (child != null) child,
+              // New deploy detected: quiet banner offering a refresh.
+              const VersionBanner(),
+            ],
+          ),
         ),
       ),
     );
