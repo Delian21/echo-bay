@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../core/settings/draft_store.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../injection.dart';
 import '../domain/entities/social_entities.dart';
 import '../domain/repositories/social_repository.dart';
 
@@ -40,8 +44,57 @@ class _CommentsSheetState extends State<CommentsSheet> {
   final _controller = TextEditingController();
   Stream<List<PostComment>>? _stream;
 
+  /// Draft autosave, keyed per post — same contract as the chat
+  /// composers: restore on open, debounced save, clear on send.
+  DraftDebouncer? _draftSave;
+  bool _draftRestored = false;
+  bool _hasDraft = false;
+
+  String get _draftKey => DraftStore.comment(widget.postId);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() => _onDraftChanged(_controller.text));
+    _restoreDraft();
+  }
+
+  void _onDraftChanged(String text) {
+    setState(() {});
+    if (!sl.isRegistered<DraftStore>()) return;
+    _draftSave ??= DraftDebouncer();
+    _hasDraft = text.trim().isNotEmpty;
+    _draftSave!.run(() {
+      sl<DraftStore>().write(_draftKey, text);
+    });
+  }
+
+  Future<void> _restoreDraft() async {
+    if (_draftRestored || !sl.isRegistered<DraftStore>()) return;
+    _draftRestored = true;
+    final text = await sl<DraftStore>().read(_draftKey);
+    if (!mounted || text == null || _controller.text.isNotEmpty) return;
+    setState(() => _controller.text = text);
+  }
+
+  Future<void> _clearDraft() async {
+    _draftSave?.dispose();
+    _draftSave = null;
+    _hasDraft = false;
+    if (!sl.isRegistered<DraftStore>()) return;
+    await sl<DraftStore>().clear(_draftKey);
+  }
+
   @override
   void dispose() {
+    // Sheet dismissed with text still in the field: keep the draft.
+    final save = _draftSave;
+    if (save != null) {
+      save.dispose();
+      if (sl.isRegistered<DraftStore>()) {
+        sl<DraftStore>().write(_draftKey, _controller.text);
+      }
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -57,6 +110,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
     final body = _controller.text.trim();
     if (body.isEmpty) return;
     _controller.clear();
+    unawaited(_clearDraft());
     await widget.repository.addComment(postId: widget.postId, body: body);
   }
 
@@ -117,6 +171,22 @@ class _CommentsSheetState extends State<CommentsSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Row(
                     children: [
+                      // Handwritten "draft" tag when a draft is in the
+                      // field — picked up where you left it.
+                      if (_hasDraft)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Text(
+                            'draft',
+                            style: kHandwrittenTextStyle.copyWith(
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       Expanded(
                         child: TextField(
                           controller: _controller,

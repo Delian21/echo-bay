@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
+import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
@@ -85,6 +86,12 @@ class _PostComposerState extends State<_PostComposer> {
   final _controller = TextEditingController();
   bool _sending = false;
 
+  /// Draft autosave: the caption survives closing the sheet, the app,
+  /// or the tab. Restored once on open; saved debounced on change;
+  /// cleared on publish and on the Cancel button.
+  DraftDebouncer? _draftSave;
+  bool _hasDraft = false;
+
   /// "Fades in 24h": the post is ephemeral. It disappears from feed and
   /// profile after a day; a keep-it action on the card makes it stay.
   bool _ephemeral = false;
@@ -100,7 +107,49 @@ class _PostComposerState extends State<_PostComposer> {
   final _picker = ImagePicker();
 
   @override
+  void initState() {
+    super.initState();
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    if (!sl.isRegistered<DraftStore>()) return;
+    final text = await sl<DraftStore>().read(DraftStore.squareKey);
+    if (!mounted || text == null) return;
+    setState(() {
+      _controller.text = text;
+      _hasDraft = true;
+    });
+  }
+
+  void _onCaptionChanged(String text) {
+    setState(() {});
+    if (!sl.isRegistered<DraftStore>()) return;
+    _draftSave ??= DraftDebouncer();
+    _hasDraft = text.trim().isNotEmpty;
+    _draftSave!.run(() {
+      sl<DraftStore>().write(DraftStore.squareKey, text);
+    });
+  }
+
+  Future<void> _clearDraft() async {
+    _draftSave?.dispose();
+    _draftSave = null;
+    if (!sl.isRegistered<DraftStore>()) return;
+    await sl<DraftStore>().clear(DraftStore.squareKey);
+  }
+
+  @override
   void dispose() {
+    // Close without publishing: the debounced save likely already ran;
+    // if the last keystrokes came inside the window, save now.
+    final save = _draftSave;
+    if (save != null) {
+      save.dispose();
+      if (sl.isRegistered<DraftStore>()) {
+        sl<DraftStore>().write(DraftStore.squareKey, _controller.text);
+      }
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -186,6 +235,8 @@ class _PostComposerState extends State<_PostComposer> {
             postId: post.id,
           );
         }
+        // Published: the draft has become a post — clear it.
+        await _clearDraft();
         if (mounted) Navigator.of(context).pop();
       },
     );
@@ -207,10 +258,11 @@ class _PostComposerState extends State<_PostComposer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Golden Hour: the composer's title is a handwritten page
-          // heading, not a Material label.
+          // heading, not a Material label. A restored draft gets a small
+          // handwritten "draft" tag — picked up where you left it.
           Builder(builder: (context) {
             final useInk = GoldenHourExtension.of(context).enabled;
-            return Text(
+            final title = Text(
               'New post',
               style: useInk
                   ? kHandwrittenTextStyle.copyWith(
@@ -218,6 +270,21 @@ class _PostComposerState extends State<_PostComposer> {
                       color: Theme.of(context).colorScheme.onSurface,
                     )
                   : theme.textTheme.titleMedium,
+            );
+            if (!_hasDraft) return title;
+            return Row(
+              children: [
+                title,
+                const SizedBox(width: 10),
+                Text(
+                  'draft',
+                  style: kHandwrittenTextStyle.copyWith(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             );
           }),
           const SizedBox(height: 12),
@@ -227,7 +294,7 @@ class _PostComposerState extends State<_PostComposer> {
             maxLines: 4,
             minLines: 2,
             textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {}),
+            onChanged: _onCaptionChanged,
             onSubmitted: (_) => _publish(),
             decoration: InputDecoration(
               hintText: widget.hint ?? "What's happening on the Square?",
@@ -295,7 +362,13 @@ class _PostComposerState extends State<_PostComposer> {
               ),
               const Spacer(),
               TextButton(
-                onPressed: _sending ? null : () => Navigator.of(context).pop(),
+                onPressed: _sending
+                    ? null
+                    : () async {
+                        // Deliberate discard: the draft dies here.
+                        await _clearDraft();
+                        if (context.mounted) Navigator.of(context).pop();
+                      },
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: 8),

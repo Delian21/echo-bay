@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
@@ -8,7 +10,9 @@ import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/error/failures.dart';
+import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../injection.dart';
 import '../domain/entities/nexus.dart';
 import '../domain/repositories/nexus_repository.dart';
 
@@ -619,13 +623,59 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
   final _scroll = ScrollController();
   bool _sending = false;
 
+  /// Draft autosave, keyed per group — same contract as the Vault chat
+  /// page: restore on open, debounced save on change, clear on send.
+  DraftDebouncer? _draftSave;
+  bool _draftRestored = false;
+
+  String get _draftKey => DraftStore.dorm(widget.group.id);
+
+  void _onDraftChanged(String text) {
+    if (!sl.isRegistered<DraftStore>()) return;
+    _draftSave ??= DraftDebouncer();
+    _draftSave!.run(() {
+      sl<DraftStore>().write(_draftKey, text);
+    });
+  }
+
+  Future<void> _clearDraft() async {
+    _draftSave?.dispose();
+    _draftSave = null;
+    if (!sl.isRegistered<DraftStore>()) return;
+    await sl<DraftStore>().clear(_draftKey);
+  }
+
+  Future<void> _restoreDraft() async {
+    if (_draftRestored || !sl.isRegistered<DraftStore>()) return;
+    _draftRestored = true;
+    final text = await sl<DraftStore>().read(_draftKey);
+    if (!mounted || text == null || _composer.text.isNotEmpty) return;
+    setState(() => _composer.text = text);
+  }
+
   /// Created once — the StreamBuilder must not re-subscribe on rebuild
   /// (same flash-to-skeleton gotcha as the Vault's chat page).
   late final Stream<Either<Failure, List<GroupMessage>>> _messages =
       widget.repository.watchGroupMessages(groupId: widget.group.id);
 
   @override
+  void initState() {
+    super.initState();
+    // Draft autosave: one listener for the page's lifetime.
+    _composer.addListener(() => _onDraftChanged(_composer.text));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+  }
+
+  @override
   void dispose() {
+    // Leave without sending: flush the last state.
+    final save = _draftSave;
+    if (save != null) {
+      save.dispose();
+      if (sl.isRegistered<DraftStore>()) {
+        sl<DraftStore>().write(_draftKey, _composer.text);
+      }
+    }
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
@@ -636,6 +686,7 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
     if (body.isEmpty || _sending) return;
     _sending = true;
     _composer.clear();
+    unawaited(_clearDraft());
     if (mounted) setState(() {});
     final result = await widget.repository.sendGroupMessage(
       groupId: widget.group.id,
@@ -652,6 +703,7 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
     _sending = true;
     final body = _composer.text.trim();
     _composer.clear();
+    unawaited(_clearDraft());
     final result = await widget.repository.sendGroupMessage(
       groupId: widget.group.id,
       body: body,

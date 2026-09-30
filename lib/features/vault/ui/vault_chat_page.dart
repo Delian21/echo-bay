@@ -11,6 +11,7 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/motion/rewind_scope.dart';
+import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../injection.dart';
 import '../../calls/data/repositories/mock_calls_repository.dart';
@@ -59,6 +60,9 @@ class _VaultChatPageState extends State<VaultChatPage> {
   @override
   void initState() {
     super.initState();
+    // Draft autosave: one listener for the page's lifetime — the
+    // controller has no onChanged of its own.
+    _composer.addListener(() => _onDraftChanged(_composer.text));
     final mock = widget.repository;
     if (mock is MockChatRepository) {
       _typingSub = mock.watchTyping.listen((event) {
@@ -68,10 +72,52 @@ class _VaultChatPageState extends State<VaultChatPage> {
         setState(() => _peerTyping = typing);
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+  }
+
+  /// Draft autosave, keyed per conversation. Restored on open (first
+  /// stream emission), saved debounced on change, cleared on send. The
+  /// draft lives in the settings KV table — invisible to search,
+  /// notifications, and time travel by construction.
+  DraftDebouncer? _draftSave;
+  bool _draftRestored = false;
+
+  String get _draftKey => DraftStore.vault(widget.conversation.id);
+
+  void _onDraftChanged(String text) {
+    if (!sl.isRegistered<DraftStore>()) return;
+    _draftSave ??= DraftDebouncer();
+    _draftSave!.run(() {
+      sl<DraftStore>().write(_draftKey, text);
+    });
+  }
+
+  Future<void> _clearDraft() async {
+    _draftSave?.dispose();
+    _draftSave = null;
+    if (!sl.isRegistered<DraftStore>()) return;
+    await sl<DraftStore>().clear(_draftKey);
+  }
+
+  Future<void> _restoreDraft() async {
+    if (_draftRestored || !sl.isRegistered<DraftStore>()) return;
+    _draftRestored = true;
+    final text = await sl<DraftStore>().read(_draftKey);
+    if (!mounted || text == null || _composer.text.isNotEmpty) return;
+    setState(() => _composer.text = text);
   }
 
   @override
   void dispose() {
+    // Leave without sending: flush the last state (the debounced save
+    // may still be inside its window).
+    final save = _draftSave;
+    if (save != null) {
+      save.dispose();
+      if (sl.isRegistered<DraftStore>()) {
+        sl<DraftStore>().write(_draftKey, _composer.text);
+      }
+    }
     _typingSub?.cancel();
     _composer.dispose();
     _scroll.dispose();
@@ -83,6 +129,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
     if (body.isEmpty || _sending) return;
     _sending = true;
     _composer.clear();
+    unawaited(_clearDraft());
     final result = await widget.repository.sendMessage(
       conversationId: widget.conversation.id,
       body: body,
@@ -98,6 +145,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
     _sending = true;
     final body = _composer.text.trim();
     _composer.clear();
+    unawaited(_clearDraft());
     final result = await widget.repository.sendMessage(
       conversationId: widget.conversation.id,
       body: body,
@@ -223,7 +271,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'End-to-end encrypted',
+                        'Private · local-first',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -670,7 +718,7 @@ class _ChatEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Messages are end-to-end encrypted.\nSay something first.',
+            'Stays on this device.\nSay something first.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

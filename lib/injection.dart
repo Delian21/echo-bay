@@ -13,6 +13,7 @@ import 'core/search/drift_search_repository.dart';
 import 'core/search/search_repository.dart';
 import 'core/profile/profile_controller.dart';
 import 'core/settings/app_settings_store.dart';
+import 'core/settings/draft_store.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/calls/data/repositories/mock_calls_repository.dart';
 import 'features/calls/domain/repositories/calls_repository.dart';
@@ -58,6 +59,8 @@ Future<void> configureDependencies() async {
   sl.registerLazySingleton<AppSettingsStore>(
     () => AppSettingsStore(sl()),
   );
+  // Unsent-text drafts (composer autosave) over the settings KV table.
+  sl.registerLazySingleton<DraftStore>(() => DraftStore(sl()));
   // Local full-text search over all three modules' content (FTS5).
   sl.registerLazySingleton<SearchRepository>(
     () => DriftSearchRepository(sl()),
