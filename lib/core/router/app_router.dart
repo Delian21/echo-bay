@@ -34,7 +34,14 @@ NexusModuleView _nexusWith({String? deepLinkGroupId}) => NexusModuleView(
       deepLinkGroupId: deepLinkGroupId,
     );
 
+/// The router's root navigator, exposed so code that lives ABOVE the
+/// MaterialApp (the SuperApp root) can still push full-screen routes —
+/// e.g. the first-run flow. `Navigator.of` from above MaterialApp finds
+/// nothing (the navigator is BELOW it) and crashes in release mode.
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'echoBayRoot');
+
 final appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: AppRoutes.home,
   // The browser's swipe-back gesture (edge swipe on mobile browsers) is
   // a history navigation: on the root route there is nothing behind it,

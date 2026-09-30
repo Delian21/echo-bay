@@ -7,6 +7,7 @@ import '../settings/app_settings_store.dart';
 import '../theme/app_theme.dart';
 import '../../features/square/domain/repositories/feed_repository.dart';
 import '../../injection.dart';
+import '../router/app_router.dart';
 
 /// First-run onboarding: a three-page handwritten intro (the Square, the
 /// Vault, the rewind) plus name/avatar setup, shown once. Tracked in the
@@ -30,13 +31,18 @@ class FirstRun {
   /// Runs the flow if it has not completed yet. Called once at app start
   /// (after DI) by the shell host. Silently no-ops when DI is absent
   /// (standalone widget tests pump SuperApp without a settings store).
+  ///
+  /// Pushes through [rootNavigatorKey] — the caller's context sits above
+  /// MaterialApp where no Navigator exists, and `Navigator.of` there
+  /// crashed release builds at boot (debug shows a friendly error;
+  /// release throws "null check operator used on a null value").
   static Future<void> runIfNeeded(BuildContext context) async {
     if (!sl.isRegistered<AppSettingsStore>()) return;
     final store = sl<AppSettingsStore>();
     if (await isCompleted(store)) return;
-    if (!context.mounted) return;
-    await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<
-        void>(
+    final navigator = rootNavigatorKey.currentState;
+    if (navigator == null) return; // router not built yet; skip quietly
+    await navigator.push(MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (_) => const FirstRunFlow(),
     ));
