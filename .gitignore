@@ -51,5 +51,9 @@ app.*.map.json
 .attachments/
 .freebuff/
 
+# Saipen agent scratch notes (task board / logs) — local working state,
+# not project source.
+.saipen/
+
 # Local Netlify folder
 .netlify

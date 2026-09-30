@@ -2,3 +2,7 @@
 # The files stay in the repo (Netlify serves build/web directly);
 # linguist just stops counting them as "JavaScript".
 build/web/** linguist-generated
+
+# Saipen agent notes: markdown working files, nothing to compute stats on.
+# (Kept for the day they're un-ignored; harmless while ignored.)
+.saipen/** -linguist-generated -linguist-documentation -linguist-vendored

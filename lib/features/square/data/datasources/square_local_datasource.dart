@@ -125,16 +125,31 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
       _db.posts.expiresAt.isNull() |
       _db.posts.expiresAt.isBiggerThanValue(_asOf ?? clock());
 
+  /// Tombstone visibility, present and past: soft-deleted posts are
+  /// invisible everywhere. In the present that's plain `deletedAt IS
+  /// NULL`; while time traveling, a post deleted *after* the visited
+  /// instant still existed then, so the tombstone only hides it from
+  /// the moment it was stamped.
+  Expression<bool> get _notDeletedExpr {
+    final moment = _asOf;
+    if (moment == null) {
+      return _db.posts.deletedAt.isNull();
+    }
+    return _db.posts.deletedAt.isNull() |
+        _db.posts.deletedAt.isBiggerThanValue(moment);
+  }
+
   /// Rows that existed as of the traveled instant (or all rows in the
   /// present): created by then, not tombstoned by then.
   Expression<bool> get _existedAsOfExpr {
     final moment = _asOf;
     if (moment == null) {
-      return const Constant(true);
+      // Present: only the tombstone filter applies (createdAt bounds
+      // would wrongly hide nothing but are pointless without a moment).
+      return _notDeletedExpr;
     }
     return _db.posts.createdAt.isSmallerOrEqualValue(moment) &
-        (_db.posts.deletedAt.isNull() |
-            _db.posts.deletedAt.isBiggerThanValue(moment));
+        _notDeletedExpr;
   }
 
   /// One-shot expired purge used by app-start cleanup; visible here so

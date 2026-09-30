@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'dart:typed_data';
 
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/io/platform_io.dart';
 import '../entities/post.dart';
 
 /// Renders a [Post] as a polaroid-style PNG on sepia paper: photo (or a
@@ -69,8 +72,11 @@ Future<Uint8List> renderPostShareCard(
 
   var y = cardRect.top + padding;
 
-  // Media: a flat wash placeholder frame (share must work offline and
-  // in tests; no network fetch in the renderer).
+  // Media: resolve the actual image through the IO seam (FileImage on
+  // native, NetworkImage on web — both are just ImageProviders), with a
+  // short timeout so a slow/missing photo degrades to the beige frame
+  // instead of hanging the export. canvas.drawImageRect needs a decoded
+  // ui.Image; the feed's own rendering has the same provider behind it.
   if (post.hasMedia) {
     final photoRect = Offset(cardRect.left + padding, y) &
         Size(cardWidth - padding * 2, photoHeight - 24);
@@ -79,6 +85,25 @@ Future<Uint8List> renderPostShareCard(
       photoRect.deflate(1),
       border..strokeWidth = 1.2,
     );
+    final image = await _resolveImage(post.mediaUrl!)
+        .timeout(const Duration(seconds: 2), onTimeout: () => null);
+    if (image != null) {
+      // Cover-fit: scale the decoded image to fill the photo rect,
+      // centered, like the feed card's BoxFit.cover.
+      final src = Rect.fromCenter(
+        center: Offset(image.width / 2, image.height / 2),
+        width: image.width.toDouble(),
+        height: image.height.toDouble(),
+      );
+      final dst = photoRect;
+      final srcFitted = _coverSrcRect(src, dst);
+      // Clip so an over-tall photo doesn't bleed past the frame.
+      canvas.save();
+      canvas.clipRect(photoRect);
+      canvas.drawImageRect(image, srcFitted, dst, Paint());
+      canvas.restore();
+      image.dispose();
+    }
     y += photoHeight;
   } else {
     y += 40;
@@ -144,4 +169,52 @@ ui.Paragraph _paragraph(
   final paragraph = builder.build();
   paragraph.layout(ui.ParagraphConstraints(width: maxWidth));
   return paragraph;
+}
+
+/// Cover-fit crop: the largest centered sub-rect of [src] with the same
+/// aspect ratio as [dst]. Pure geometry — unit-testable without pixels.
+Rect _coverSrcRect(Rect src, Rect dst) {
+  final srcRatio = src.width / src.height;
+  final dstRatio = dst.width / dst.height;
+  if (srcRatio > dstRatio) {
+    // Source is wider: crop the sides.
+    final width = src.height * dstRatio;
+    return Rect.fromCenter(
+      center: src.center,
+      width: width,
+      height: src.height,
+    );
+  }
+  // Source is taller: crop top/bottom.
+  final height = src.width / dstRatio;
+  return Rect.fromCenter(
+    center: src.center,
+    width: src.width,
+    height: height,
+  );
+}
+
+/// Decodes [url] (network URL or local file path) to a [ui.Image] via
+/// the IO seam's provider. Completes with null if the stream errors
+/// (missing file, offline, bad URL) — the caller falls back to the
+/// placeholder frame.
+Future<ui.Image?> _resolveImage(String url) async {
+  final provider = platformImageProvider(url);
+  final completer = Completer<ui.Image?>();
+  final stream = provider.resolve(const ImageConfiguration());
+  late ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (info, _) {
+      if (!completer.isCompleted) completer.complete(info.image);
+    },
+    onError: (_, __) {
+      if (!completer.isCompleted) completer.complete(null);
+    },
+  );
+  stream.addListener(listener);
+  try {
+    return await completer.future;
+  } finally {
+    stream.removeListener(listener);
+  }
 }
