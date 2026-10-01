@@ -550,14 +550,19 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                   }
                   return CircleAvatar(
                     radius: 18,
-                    backgroundColor:
-                        profile.accentColor.withValues(alpha: 0.18),
+                    backgroundColor: AccentDerivation.of(
+                      profile.accentColor,
+                      Theme.of(context).brightness,
+                    ).container,
                     child: Text(
                       profile.initials(),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: profile.accentColor,
+                        color: AccentDerivation.of(
+                          profile.accentColor,
+                          Theme.of(context).brightness,
+                        ).onContainer,
                       ),
                     ),
                   );

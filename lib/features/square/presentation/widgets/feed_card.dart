@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../core/theme/app_theme.dart';
 
 import '../../domain/entities/post.dart';
 
@@ -47,12 +48,17 @@ class FeedCard extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor:
-                          scheme.primary.withValues(alpha: 0.15),
+                      backgroundColor: AccentDerivation.of(
+                        scheme.primary,
+                        scheme.brightness,
+                      ).container,
                       child: Text(
                         _initial(post.authorName),
                         style: text.labelSmall!.copyWith(
-                          color: scheme.primary,
+                          color: AccentDerivation.of(
+                            scheme.primary,
+                            scheme.brightness,
+                          ).onContainer,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

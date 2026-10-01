@@ -162,7 +162,7 @@ Future<Uint8List> renderPostShareCard(
   for (final drift in [0.0, 1.2]) {
     final path = ui.Path();
     path.moveTo(stripRect.left, stripTop + drift);
-    final segments = 10;
+    const segments = 10;
     for (var i = 1; i <= segments; i++) {
       final t = i / segments;
       final jx =

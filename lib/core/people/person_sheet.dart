@@ -90,13 +90,18 @@ class _PersonSheetState extends State<PersonSheet> {
           const SizedBox(height: 4),
           CircleAvatar(
             radius: 30,
-            backgroundColor:
-                theme.colorScheme.primary.withValues(alpha: 0.15),
+            backgroundColor: AccentDerivation.of(
+              theme.colorScheme.primary,
+              theme.brightness,
+            ).container,
             child: Text(
               initials,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: theme.colorScheme.primary,
+                color: AccentDerivation.of(
+                  theme.colorScheme.primary,
+                  theme.brightness,
+                ).onContainer,
               ),
             ),
           ),
@@ -251,6 +256,13 @@ class _KeepCloseButtonState extends State<_KeepCloseButton> {
       builder: (context, snap) {
         final following =
             snap.data?.fold((_) => false, (f) => f != null) ?? false;
+        // Accent-safe pairing: the raw accent as a foreground on the
+        // tonal fill is unreadable for several accents (green on amber).
+        // The derivation guarantees a contrast-tested pair instead.
+        final derivation = AccentDerivation.of(
+          Theme.of(context).colorScheme.primary,
+          Theme.of(context).brightness,
+        );
         return Semantics(
           label: following ? 'Keeping close' : 'Keep close',
           button: true,
@@ -261,9 +273,8 @@ class _KeepCloseButtonState extends State<_KeepCloseButton> {
                 : Icons.person_add_alt_1_rounded),
             label: Text(following ? 'Keeping close' : 'Keep close'),
             style: FilledButton.styleFrom(
-              foregroundColor: following
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface,
+              backgroundColor: derivation.container,
+              foregroundColor: derivation.onContainer,
             ),
           ),
         );
