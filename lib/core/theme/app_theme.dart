@@ -550,6 +550,14 @@ ThemeData _theme(
               side: WidgetStatePropertyAll(
                 BorderSide(color: scheme.outline.withValues(alpha: 0.4)),
               ),
+              // The switch is UI chrome with the handwritten voice —
+              // Caveat runs visually small, so size it up a touch.
+              textStyle: WidgetStatePropertyAll(
+                kHandwrittenTextStyle.copyWith(
+                  fontSize: 17,
+                  color: scheme.onSurface,
+                ),
+              ),
               backgroundColor: WidgetStateProperty.resolveWith((states) =>
                   states.contains(WidgetState.selected)
                       ? scheme.primary.withValues(alpha: 0.18)

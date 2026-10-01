@@ -608,7 +608,10 @@ class _CircleWindowTiles extends StatelessWidget {
             StreamBuilder<int?>(
               stream: _count(context, circle: true),
               builder: (context, snap) => ListTile(
-                leading: const Icon(Icons.favorite_border_rounded),
+                leading: SketchGlyph(
+                  kind: SketchIconKind.scribbleHeart,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 title: const Text('My Circle'),
                 subtitle: const Text('People who keep you close'),
                 trailing: snap.data != null && snap.data! >= 0
@@ -625,7 +628,10 @@ class _CircleWindowTiles extends StatelessWidget {
             StreamBuilder<int?>(
               stream: _count(context, circle: false),
               builder: (context, snap) => ListTile(
-                leading: const Icon(Icons.window_outlined),
+                leading: SketchGlyph(
+                  kind: SketchIconKind.windowFrame,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 title: const Text('My Window'),
                 subtitle: const Text('People you keep close'),
                 trailing: snap.data != null && snap.data! >= 0

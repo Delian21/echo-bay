@@ -476,6 +476,7 @@ enum SketchIconKind {
   sunMark,
   moonCrescent,
   autoA,
+  windowFrame,
 }
 
 /// Screen-reader names for every hand-drawn glyph — a CustomPaint is
@@ -827,6 +828,16 @@ Path _iconPath(SketchIconKind kind, int seed) {
       rect(j(13.5, 4.5, 1.2), j(20, 10, 1.1));
       rect(j(4.5, 13.5, 1.2), j(10, 20, 1.1));
       rect(j(13, 13, 1.1), j(19.5, 19.5, 1.2));
+    case SketchIconKind.windowFrame:
+      // My Window: a sashed casement — outer frame, sill, and a
+      // slightly-off-center cross muntin. The hand that drew it leans.
+      rect(j(4.5, 3.5, 1.1), j(19.5, 18.5, 1.1));
+      moveTo(j(12, 4, 0.9));
+      lineTo(j(11.6, 18, 0.9));
+      moveTo(j(5, 11.2, 0.9));
+      lineTo(j(19, 10.8, 0.9));
+      moveTo(j(2.5, 20.5, 1.0));
+      lineTo(j(21.5, 20.2, 1.0));
     case SketchIconKind.padlock:
       // The Vault: shackle loop + chalk body with a keyhole cross.
       moveTo(j(7.5, 11, 1.0));
