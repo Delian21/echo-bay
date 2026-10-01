@@ -59,6 +59,13 @@ abstract class AuthRepository {
   /// gate's screen: true → Open your sketchbook, false → Sign the
   /// cover. Survives sign-out; only a wiped device says false.
   Future<bool> hasCoverBeenSigned();
+
+  /// Remove this sketchbook from the shelf: destroy the device
+  /// identity, the email label, and the signed-cover flag. All authored
+  /// rows become unreachable (a fresh id is minted on next load).
+  /// Paired with BackupService.clearAllData — neither is enough alone
+  /// for the Settings "delete this sketchbook" action.
+  Future<Either<Failure, Unit>> discardBook();
 }
 
 /// Local-only [AuthRepository]: NOT real security. The opaque user id is
@@ -160,6 +167,19 @@ class LocalAuthRepository implements AuthRepository {
       return flag == 'true';
     } on Object {
       return false;
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> discardBook() async {
+    try {
+      _cached = null;
+      await _store.clear();
+      await _store.writeRaw(_hasCoverKey, null);
+      _changes.add(null);
+      return right(unit);
+    } on Object catch (e) {
+      return left(CacheFailure(message: 'discardBook failed', cause: e));
     }
   }
 

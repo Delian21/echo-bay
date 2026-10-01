@@ -345,10 +345,13 @@ class _ClearAllDataCard extends StatelessWidget {
     );
     if (confirmed != true) return;
     final result = await sl<BackupService>().clearAllData();
-    // A wiped sketchbook has no cover signed: clear the email label too
-    // so the auth flow lands on Sign the cover (fresh cover, fresh id).
+    // A deleted sketchbook is off the shelf entirely: destroy the device
+    // identity, the email label, and the signed-cover flag so the auth
+    // flow lands on Sign the cover (fresh cover, fresh id). discardBook
+    // must run even if the table wipe failed — the shelf entry is the
+    // user-facing promise.
     if (sl.isRegistered<AuthRepository>()) {
-      await sl<AuthRepository>().signOut();
+      await sl<AuthRepository>().discardBook();
     }
     if (!messenger.mounted) return;
     result.fold(
@@ -378,10 +381,11 @@ class _ClearAllDataCard extends StatelessWidget {
             kind: SketchIconKind.closeX,
             color: Theme.of(context).colorScheme.error,
           ),
-          title: const Text('Clear all data'),
+          title: const Text('Delete this sketchbook'),
           subtitle: const Text(
-            'Wipes everything and restarts the welcome. Export first! A '
-            'fresh sketchbook, not a lost one.',
+            'Removes this book from the shelf and wipes everything on the '
+            'device — a fresh cover, a fresh id. Export first! This cannot '
+            'be undone.',
           ),
           onTap: () => _confirmAndClear(context),
         ),
