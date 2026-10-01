@@ -273,12 +273,15 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         expect(find.byType(NavigationRail), findsOneWidget);
-        // Four rail destinations + trailing settings icon button.
-        expect(find.text('The Landline'), findsOneWidget);
-        await tester.tap(find.text('The Landline'));
+        // The rail reads places: Square, Vault, Hallway, Profile — the
+        // Landline is a Square-app-bar action on desktop too. Settings
+        // anchors the rail's bottom as a labeled cog.
+        expect(find.text('Profile'), findsOneWidget);
+        expect(find.text('Settings'), findsOneWidget);
+        await tester.tap(find.byTooltip('The Landline'));
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
-        expect(find.text('Kai Meridian'), findsOneWidget);
+        expect(find.text('Kai Meridian'), findsWidgets);
       });
     });
 
