@@ -54,38 +54,18 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
     );
   }
 
+  /// Unpin via the signature rewind effect: the tombstone write fires at
+  /// the rewind's midpoint (instantly under reduced motion), exactly like
+  /// the Vault's unsend. The rewind *is* the undo gesture — passing a
+  /// re-pin here would fire it automatically and undo the unpin.
   Future<void> _unpin(KeepsakeItem item) async {
-    final result = await widget.repository.unpin(itemId: item.id);
-    if (!mounted) return;
-    result.fold(
-      (failure) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(failure.message ?? "Couldn't unpin that one."),
-          behavior: SnackBarBehavior.floating,
-        ),
-      ),
-      (_) {},
-    );
-    // Undo rides the rewind effect: re-pin the exact payload on tap.
     RewindScope.rewind(context, () async {
-      final result = item.kind == KeepsakeKind.post
-          ? await widget.repository.pinPost(
-              postId: item.postId!,
-              posX: item.posX,
-              posY: item.posY,
-              rotation: item.rotation,
-            )
-          : await widget.repository.addNote(
-              noteText: item.noteText ?? '',
-              posX: item.posX,
-              posY: item.posY,
-            );
+      final result = await widget.repository.unpin(itemId: item.id);
       if (!mounted) return;
       result.fold(
         (failure) => ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                failure.message ?? "Couldn't put it back — try again?"),
+            content: Text(failure.message ?? "Couldn't unpin that one."),
             behavior: SnackBarBehavior.floating,
           ),
         ),
@@ -170,11 +150,21 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
           ),
         ],
       ),
-      body: StreamBuilder<List<KeepsakeItem>>(
+      // The rewind scope is what makes unpin work: without it, the
+      // "no scope above = just undo" fallback re-pins the item the
+      // instant it's removed, and unpinning is a silent no-op.
+      body: RewindScope(
+        child: StreamBuilder<List<KeepsakeItem>>(
         stream: _boardStream,
         builder: (context, snapshot) {
           final items = snapshot.data ?? const <KeepsakeItem>[];
-          return Stack(
+          // The board size is captured here, at the Stack itself — each
+          // card needs it for fraction→pixel positioning, and a
+          // LayoutBuilder INSIDE a card would sever Positioned's parent
+          // data from this Stack (the blank-wall bug).
+          return LayoutBuilder(builder: (context, board) {
+            final boardSize = board.biggest;
+            return Stack(
             children: [
               // Corkboard ground.
               Positioned.fill(
@@ -190,6 +180,7 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
               for (final item in items)
                 _KeepsakeCard(
                   item: item,
+                  boardSize: boardSize,
                   repository: widget.repository,
                   onMoved: _persistMove,
                   onLongPress: () => _unpin(item),
@@ -217,14 +208,16 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
                   ),
                 ),
             ],
-          );
+            );
+          });
         },
+        ),
       ),
     );
   }
 
   /// One wobbly ink line per strung pair (a -> strungTo), drawn in
-  /// board coordinates via the LayoutBuilder fractions.
+  /// board coordinates via the board-size fractions.
   List<Widget> _buildStrings(List<KeepsakeItem> items) {
     final byId = {for (final i in items) i.id: i};
     final strings = <Widget>[];
@@ -248,6 +241,7 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
 class _KeepsakeCard extends StatefulWidget {
   const _KeepsakeCard({
     required this.item,
+    required this.boardSize,
     required this.repository,
     required this.onMoved,
     required this.onLongPress,
@@ -258,6 +252,10 @@ class _KeepsakeCard extends StatefulWidget {
   });
 
   final KeepsakeItem item;
+
+  /// The board's pixel size, measured by the page's LayoutBuilder — the
+  /// card converts its stored fractions against it.
+  final Size boardSize;
   final KeepsakeRepository repository;
   final Future<void> Function(KeepsakeItem, Offset, double) onMoved;
   final VoidCallback onLongPress;
@@ -280,9 +278,8 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    return LayoutBuilder(builder: (context, constraints) {
-      final boardSize = constraints.biggest;
-      final baseLeft = item.posX * boardSize.width;
+    final boardSize = widget.boardSize;
+    final baseLeft = item.posX * boardSize.width;
       final baseTop = item.posY * boardSize.height;
       final dx = _dragFractionDelta?.dx ?? 0;
       final dy = _dragFractionDelta?.dy ?? 0;
@@ -312,6 +309,9 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
         left: baseLeft + dx,
         top: baseTop + dy,
         child: GestureDetector(
+          // Stable handle for tests and for the drag semantics below.
+          key: ValueKey<String>('keepsake-card-${item.id}'),
+          behavior: HitTestBehavior.opaque,
           onLongPress: widget.onLongPress,
           onPanStart: (_) {
             _dragFractionDelta = Offset.zero;
@@ -322,7 +322,8 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
               _dragFractionDelta =
                   (_dragFractionDelta ?? Offset.zero) + details.delta;
               // Tilt slightly with horizontal travel — feels pinned.
-              _dragRotationDelta = dx / 400;
+              _dragRotationDelta =
+                  (_dragFractionDelta?.dx ?? 0) / 400;
             });
           },
           onPanEnd: (_) async {
@@ -372,7 +373,6 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
           ),
         ),
       );
-    });
   }
 }
 

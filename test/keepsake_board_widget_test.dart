@@ -22,7 +22,9 @@ void main() {
   });
 
   testWidgets('drag persists the new board position', (tester) async {
-    await repo.pinPost(postId: 'p1', posX: 0.1, posY: 0.1);
+    final pinned =
+        (await repo.pinPost(postId: 'p1', posX: 0.1, posY: 0.1))
+            .fold((f) => throw f, (i) => i);
 
     await tester.pumpWidget(MaterialApp(
       home: KeepsakeBoardPage(repository: repo),
@@ -30,12 +32,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('The wall is bare.'), findsNothing);
 
-    // Drag the pinned card by a known delta and settle.
+    // Drag the pinned card by a known delta and settle. The card carries
+    // a stable key — a bare Stack finder picked up nested chrome instead.
+    // Frames are pumped between moves the way a real finger arrives:
+    // without a frame the pan recognizer's queued updates can't flush,
+    // and the drag lands short.
+    final card = find.byKey(ValueKey<String>('keepsake-card-${pinned.id}'));
+    expect(card, findsOneWidget);
     final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(Stack).last) + const Offset(20, 20),
+      tester.getCenter(card),
     );
+    await tester.pump(const Duration(milliseconds: 40));
     await gesture.moveBy(const Offset(120, 80));
+    await tester.pump(const Duration(milliseconds: 40));
     await gesture.moveBy(const Offset(60, 40));
+    await tester.pump(const Duration(milliseconds: 40));
     await gesture.up();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -48,14 +59,25 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('long-press unpins; board empties', (tester) async {
-    await repo.pinPost(postId: 'p2', posX: 0.3, posY: 0.3);
+    final pinned =
+        (await repo.pinPost(postId: 'p2', posX: 0.3, posY: 0.3))
+            .fold((f) => throw f, (i) => i);
     await tester.pumpWidget(MaterialApp(
       home: KeepsakeBoardPage(repository: repo),
     ));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.longPress(find.byType(Stack).last);
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.longPress(
+      find.byKey(ValueKey<String>('keepsake-card-${pinned.id}')),
+    );
+    // The unpin rides RewindScope: the tombstone write fires at the
+    // animation's 250ms midpoint, then the board re-emit crosses another
+    // async boundary.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
 
     final board = (await repo.watchBoard().first)
         .fold((_) => <KeepsakeItem>[], (l) => l.toList());
