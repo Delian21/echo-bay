@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/atmosphere/atmosphere_controller.dart';
+import '../../../core/auth/auth_repository.dart';
 import '../../../core/backup/backup_service.dart';
 import '../../../core/feedback/feedback.dart';
 import '../../../core/design_system/sketch_kit.dart';
@@ -89,6 +90,10 @@ class SettingsPage extends StatelessWidget {
               trailing: null,
               onTap: onOpenProfile,
             ),
+
+          // Close the book: signs out without deleting anything.
+          const _SectionHeader('Your book'),
+          const _CloseTheBookCard(),
 
           // -- appearance --------------------------------------------------
           const _SectionHeader('Appearance'),
@@ -235,6 +240,75 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+/// Close the book: signs out of the session without deleting any local
+/// data. The next boot lands on Open your sketchbook; the same pages
+/// reopen on sign-in. A real backend adds token revocation behind the
+/// same repository call.
+class _CloseTheBookCard extends StatelessWidget {
+  const _CloseTheBookCard();
+
+  Future<void> _confirmAndSignOut(BuildContext context) async {
+    final auth = sl.isRegistered<AuthRepository>() ? sl<AuthRepository>() : null;
+    if (auth == null) return;
+    final confirmed = await showDialog<bool>(
+      // STALE_CHECK_OK: invoked synchronously from the tap.
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (sheetContext) => AlertDialog(
+        title: const Text('Close the book?'),
+        content: const Text(
+          'Your pages stay right here — every square, message, and note. '
+          'You\'ll just sign in again before writing.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(sheetContext).pop(false),
+            child: const Text('Keep it open'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(sheetContext).pop(true),
+            child: const Text('Close the book'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final result = await auth.signOut();
+    if (!context.mounted) return;
+    result.fold(
+      (Failure f) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(f.message ?? "Couldn't close — try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
+    );
+    // The auth state listener in main.dart closes the app down to the
+    // sign-in screen; nothing more to do here.
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          leading: SketchGlyph(
+            kind: SketchIconKind.closeX,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          title: const Text('Close the book'),
+          subtitle: const Text('Sign out. Your pages stay here.'),
+          onTap: () => _confirmAndSignOut(context),
+        ),
+      ),
+    );
+  }
+}
+
 /// Clear-all-data: wipes every table and returns the app to the first-run
 /// intro. Double-confirm — typed-phrase free, but two explicit taps and
 /// a suggestion to export first.
@@ -271,6 +345,11 @@ class _ClearAllDataCard extends StatelessWidget {
     );
     if (confirmed != true) return;
     final result = await sl<BackupService>().clearAllData();
+    // A wiped sketchbook has no cover signed: clear the email label too
+    // so the auth flow lands on Sign the cover (fresh cover, fresh id).
+    if (sl.isRegistered<AuthRepository>()) {
+      await sl<AuthRepository>().signOut();
+    }
     if (!messenger.mounted) return;
     result.fold(
       (Failure f) => messenger.showSnackBar(

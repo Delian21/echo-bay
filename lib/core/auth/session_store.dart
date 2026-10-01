@@ -23,6 +23,11 @@ abstract class SessionStore {
   /// mints a fresh identity — old data becomes unreachable, which is
   /// the point.
   Future<void> clear();
+
+  /// Raw key-value access for the auth layer's email label. Defaults to
+  /// a no-op: stores that don't support it simply don't persist labels.
+  Future<String?> readRaw(String key) async => null;
+  Future<void> writeRaw(String key, String? value) async {}
 }
 
 class SecureSessionStore implements SessionStore {
@@ -57,6 +62,18 @@ class SecureSessionStore implements SessionStore {
     await _storage.delete(key: _key);
     await _storage.delete(key: _createdKey);
   }
+
+  @override
+  Future<String?> readRaw(String key) => _storage.read(key: key);
+
+  @override
+  Future<void> writeRaw(String key, String? value) async {
+    if (value == null) {
+      await _storage.delete(key: key);
+    } else {
+      await _storage.write(key: key, value: value);
+    }
+  }
 }
 
 /// In-memory [SessionStore] for tests that pump shells without DI. The
@@ -68,6 +85,7 @@ class InMemorySessionStore implements SessionStore {
   /// Optional deterministic id for tests that assert on exact ids.
   final String? fixedUserId;
   Session? _session;
+  final Map<String, String?> _raw = {};
 
   @override
   Future<Session> loadOrCreate() async {
@@ -80,4 +98,16 @@ class InMemorySessionStore implements SessionStore {
 
   @override
   Future<void> clear() async => _session = null;
+
+  @override
+  Future<String?> readRaw(String key) async => _raw[key];
+
+  @override
+  Future<void> writeRaw(String key, String? value) async {
+    if (value == null) {
+      _raw.remove(key);
+    } else {
+      _raw[key] = value;
+    }
+  }
 }

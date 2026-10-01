@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../features/profile/ui/profile_page.dart';
 import '../design_system/sketch_kit.dart';
 import '../profile/profile_controller.dart';
+import '../profile/user_profile.dart' show kAccentPalette;
 import '../settings/app_settings_store.dart';
 import '../theme/app_theme.dart';
 import '../../features/square/domain/repositories/feed_repository.dart';
 import '../../injection.dart';
 import '../router/app_router.dart';
+import '../auth/auth_repository.dart' show AuthRepository;
+import '../auth/auth_screens.dart'
+    show showAuthGate, showSignUpAfterOnboarding;
 
 /// First-run onboarding: a three-page handwritten intro (the Square, the
 /// Vault, the rewind) plus name/avatar setup, shown once. Tracked in the
@@ -39,13 +45,27 @@ class FirstRun {
   static Future<void> runIfNeeded(BuildContext context) async {
     if (!sl.isRegistered<AppSettingsStore>()) return;
     final store = sl<AppSettingsStore>();
-    if (await isCompleted(store)) return;
+    final completed = await isCompleted(store);
+    if (!completed) {
+      final navigator = rootNavigatorKey.currentState;
+      if (navigator == null) return; // router not built yet; skip quietly
+      await navigator.push(MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const FirstRunFlow(),
+      ));
+      // The flow's last step is Sign the cover; if it completed, the
+      // book is now signed and the gate below is satisfied.
+    }
+    // Auth gate: an unsigned cover (no email label) must sign or open
+    // before reaching the app. Signing out (Close the book) clears the
+    // label, so the same gate handles sign-in on the next boot.
+    if (!sl.isRegistered<AuthRepository>()) return;
+    final session = await sl<AuthRepository>().currentUser();
+    final signed = session.fold((_) => false, (s) => s.email != null);
+    if (signed) return;
     final navigator = rootNavigatorKey.currentState;
-    if (navigator == null) return; // router not built yet; skip quietly
-    await navigator.push(MaterialPageRoute<void>(
-      fullscreenDialog: true,
-      builder: (_) => const FirstRunFlow(),
-    ));
+    if (navigator == null || !navigator.mounted) return;
+    await showAuthGate(navigator.context);
   }
 }
 
@@ -63,10 +83,13 @@ class FirstRunFlow extends StatefulWidget {
   static Widget setupProfileStep({
     required ProfileController controller,
     FeedRepository? feedRepository,
+    Widget? header,
   }) {
     return Builder(builder: (context) {
       return CustomScrollView(
         slivers: [
+          if (header != null)
+            SliverToBoxAdapter(child: header),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(40, 8, 40, 0),
@@ -132,7 +155,11 @@ class _FirstRunFlowState extends State<FirstRunFlow> {
   Future<void> _finish() async {
     await FirstRun.markCompleted(sl<AppSettingsStore>());
     if (!mounted) return;
+    // The flow hands off to Sign the cover — the personalization the
+    // user just did (name, avatar, accent) is confirmed there, with the
+    // email label as the only new field. Screens live in core/auth.
     Navigator.of(context).pop();
+    unawaited(showSignUpAfterOnboarding(context));
   }
 
   @override
@@ -156,6 +183,21 @@ class _FirstRunFlowState extends State<FirstRunFlow> {
               child: TextButton(
                 onPressed: _finish,
                 child: const Text('Skip'),
+              ),
+            ),
+            // Momentum, honestly earned: arriving here means the app is
+            // already set up and seeded — that's step one, done. The
+            // bar therefore opens at 20%, never at zero.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.2, end: 0.2 + 0.8 * _page / _pages.length),
+                duration: const Duration(milliseconds: 280),
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value.clamp(0.0, 1.0),
+                  minHeight: 5,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
             Expanded(
@@ -248,7 +290,9 @@ class _FirstRunFlowState extends State<FirstRunFlow> {
 }
 
 /// The "who are you" step: the profile page itself, embedded — the same
-/// editing surface Settings uses, so nothing is learned twice.
+/// editing surface Settings uses, so nothing is learned twice. Above it
+/// sits the setup phase's customization: the accent-color picker, so the
+/// app is already theirs before they sign the cover.
 class _SetupProfileStep extends StatelessWidget {
   const _SetupProfileStep({required this.onDone});
 
@@ -266,6 +310,74 @@ class _SetupProfileStep extends StatelessWidget {
       controller: controller,
       feedRepository:
           sl.isRegistered<FeedRepository>() ? sl<FeedRepository>() : null,
+      header: const _SetupAccentPicker(),
+    );
+  }
+}
+
+/// The setup phase's customization row: pick your ink. Reads and writes
+/// through the ProfileController — the theme cross-fades live.
+class _SetupAccentPicker extends StatelessWidget {
+  const _SetupAccentPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = sl.isRegistered<ProfileController>()
+        ? sl<ProfileController>()
+        : null;
+    if (controller == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final golden = GoldenHourExtension.of(context);
+    final useInk = golden.enabled;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 4, 40, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pick your ink',
+            style: useInk
+                ? kHandwrittenTextStyle.copyWith(
+                    fontSize: 20, color: theme.colorScheme.onSurface)
+                : theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) => Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final color in kAccentPalette)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(28),
+                    onTap: () => controller
+                        .update(controller.profile.copyWith(accentColor: color)),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: controller.profile.accentColor.toARGB32() ==
+                                color.toARGB32()
+                            ? Border.all(
+                                color: theme.colorScheme.onSurface, width: 3)
+                            : null,
+                      ),
+                      child: controller.profile.accentColor.toARGB32() ==
+                              color.toARGB32()
+                          ? const Icon(Icons.check_rounded,
+                              color: Colors.white, size: 22)
+                          : null,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+      ),
     );
   }
 }

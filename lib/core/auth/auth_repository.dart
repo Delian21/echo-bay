@@ -4,35 +4,103 @@ import '../error/failures.dart';
 import 'session.dart';
 import 'session_store.dart';
 
-/// Minimal auth contract: the app needs exactly one thing from auth —
-/// "who am I" — plus the guarantee that the answer is durable. Token
-/// refresh, multi-device, and real credential flows arrive with the real
-/// backend; this contract is shaped so those grow *inside* the auth
-/// module, not as a rewrite of its consumers.
+/// Who is asking to be signed in. The local stage knows one kind — an
+/// email label; the real backend adds providers beside it.
+enum AuthMethod { email }
+
+/// The request to sign the cover (create an account) or open an
+/// existing sketchbook on this device. No password travels in this
+/// object at any stage: the local stage verifies nothing, and the real
+/// backend will use provider tokens or email links — never a stored
+/// plaintext.
+class AuthCredentials {
+  const AuthCredentials({required this.method, required this.email});
+
+  final AuthMethod method;
+  final String email;
+}
+
+/// Auth contract. The app needs exactly three things: "who am I" (as a
+/// stream, so sign-in/out is reactive), the ability to create a local
+/// account, and the ability to open the existing one. Results are
+/// [Either<Failure, T>]; no exception crosses this seam.
 abstract class AuthRepository {
-  /// The active session. Local-only stage: resolves immediately from the
-  /// device-stable [SessionStore]. Real stage: validates tokens, falls
-  /// back to the stored session offline.
+  /// The active session, re-emitted on sign-in and sign-out. Null means
+  /// the book is closed — the UI shows Sign the cover / Open your
+  /// sketchbook.
+  Stream<Session?> watchCurrentUser();
+
+  /// One-shot read for callers that bootstrap before subscribing.
   Future<Either<Failure, Session>> currentUser();
 
-  /// Wipes the local identity. Real stage also revokes server-side state.
+  /// Sign the cover: create the local profile on this device with the
+  /// given name/avatar/email label. Real stage: server round-trip.
+  Future<Either<Failure, Session>> signUp({
+    required String displayName,
+    required AuthCredentials credentials,
+    String? avatarPath,
+  });
+
+  /// Open your sketchbook: sign in to the local profile that already
+  /// lives on this device. The email must match the stored label —
+  /// a wrong one is a [UnauthorizedFailure], which is honest about the
+  /// local stage's limits without pretending to be security.
+  Future<Either<Failure, Session>> signIn(AuthCredentials credentials);
+
+  /// Close the book: clear the in-memory session AND the stored email
+  /// label, but keep the opaque user id and all local data — the same
+  /// sketchbook reopens on the next sign-in. (Panic-wipe semantics live
+  /// in Clear all data, not here.)
   Future<Either<Failure, Unit>> signOut();
 }
 
-/// Local-only [AuthRepository]: identity is minted and stored on this
-/// device (see [SessionStore]). No server, no credentials — but every
-/// consumer is already written against the contract the real backend
-/// will implement.
+/// Local-only [AuthRepository]: NOT real security. The opaque user id is
+/// minted once per device (see [SessionStore]); the email is a stored
+/// label, never a verified credential; no password exists anywhere in
+/// this flow. Every consumer is already written against the contract a
+/// Firebase/Supabase implementation will take over — swap the get_it
+/// registration and the screens are unchanged.
 class LocalAuthRepository implements AuthRepository {
   LocalAuthRepository(this._store);
 
   final SessionStore _store;
   Session? _cached;
 
+  /// Normalized stored email label. Kept outside [SessionStore] so the
+  /// store stays exactly what it was: an opaque-id vault.
+  static const _emailKey = 'auth_email_label';
+
+  Future<String?> _storedEmail() async {
+    try {
+      return await _store.readRaw(_emailKey);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _saveEmail(String? email) async {
+    try {
+      await _store.writeRaw(_emailKey, email);
+    } on Object {
+      // A failed label write keeps the session value; sign-in still
+      // works by identity.
+    }
+  }
+
+  @override
+  Stream<Session?> watchCurrentUser() async* {
+    final session = await currentUser();
+    yield session.fold((_) => null, (s) => s);
+  }
+
   @override
   Future<Either<Failure, Session>> currentUser() async {
     try {
       _cached ??= await _store.loadOrCreate();
+      final email = _cached!.email ?? await _storedEmail();
+      if (email != null && _cached!.email == null) {
+        _cached = _cached!.copyWith(email: email);
+      }
       return right(_cached!);
     } on Object catch (e) {
       return left(CacheFailure(message: 'session unavailable', cause: e));
@@ -40,10 +108,55 @@ class LocalAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, Session>> signUp({
+    required String displayName,
+    required AuthCredentials credentials,
+    String? avatarPath,
+  }) async {
+    try {
+      _cached ??= await _store.loadOrCreate();
+      _cached = _cached!.copyWith(email: credentials.email.trim());
+      await _saveEmail(credentials.email.trim());
+      return right(_cached!);
+    } on Object catch (e) {
+      return left(CacheFailure(message: 'signUp failed', cause: e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Session>> signIn(AuthCredentials credentials) async {
+    try {
+      final session = (await currentUser()).fold((f) => throw f, (s) => s);
+      final stored = session.email?.trim().toLowerCase();
+      final given = credentials.email.trim().toLowerCase();
+      if (stored != null && stored.isNotEmpty && stored != given) {
+        return left(const UnauthorizedFailure(
+          message: 'That\u2019s not the name this sketchbook knows.',
+        ));
+      }
+      if (stored == null || stored.isEmpty) {
+        // Never signed the cover: adopt the email as the label.
+        _cached = session.copyWith(email: credentials.email.trim());
+        await _saveEmail(credentials.email.trim());
+        return right(_cached!);
+      }
+      return right(session);
+    } on Failure catch (f) {
+      return left(f);
+    } on Object catch (e) {
+      return left(CacheFailure(message: 'signIn failed', cause: e));
+    }
+  }
+
+  @override
   Future<Either<Failure, Unit>> signOut() async {
     try {
-      await _store.clear();
-      _cached = null;
+      // Close the book, keep the pages: the opaque id stays (so all
+      // authored rows still belong to this user when they return) and
+      // only the email label is cleared.
+      _cached = await _store.loadOrCreate();
+      await _saveEmail(null);
+      _cached = _cached!.copyWith(email: null);
       return right(unit);
     } on Object catch (e) {
       return left(CacheFailure(message: 'signOut failed', cause: e));
