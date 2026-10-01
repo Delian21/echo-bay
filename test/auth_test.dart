@@ -54,8 +54,8 @@ void main() {
   });
 
   group('LocalAuthRepository', () {
-    test('currentUser is stable across calls and signOut resets it',
-        () async {
+    test('currentUser is stable across calls; signOut keeps the id, '
+        'clears the email, keeps the signed-cover flag', () async {
       final repo = LocalAuthRepository(SecureSessionStore());
 
       final a = await repo.currentUser();
@@ -65,12 +65,26 @@ void main() {
         b.fold((f) => null, (s) => s.userId),
       );
 
+      await repo.signUp(
+        displayName: 'You',
+        credentials: AuthCredentials(
+          method: AuthMethod.email,
+          email: 'you@label.test',
+        ),
+      );
+      expect(await repo.hasCoverBeenSigned(), isTrue);
+
       await repo.signOut();
       final c = await repo.currentUser();
+      // Close the book keeps the pages: the opaque id (and every row
+      // attributed to it) survives; only the email label is cleared.
       expect(
         c.fold((f) => null, (s) => s.userId),
-        isNot(a.fold((f) => null, (s) => s.userId)),
+        a.fold((f) => null, (s) => s.userId),
       );
+      expect(c.fold((f) => null, (s) => s.email), isNull);
+      // The gate must still route to Open your sketchbook.
+      expect(await repo.hasCoverBeenSigned(), isTrue);
     });
 
     test('in-memory store is deterministic with a fixed id', () async {
