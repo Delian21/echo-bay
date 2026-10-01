@@ -55,24 +55,42 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
   }
 
   Future<void> _unpin(KeepsakeItem item) async {
-    await widget.repository.unpin(itemId: item.id);
+    final result = await widget.repository.unpin(itemId: item.id);
     if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ?? "Couldn't unpin that one."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
+    );
     // Undo rides the rewind effect: re-pin the exact payload on tap.
-    RewindScope.rewind(context, () {
-      if (item.kind == KeepsakeKind.post) {
-        widget.repository.pinPost(
-          postId: item.postId!,
-          posX: item.posX,
-          posY: item.posY,
-          rotation: item.rotation,
-        );
-      } else {
-        widget.repository.addNote(
-          noteText: item.noteText ?? '',
-          posX: item.posX,
-          posY: item.posY,
-        );
-      }
+    RewindScope.rewind(context, () async {
+      final result = item.kind == KeepsakeKind.post
+          ? await widget.repository.pinPost(
+              postId: item.postId!,
+              posX: item.posX,
+              posY: item.posY,
+              rotation: item.rotation,
+            )
+          : await widget.repository.addNote(
+              noteText: item.noteText ?? '',
+              posX: item.posX,
+              posY: item.posY,
+            );
+      if (!mounted) return;
+      result.fold(
+        (failure) => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                failure.message ?? "Couldn't put it back — try again?"),
+            behavior: SnackBarBehavior.floating,
+          ),
+        ),
+        (_) {},
+      );
     });
   }
 

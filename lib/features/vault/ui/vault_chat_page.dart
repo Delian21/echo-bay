@@ -220,11 +220,28 @@ class _VaultChatPageState extends State<VaultChatPage> {
   /// the board card resolves it at render time (and shows a graceful
   /// faded card if the message is later deleted-for-everyone).
   Future<void> _pinToWall(Message m) async {
+    // Every failure path reports: a silently swallowed pin looks exactly
+    // like a lost keepsake on the wall.
+    void reportPinFailure([String? message]) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message ??
+              "Couldn't pin that one — the wall is out of thumbtacks. "
+              'Try again?'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
     try {
       final wall = sl.isRegistered<KeepsakeRepository>()
           ? sl<KeepsakeRepository>()
           : null;
-      if (wall == null) return;
+      if (wall == null) {
+        reportPinFailure('Pinning is unavailable right now.');
+        return;
+      }
       final result = await wall.pinMessage(
         messageId: m.id,
         posX: 0.1 + math.Random().nextDouble() * 0.5,
@@ -232,13 +249,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
       );
       if (!mounted) return;
       result.fold(
-        (failure) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(failure.message ??
-                "Couldn't pin that one — the wall is out of thumbtacks."),
-            behavior: SnackBarBehavior.floating,
-          ),
-        ),
+        (failure) => reportPinFailure(failure.message),
         (_) => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Pinned to the keepsake wall.'),
@@ -247,7 +258,8 @@ class _VaultChatPageState extends State<VaultChatPage> {
         ),
       );
     } on Object {
-      // DI absent (tests) — nothing to do.
+      // DI absent (tests) or the write threw — say so either way.
+      reportPinFailure();
     }
   }
 
