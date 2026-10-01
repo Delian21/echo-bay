@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'dart:ui' as ui;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../../core/io/platform_io.dart';
@@ -45,7 +47,7 @@ Future<Uint8List> renderPostShareCard(
       12 +
       22 /* date */ +
       8 +
-      16 /* mark */;
+      40 /* branded footer strip */;
 
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
@@ -129,25 +131,87 @@ Future<Uint8List> renderPostShareCard(
     maxWidth: cardWidth - padding * 2,
   );
   canvas.drawParagraph(date, Offset(cardRect.left + padding, y));
-  y += 30;
 
-  // Footer strip: the credit, readable at a glance — dark ink on the
-  // paper, sized to a visible fraction of the card. No logos.
-  const markFontSize = 20.0;
+  // Branded footer strip: full card width, slightly deeper paper with a
+  // flecked texture, a wobbly rule on top, a scribble heart, and the
+  // handwritten credit in dark ink. No logos.
+  const stripHeight = 40.0;
+  final stripTop = cardRect.bottom - stripHeight;
+  final stripRect = Rect.fromLTRB(
+      cardRect.left, stripTop, cardRect.right, cardRect.bottom);
+  canvas.drawRect(stripRect, Paint()..color = const Color(0xFFEDE4D0));
+
+  // Paper flecks: deterministic speckle so the strip reads as stock,
+  // not a flat tint. Seeded from the post id for stable exports.
+  final fleckRnd = math.Random(post.id.hashCode & 0x7FFFFFFF);
+  final fleck = Paint()..color = ink.withValues(alpha: 0.06);
+  for (var i = 0; i < 60; i++) {
+    final fx = stripRect.left + fleckRnd.nextDouble() * stripRect.width;
+    final fy = stripTop + fleckRnd.nextDouble() * stripHeight;
+    final r = 0.5 + fleckRnd.nextDouble() * 1.1;
+    canvas.drawCircle(Offset(fx, fy), r, fleck);
+  }
+
+  // Wobbly rule across the strip's top edge — the pen doesn't track
+  // straight, two passes for weight.
+  final rule = Paint()
+    ..color = ink.withValues(alpha: 0.55)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6
+    ..strokeJoin = StrokeJoin.round;
+  for (final drift in [0.0, 1.2]) {
+    final path = ui.Path();
+    path.moveTo(stripRect.left, stripTop + drift);
+    final segments = 10;
+    for (var i = 1; i <= segments; i++) {
+      final t = i / segments;
+      final jx =
+          stripRect.left + t * stripRect.width + (i.isOdd ? 1.0 : -1.0);
+      path.lineTo(jx, stripTop + drift + (i.isEven ? 0.8 : -0.6));
+    }
+    canvas.drawPath(path, rule);
+  }
+
+  // The mark: handwritten, dark ink, ~5% of the card width so it reads
+  // at a glance on a phone.
+  const markFontSize = 21.0;
   final mark = _paragraph(
     'made with Echo Bay',
     fontSize: markFontSize,
     color: ink,
-    maxWidth: cardWidth - padding * 2,
+    maxWidth: cardWidth - padding * 2 - 34,
     alignRight: true,
-    width: cardWidth - padding * 2,
+    width: cardWidth - padding * 2 - 34,
   );
   canvas.drawParagraph(
     mark,
     Offset(
       cardRect.left + padding,
-      cardRect.bottom - markFontSize - 8,
+      stripTop + (stripHeight - markFontSize) / 2,
     ),
+  );
+
+  // A small scribble heart at the strip's left edge, matching the
+  // in-app SketchIconKind.scribbleHeart silhouette.
+  final heart = ui.Path();
+  final hc = Offset(cardRect.left + 22, stripTop + stripHeight / 2 + 1);
+  Offset hpt(double x, double y) => Offset(hc.dx + x, hc.dy + y);
+  heart.moveTo(hpt(-7, 4).dx, hpt(-7, 4).dy);
+  void hcub(Offset a, Offset b, Offset c) =>
+      heart.cubicTo(a.dx, a.dy, b.dx, b.dy, c.dx, c.dy);
+  hcub(hpt(-11, 0), hpt(-11, -6), hpt(-6, -6));
+  hcub(hpt(-3, -6), hpt(-1, -4), hpt(0, -1.5));
+  hcub(hpt(1, -4), hpt(3, -6), hpt(6, -6));
+  hcub(hpt(11, -6), hpt(11, 0), hpt(7, 4));
+  hcub(hpt(4, 7), hpt(0, 8.5), hpt(-7, 4));
+  heart.close();
+  canvas.drawPath(
+    heart,
+    Paint()
+      ..color = ink.withValues(alpha: 0.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeJoin = StrokeJoin.round,
   );
 
   final picture = recorder.endRecording();
