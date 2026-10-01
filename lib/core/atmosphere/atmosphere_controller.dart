@@ -82,8 +82,13 @@ class AtmosphereController extends ChangeNotifier {
       final player = _player ??= AudioPlayer();
       await player.stop();
       await player.play(AssetSource(_assetName(sound)));
-    } on Object {
+    } on Object catch (e) {
       // Missing audio / no audio device / platform without assets.
+      assert(() {
+        // ignore: avoid_print
+        print('AtmosphereSound: failed to play $sound — $e');
+        return true;
+      }());
     }
   }
 
@@ -94,7 +99,7 @@ class AtmosphereController extends ChangeNotifier {
   }
 
   static String _assetName(AtmosphereSound sound) => switch (sound) {
-        AtmosphereSound.penScratch => 'audio/pen_scratch.mp3',
-        AtmosphereSound.pageTurn => 'audio/page_turn.mp3',
+        AtmosphereSound.penScratch => 'audio/pen_scratch.wav',
+        AtmosphereSound.pageTurn => 'audio/page_turn.wav',
       };
 }
