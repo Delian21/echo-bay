@@ -49,6 +49,10 @@ Future<Uint8List> renderPostShareCard(
 
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
+  // Render at [pixelRatio]× logical size so the export stays crisp on
+  // phone screens — the default 3.0 yields a ~1400px-wide PNG.
+  final ratio = pixelRatio <= 0 ? 1.0 : pixelRatio;
+  canvas.scale(ratio);
 
   // Paper background.
   canvas.drawRect(
@@ -127,21 +131,29 @@ Future<Uint8List> renderPostShareCard(
   canvas.drawParagraph(date, Offset(cardRect.left + padding, y));
   y += 30;
 
-  // The corner mark: small, quiet, handwritten. No logos.
+  // Footer strip: the credit, readable at a glance — dark ink on the
+  // paper, sized to a visible fraction of the card. No logos.
+  const markFontSize = 20.0;
   final mark = _paragraph(
     'made with Echo Bay',
-    fontSize: 11,
-    color: ink.withValues(alpha: 0.4),
+    fontSize: markFontSize,
+    color: ink,
     maxWidth: cardWidth - padding * 2,
     alignRight: true,
     width: cardWidth - padding * 2,
   );
-  canvas.drawParagraph(mark, Offset(cardRect.left + padding, cardRect.bottom - 22));
+  canvas.drawParagraph(
+    mark,
+    Offset(
+      cardRect.left + padding,
+      cardRect.bottom - markFontSize - 8,
+    ),
+  );
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(
-    (cardWidth + 56).toInt(),
-    (cardHeight + 56).toInt(),
+    ((cardWidth + 56) * ratio).round(),
+    ((cardHeight + 56) * ratio).round(),
   );
   final byteData =
       await image.toByteData(format: ui.ImageByteFormat.png);
