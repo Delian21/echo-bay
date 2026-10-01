@@ -1,7 +1,11 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'core/pwa/install_prompt_service.dart';
 import 'injection.dart';
 import 'core/auth/auth_repository.dart';
 import 'core/auth/auth_screens.dart' show showAuthGate;
@@ -25,6 +29,12 @@ const _themeTransitionCurve = Curves.easeOutCubic;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Web: capture Chrome's beforeinstallprompt for the in-app install card.
+  if (kIsWeb && !Platform.isAndroid && true) {
+    // kIsWeb implies browser; the redundant Platform guard keeps dart:io
+    // out of native builds.
+    InstallPromptService.instance.init();
+  }
   // Composition root: database, datasources, repositories. Must complete
   // before the shell reads sl<FeedRepository>().
   await configureDependencies();

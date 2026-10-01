@@ -490,6 +490,7 @@ enum SketchIconKind {
   moonCrescent,
   autoA,
   windowFrame,
+  bookStack,
 }
 
 /// Screen-reader names for every hand-drawn glyph — a CustomPaint is
@@ -498,6 +499,7 @@ enum SketchIconKind {
 /// (IconButton.tooltip supplies the semantics) so a null here means
 /// "hide from the tree", applied via [excludeFromSemantics].
 const Map<SketchIconKind, String> kSketchIconLabel = {
+  SketchIconKind.bookStack: 'Install as an app',
   SketchIconKind.scribbleHeart: 'heart',
   SketchIconKind.rewindSpiral: 'rewind',
   SketchIconKind.xHeart: 'un-liked',
@@ -851,6 +853,21 @@ Path _iconPath(SketchIconKind kind, int seed) {
       lineTo(j(19, 10.8, 0.9));
       moveTo(j(2.5, 20.5, 1.0));
       lineTo(j(21.5, 20.2, 1.0));
+    case SketchIconKind.bookStack:
+      // Install: a small stack of books with a download arrow above —
+      // "put the whole shelf in your pocket". Two spines slightly
+      // unequal, the top book's pages hinted by a short inner line.
+      moveTo(j(5, 19, 1.0));
+      lineTo(j(19, 18.7, 1.0));
+      moveTo(j(6, 15.5, 1.0));
+      lineTo(j(18.5, 15.2, 1.1));
+      moveTo(j(6.2, 12, 0.9));
+      lineTo(j(17.5, 11.8, 0.9));
+      moveTo(j(12, 8.5, 1.0));
+      lineTo(j(12, 3.5, 1.0));
+      moveTo(j(9.5, 6, 1.0));
+      lineTo(j(12, 8.6, 1.0));
+      lineTo(j(14.5, 6.1, 1.0));
     case SketchIconKind.padlock:
       // The Vault: shackle loop + chalk body with a keyhole cross.
       moveTo(j(7.5, 11, 1.0));

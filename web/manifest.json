@@ -1,8 +1,10 @@
 {
+    "id": "/",
     "name": "Echo Bay",
     "short_name": "Echo Bay",
     "start_url": ".",
     "display": "standalone",
+    "display_override": ["standalone", "minimal-ui", "browser"],
     "background_color": "#F5EFE2",
     "theme_color": "#F5EFE2",
     "description": "An analog sketchbook of a town square: posts, private chats, and a keepsake wall - all on your device.",
@@ -30,6 +32,22 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "screenshots/echo-bay-narrow.png",
+            "sizes": "1080x1920",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "The town square feed on a phone"
+        },
+        {
+            "src": "screenshots/echo-bay-wide.png",
+            "sizes": "1920x1080",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "Echo Bay on a desktop window"
         }
     ]
 }

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,6 +13,7 @@ import '../../../core/error/failures.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_controller.dart';
 import '../../../core/onboarding/first_run.dart';
+import '../../../core/pwa/install_prompt_service.dart';
 import '../../../core/settings/app_settings_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt_repository.dart';
@@ -94,6 +96,48 @@ class SettingsPage extends StatelessWidget {
           // Close the book: signs out without deleting anything.
           const _SectionHeader('Your book'),
           const _CloseTheBookCard(),
+
+          // -- install (web/Chrome only) ---------------------------------
+          // The card only appears when Chrome's installability check has
+          // passed and the deferred prompt is waiting.
+          if (kIsWeb)
+            AnimatedBuilder(
+              animation: InstallPromptService.instance,
+              builder: (context, _) => InstallPromptService.instance.available
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        child: ListTile(
+                          leading: SketchGlyph(
+                            kind: SketchIconKind.bookStack,
+                            color: theme.colorScheme.primary,
+                          ),
+                          title: const Text('Install Echo Bay'),
+                          subtitle: const Text(
+                            'Put it on your home screen — opens full-screen, '
+                                'works offline, just like an app.',
+                          ),
+                          onTap: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final accepted =
+                                await InstallPromptService.instance
+                                    .promptInstall();
+                            if (!accepted && messenger.mounted) {
+                              messenger.showSnackBar(const SnackBar(
+                                content: Text(
+                                  'No worries — it stays right here in your '
+                                  'browser.',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                            }
+                          },
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
 
           // -- appearance --------------------------------------------------
           const _SectionHeader('Appearance'),

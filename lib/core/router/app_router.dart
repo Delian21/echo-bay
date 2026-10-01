@@ -4,11 +4,22 @@ import 'package:go_router/go_router.dart';
 import '../../core/attachments/post_navigation.dart';
 import '../../features/calls/domain/repositories/calls_repository.dart';
 import '../../features/calls/ui/calls_module_view.dart';
-import '../../features/nexus/ui/nexus_module_view.dart';
-import '../../features/square/ui/square_navigation_shell.dart';
-import '../../features/vault/ui/vault_conversation_list.dart';
+import '../../features/keepsake/domain/repositories/keepsake_repository.dart';
+import '../../features/keepsake/ui/keepsake_board_page.dart';
+import '../../features/nexus/domain/entities/nexus.dart';
 import '../../features/nexus/domain/repositories/nexus_repository.dart';
+import '../../features/nexus/ui/nexus_module_view.dart';
+import '../../features/profile/ui/profile_page.dart';
+import '../../features/social/ui/notifications_page.dart';
+import '../../features/social/domain/repositories/social_repository.dart';
+import '../../features/square/ui/square_feed_view.dart' show SquareDayViewPage;
+import '../../features/square/ui/square_navigation_shell.dart';
 import '../../features/vault/domain/repositories/chat_repository.dart';
+import '../../features/vault/ui/vault_chat_page.dart';
+import '../../features/vault/ui/vault_conversation_list.dart';
+import '../../core/people/person_sheet.dart';
+import '../../core/profile/profile_controller.dart';
+import '../../features/square/domain/repositories/feed_repository.dart';
 import '../../injection.dart' as di;
 
 /// Deep-link routes (#8). Every user-facing destination has a stable
@@ -25,6 +36,13 @@ class AppRoutes {
   static String vaultConversation(String id) => '/vault/conversation/$id';
   static const nexus = '/nexus';
   static String nexusGroup(String id) => '/nexus/group/$id';
+  static String nexusChannel(String id) => '/nexus/channel/$id';
+  static const profile = '/profile';
+  static String person(String name) => '/person/${Uri.encodeComponent(name)}';
+  static String squareDay(DateTime day) =>
+      '/square/day/${day.toIso8601String()}';
+  static const keepsake = '/keepsake';
+  static const notifications = '/notifications';
 }
 
 // NexusModuleView requires a repository — resolved through the same DI
