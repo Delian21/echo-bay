@@ -5,6 +5,8 @@ import '../../injection.dart';
 import '../error/failures.dart';
 import '../io/platform_io.dart';
 import '../profile/profile_controller.dart';
+import '../profile/user_profile.dart';
+import '../design_system/sketch_kit.dart';
 import '../theme/app_theme.dart';
 import 'auth_repository.dart';
 
@@ -16,14 +18,20 @@ import 'auth_repository.dart';
 /// No widget here touches drift: the screens talk to AuthRepository and
 /// ProfileController only.
 
-/// Entry the first-run flow and Clear all data use. Chooses which
-/// screen to show based on whether this device already has a signed
-/// cover (an email label) — never signs anyone out implicitly.
-Future<void> showAuthFlow(BuildContext context) async {
+/// Which auth screen a gate should open with. A device whose cover was
+/// ever signed (surviving sign-out) opens an existing sketchbook; a
+/// fresh device signs the cover.
+Future<bool> _deviceHasCover() async {
   final auth = sl.isRegistered<AuthRepository>() ? sl<AuthRepository>() : null;
-  if (auth == null) return;
-  final session = await auth.currentUser();
-  final hasCover = session.fold((_) => false, (s) => s.email != null);
+  if (auth == null) return false;
+  return auth.hasCoverBeenSigned();
+}
+
+/// Entry the first-run flow and Clear all data use. Chooses which
+/// screen to show based on whether this device has ever signed a cover
+/// — never signs anyone out implicitly.
+Future<void> showAuthFlow(BuildContext context) async {
+  final hasCover = await _deviceHasCover();
   if (!context.mounted) return;
   await Navigator.of(context).push<void>(MaterialPageRoute<void>(
     fullscreenDialog: true,
@@ -34,13 +42,10 @@ Future<void> showAuthFlow(BuildContext context) async {
 }
 
 /// The boot gate: pushes the right auth screen over the shell and waits
-/// until the book is signed. Re-reads the session after pop so a
+/// until the book is signed. Re-reads the cover flag after pop so a
 /// skipped flow still lands correctly.
 Future<void> showAuthGate(BuildContext context) async {
-  final auth = sl.isRegistered<AuthRepository>() ? sl<AuthRepository>() : null;
-  if (auth == null) return;
-  final session = await auth.currentUser();
-  final hasCover = session.fold((_) => false, (s) => s.email != null);
+  final hasCover = await _deviceHasCover();
   if (!context.mounted) return;
   await Navigator.of(context).push<void>(MaterialPageRoute<void>(
     fullscreenDialog: true,
@@ -372,6 +377,11 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _busy = false;
   String? _knownEmail;
 
+  /// The sketchbook that lives on this device, shown as a book spine —
+  /// tap it to open. Null on a device with no profile yet (then the
+  /// email field leads).
+  UserProfile? _book;
+
   @override
   void initState() {
     super.initState();
@@ -383,18 +393,44 @@ class _SignInScreenState extends State<SignInScreen> {
     if (auth == null) return;
     final session = await auth.currentUser();
     final email = session.fold((_) => null, (s) => s.email);
-    if (email != null && mounted) {
-      setState(() {
-        _knownEmail = email;
-        if (_email.text.isEmpty) _email.text = email;
-      });
-    }
+    final profile =
+        sl.isRegistered<ProfileController>() ? sl<ProfileController>().profile : null;
+    if (!mounted) return;
+    setState(() {
+      _book = (profile?.displayName.isNotEmpty ?? false) ? profile : null;
+      _knownEmail = email;
+      if (email != null && _email.text.isEmpty) _email.text = email;
+    });
   }
 
   @override
   void dispose() {
     _email.dispose();
     super.dispose();
+  }
+
+  /// Tap the shelf spine: open the book directly. The local stage
+  /// verifies nothing — the sketchbook already lives on this device.
+  Future<void> _openBook() async {
+    final auth = sl.isRegistered<AuthRepository>() ? sl<AuthRepository>() : null;
+    if (auth == null || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final email = _knownEmail ??
+        (sl.isRegistered<ProfileController>()
+            ? sl<ProfileController>().profile.displayName
+            : '');
+    final result = await auth.signIn(
+      AuthCredentials(method: AuthMethod.email, email: email),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.fold(
+      (Failure f) => setState(() => _error = f.message ?? 'Try again?'),
+      (_) => Navigator.of(context).pop(),
+    );
   }
 
   Future<void> _submit() async {
@@ -421,6 +457,27 @@ class _SignInScreenState extends State<SignInScreen> {
     return _AuthScaffold(
       title: 'Open your sketchbook',
       children: [
+        // The shelf: the sketchbook kept on this device, spine out.
+        // Tapping it fills nothing in and asks nothing — just opens.
+        if (_book != null) ...[
+          _ShelfBook(
+            name: _book!.displayName,
+            avatarPath: _book!.avatarPath,
+            accent: _book!.accentColor,
+            busy: _busy,
+            onOpen: _openBook,
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'or enter your label below',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         TextField(
           controller: _email,
           keyboardType: TextInputType.emailAddress,
@@ -446,6 +503,89 @@ class _SignInScreenState extends State<SignInScreen> {
         const Divider(height: 24),
         const _ProviderButtons(),
       ],
+    );
+  }
+}
+
+/// One sketchbook on the shelf, spine out: the avatar as the cover
+/// motif, the name along the spine. Tapping it opens the book — no
+/// form, no password.
+class _ShelfBook extends StatelessWidget {
+  const _ShelfBook({
+    required this.name,
+    required this.avatarPath,
+    required this.accent,
+    required this.busy,
+    required this.onOpen,
+  });
+
+  final String name;
+  final String? avatarPath;
+  final Color accent;
+  final bool busy;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final golden = GoldenHourExtension.of(context);
+    final useInk = golden.enabled;
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: busy ? null : onOpen,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.fromBorderSide(
+              BorderSide(
+                color: useInk
+                    ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                    : theme.colorScheme.outlineVariant,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              _CoverAvatar(
+                initials: name.characters.first.toUpperCase(),
+                avatarPath: avatarPath,
+                accent: accent,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: useInk
+                          ? kHandwrittenTextStyle.copyWith(
+                              fontSize: 20,
+                              color: theme.colorScheme.onSurface,
+                            )
+                          : theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      'kept on this device',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SketchGlyph(
+                kind: SketchIconKind.arrowUpRight,
+                color: theme.colorScheme.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -54,6 +54,11 @@ abstract class AuthRepository {
   /// sketchbook reopens on the next sign-in. (Panic-wipe semantics live
   /// in Clear all data, not here.)
   Future<Either<Failure, Unit>> signOut();
+
+  /// Has a cover ever been signed on this device? Chooses the auth
+  /// gate's screen: true → Open your sketchbook, false → Sign the
+  /// cover. Survives sign-out; only a wiped device says false.
+  Future<bool> hasCoverBeenSigned();
 }
 
 /// Local-only [AuthRepository]: NOT real security. The opaque user id is
@@ -76,6 +81,12 @@ class LocalAuthRepository implements AuthRepository {
   /// Normalized stored email label. Kept outside [SessionStore] so the
   /// store stays exactly what it was: an opaque-id vault.
   static const _emailKey = 'auth_email_label';
+
+  /// Distinguishes "never signed a cover here" from "signed, then closed
+  /// the book": set at signUp, survives signOut. Sign-out clears only
+  /// the email label, so the gate must not use the label to pick the
+  /// sign-in screen.
+  static const _hasCoverKey = 'auth_has_cover';
 
   Future<String?> _storedEmail() async {
     try {
@@ -130,10 +141,25 @@ class LocalAuthRepository implements AuthRepository {
       _cached ??= await _store.loadOrCreate();
       _cached = _cached!.copyWith(email: credentials.email.trim());
       await _saveEmail(credentials.email.trim());
+      await _store.writeRaw(_hasCoverKey, 'true');
       _changes.add(null);
       return right(_cached!);
     } on Object catch (e) {
       return left(CacheFailure(message: 'signUp failed', cause: e));
+    }
+  }
+
+  @override
+  /// Has a cover ever been signed on this device? True after the first
+  /// signUp, even once the book is closed (email label cleared). Fresh
+  /// devices and post-Clear-all-data return false. Used by the auth
+  /// gate to choose between Open your sketchbook and Sign the cover.
+  Future<bool> hasCoverBeenSigned() async {
+    try {
+      final flag = await _store.readRaw(_hasCoverKey);
+      return flag == 'true';
+    } on Object {
+      return false;
     }
   }
 
@@ -172,6 +198,8 @@ class LocalAuthRepository implements AuthRepository {
       // only the email label is cleared.
       _cached = await _store.loadOrCreate();
       await _saveEmail(null);
+      // The cover stays signed (hasCoverBeenSigned stays true) — only
+      // Clear all data mints a fresh book.
       _cached = _cached!.copyWith(email: null);
       _changes.add(null);
       return right(unit);
