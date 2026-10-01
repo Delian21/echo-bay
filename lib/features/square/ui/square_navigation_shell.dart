@@ -447,13 +447,57 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                 },
               ),
             ),
-          // Keepsake wall: pinned squares + handwritten notes.
+          // Keepsake wall: pinned squares + handwritten notes. The
+          // scribble count on the glyph is the live pin count — an
+          // empty wall is never a surprise.
           IconButton(
             tooltip: 'Keepsake wall',
-            icon: const SketchGlyph(kind: SketchIconKind.spiralHub),
             onPressed: () => KeepsakeBoardPage.show(
               context,
               repository: sl<KeepsakeRepository>(),
+            ),
+            icon: !sl.isRegistered<KeepsakeRepository>()
+                ? const SketchGlyph(kind: SketchIconKind.spiralHub)
+                : StreamBuilder<int>(
+              stream: sl<KeepsakeRepository>()
+                  .watchBoard()
+                  .map((either) => either.fold((_) => 0, (l) => l.length)),
+              builder: (context, snapshot) {
+                final pins = snapshot.data ?? 0;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const SketchGlyph(kind: SketchIconKind.spiralHub),
+                    if (pins > 0)
+                      Positioned(
+                        right: -5,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 3, vertical: 0.5),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 13),
+                          child: Text(
+                            pins > 99 ? '99+' : '$pins',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                              color: AccentDerivation.of(
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context).brightness,
+                              ).onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
           // Time travel lives in the FAB long-press quick actions now
