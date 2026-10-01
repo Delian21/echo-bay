@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../injection.dart';
 import '../error/failures.dart';
+import '../io/platform_io.dart';
 import '../profile/profile_controller.dart';
 import '../theme/app_theme.dart';
 import 'auth_repository.dart';
@@ -207,6 +209,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _error;
   bool _busy = false;
 
+  /// The cover shows a face: picked here, committed to the profile, and
+  /// carried into the app. The setup step's avatar (if any) pre-fills it.
+  String? _avatarPath;
+  final ImagePicker _picker = ImagePicker();
+  bool _picking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _avatarPath = _profile?.profile.avatarPath;
+  }
+
+  Future<void> _pickAvatar() async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      setState(() => _avatarPath = picked.path);
+      _profile?.update(_profile.profile.copyWith(avatarPath: picked.path));
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the image picker')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -245,8 +283,45 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return _AuthScaffold(
       title: 'Sign the cover',
       children: [
+        // The face on the cover: tap to pick from the gallery.
+        Center(
+          child: GestureDetector(
+            onTap: _pickAvatar,
+            child: Stack(
+              children: [
+                _CoverAvatar(
+                  initials: _name.text.trim().isEmpty
+                      ? '?'
+                      : _name.text.trim().characters.first.toUpperCase(),
+                  avatarPath: _avatarPath,
+                  accent: _profile?.profile.accentColor ??
+                      Theme.of(context).colorScheme.primary,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: CircleAvatar(
+                    radius: 14,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: _picking
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.add_a_photo_outlined,
+                            size: 15, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         TextField(
           controller: _name,
+          onChanged: (_) => setState(() {}), // initials keep up
           decoration: const InputDecoration(labelText: 'Your name'),
         ),
         const SizedBox(height: 12),
@@ -397,6 +472,46 @@ class _LostYourKeyLink extends StatelessWidget {
           );
         },
         child: const Text('Lost your key?'),
+      ),
+    );
+  }
+}
+
+/// The cover's face: the picked photo, or ink initials on the accent
+/// color — same rendering rules as the profile avatar, so the two never
+/// disagree.
+class _CoverAvatar extends StatelessWidget {
+  const _CoverAvatar({
+    required this.initials,
+    required this.avatarPath,
+    required this.accent,
+  });
+
+  final String initials;
+  final String? avatarPath;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (avatarPath != null && avatarPath!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 44,
+        backgroundImage: platformImageProvider(avatarPath!),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+    final derivation =
+        AccentDerivation.of(accent, Theme.of(context).brightness);
+    return CircleAvatar(
+      radius: 44,
+      backgroundColor: derivation.container,
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.w800,
+          color: derivation.onContainer,
+        ),
       ),
     );
   }

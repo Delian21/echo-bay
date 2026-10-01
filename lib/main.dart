@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'injection.dart';
+import 'core/auth/auth_repository.dart';
+import 'core/auth/auth_screens.dart' show showAuthGate;
 import 'core/motion/motion_controller.dart';
 import 'core/motion/motion_scope.dart';
 import 'core/notifications/prompt_notifier.dart';
@@ -12,6 +14,8 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/timetravel/time_travel_scope.dart';
+import 'dart:async';
+import 'core/auth/session.dart';
 import 'core/version/version_banner.dart';
 import 'core/version/version_checker.dart';
 
@@ -51,6 +55,9 @@ class _SuperAppState extends State<SuperApp> with WidgetsBindingObserver {
       ? sl<ProfileController>()
       : ProfileController();
 
+  StreamSubscription<Session?>? _authSub;
+  bool _signedIn = false;
+
   /// Theme actually rendered. Changes swap the MaterialApp's key so the
   /// AnimatedSwitcher below cross-fades two fully-rendered trees by
   /// opacity alone — pure compositing, no per-frame ThemeData.lerp of the
@@ -76,6 +83,19 @@ class _SuperAppState extends State<SuperApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) FirstRun.runIfNeeded(context);
     });
+    // Live auth gate: Close the book closes down to Open your
+    // sketchbook immediately; signing back in drops the gate. The
+    // stream re-emits after every auth transition.
+    _authSub = sl.isRegistered<AuthRepository>()
+        ? sl<AuthRepository>().watchCurrentUser().listen((session) {
+            final signed = session?.email != null;
+            if (signed == _signedIn) return;
+            _signedIn = signed;
+            if (!signed && mounted) {
+              showAuthGate(context);
+            }
+          })
+        : null;
   }
 
   @override
@@ -89,6 +109,7 @@ class _SuperAppState extends State<SuperApp> with WidgetsBindingObserver {
     // Same ownership rule for the motion controller.
     if (!sl.isRegistered<MotionController>()) _motion.dispose();
     if (!sl.isRegistered<ProfileController>()) _profile.dispose();
+    unawaited(_authSub?.cancel());
     super.dispose();
   }
 

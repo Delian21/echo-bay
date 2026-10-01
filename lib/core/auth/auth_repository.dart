@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fpdart/fpdart.dart';
 
 import '../error/failures.dart';
@@ -66,6 +68,11 @@ class LocalAuthRepository implements AuthRepository {
   final SessionStore _store;
   Session? _cached;
 
+  /// Broadcast on every auth transition (sign-in, sign-up, sign-out) so
+  /// the running app can react immediately — sign-out closes down to
+  /// Open your sketchbook without waiting for the next boot.
+  final _changes = StreamController<void>.broadcast();
+
   /// Normalized stored email label. Kept outside [SessionStore] so the
   /// store stays exactly what it was: an opaque-id vault.
   static const _emailKey = 'auth_email_label';
@@ -91,6 +98,12 @@ class LocalAuthRepository implements AuthRepository {
   Stream<Session?> watchCurrentUser() async* {
     final session = await currentUser();
     yield session.fold((_) => null, (s) => s);
+    // Then stay live: every transition re-reads the session.
+    yield* _changes.stream
+        .asyncMap((_) async => (await currentUser()).fold(
+              (_) => null,
+              (s) => s,
+            ));
   }
 
   @override
@@ -117,6 +130,7 @@ class LocalAuthRepository implements AuthRepository {
       _cached ??= await _store.loadOrCreate();
       _cached = _cached!.copyWith(email: credentials.email.trim());
       await _saveEmail(credentials.email.trim());
+      _changes.add(null);
       return right(_cached!);
     } on Object catch (e) {
       return left(CacheFailure(message: 'signUp failed', cause: e));
@@ -138,8 +152,10 @@ class LocalAuthRepository implements AuthRepository {
         // Never signed the cover: adopt the email as the label.
         _cached = session.copyWith(email: credentials.email.trim());
         await _saveEmail(credentials.email.trim());
+        _changes.add(null);
         return right(_cached!);
       }
+      _changes.add(null);
       return right(session);
     } on Failure catch (f) {
       return left(f);
@@ -157,6 +173,7 @@ class LocalAuthRepository implements AuthRepository {
       _cached = await _store.loadOrCreate();
       await _saveEmail(null);
       _cached = _cached!.copyWith(email: null);
+      _changes.add(null);
       return right(unit);
     } on Object catch (e) {
       return left(CacheFailure(message: 'signOut failed', cause: e));
