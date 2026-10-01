@@ -191,6 +191,121 @@ class _AuthScaffold extends StatelessWidget {
   }
 }
 
+/// A ruled-line input, like writing on the page: handwritten label
+/// resting on a single ink rule, no box. Used only by the auth screens —
+/// the app's ordinary fields keep the themed filled boxes.
+class _RuledField extends StatelessWidget {
+  const _RuledField({
+    required this.controller,
+    required this.label,
+    this.helper,
+    this.keyboardType,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String? helper;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final golden = GoldenHourExtension.of(context);
+    final useInk = golden.enabled;
+    final rule = useInk
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.55)
+        : theme.colorScheme.outlineVariant;
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      style: useInk
+          ? kHandwrittenTextStyle.copyWith(
+              fontSize: 19,
+              color: theme.colorScheme.onSurface,
+            )
+          : theme.textTheme.bodyMedium,
+      decoration: InputDecoration(
+        filled: false,
+        labelText: label,
+        labelStyle: useInk
+            ? kHandwrittenTextStyle.copyWith(
+                fontSize: 17,
+                color: theme.colorScheme.onSurfaceVariant,
+              )
+            : null,
+        helperText: helper,
+        helperStyle: useInk
+            ? kHandwrittenTextStyle.copyWith(
+                fontSize: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              )
+            : null,
+        // The ruled line: an underline, heavier than the hairline
+        // default — pencil pressure.
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: rule, width: 1.4),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
+/// A taped-on polaroid: white frame around the avatar, one strip of
+/// paper tape across the top corner — the cover's pasted-on face.
+class _TapedPolaroid extends StatelessWidget {
+  const _TapedPolaroid({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.4),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.shadow.withValues(alpha: 0.12),
+                blurRadius: 4,
+                offset: const Offset(1, 2),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+        // Paper tape, laid slightly askew.
+        Positioned(
+          top: -8,
+          left: 18,
+          child: Transform.rotate(
+            angle: -0.12,
+            child: Container(
+              width: 44,
+              height: 16,
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.9),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Sign the cover — creates the local profile. When reached from the
 /// first-run flow, name/avatar were already chosen in the setup step;
 /// they're shown pre-filled to confirm, and only the email label is new.
@@ -288,55 +403,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return _AuthScaffold(
       title: 'Sign the cover',
       children: [
-        // The face on the cover: tap to pick from the gallery.
+        // The face on the cover: a taped-on polaroid, tap to change.
         Center(
           child: GestureDetector(
             onTap: _pickAvatar,
-            child: Stack(
-              children: [
-                _CoverAvatar(
-                  initials: _name.text.trim().isEmpty
-                      ? '?'
-                      : _name.text.trim().characters.first.toUpperCase(),
-                  avatarPath: _avatarPath,
-                  accent: _profile?.profile.accentColor ??
-                      Theme.of(context).colorScheme.primary,
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: _picking
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.add_a_photo_outlined,
-                            size: 15, color: Colors.white),
+            child: _TapedPolaroid(
+              child: Stack(
+                children: [
+                  _CoverAvatar(
+                    initials: _name.text.trim().isEmpty
+                        ? '?'
+                        : _name.text.trim().characters.first.toUpperCase(),
+                    avatarPath: _avatarPath,
+                    accent: _profile?.profile.accentColor ??
+                        Theme.of(context).colorScheme.primary,
                   ),
-                ),
-              ],
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      child: _picking
+                          ? const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.add_a_photo_outlined,
+                              size: 15, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        TextField(
+        const SizedBox(height: 20),
+        // "This sketchbook belongs to ___" — the name written on the
+        // ruled line, not typed into a box.
+        _RuledField(
           controller: _name,
+          label: 'This sketchbook belongs to',
           onChanged: (_) => setState(() {}), // initials keep up
-          decoration: const InputDecoration(labelText: 'Your name'),
         ),
         const SizedBox(height: 12),
-        TextField(
+        _RuledField(
           controller: _email,
+          label: 'Email (a label, for later)',
+          helper: 'Nothing is sent anywhere yet.',
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            labelText: 'Email (a label, for later)',
-            helperText: 'Nothing is sent anywhere yet.',
-          ),
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
@@ -346,6 +463,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         const SizedBox(height: 16),
         FilledButton(
           onPressed: _busy ? null : _submit,
+          style: FilledButton.styleFrom(
+            textStyle: GoldenHourExtension.of(context).enabled
+                ? kHandwrittenTextStyle.copyWith(
+                    fontSize: 21,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  )
+                : null,
+          ),
+          // The confirm action reads as a signature on the line.
           child: Text(_busy ? 'Signing…' : 'Sign the cover'),
         ),
         const SizedBox(height: 16),
@@ -478,15 +604,13 @@ class _SignInScreenState extends State<SignInScreen> {
           ),
           const SizedBox(height: 12),
         ],
-        TextField(
+        _RuledField(
           controller: _email,
+          label: 'Email',
+          helper: _knownEmail == null
+              ? 'The label your cover was signed with.'
+              : 'Yours is filled in — just tap below.',
           keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            labelText: 'Email',
-            helperText: _knownEmail == null
-                ? 'The label your cover was signed with.'
-                : 'Yours is filled in — just tap below.',
-          ),
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
