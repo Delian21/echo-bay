@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/attachments/attachment.dart';
 
 /// Outbox state machine for Nexus group messages. Mirrors the Vault's
@@ -159,7 +160,7 @@ class GroupMessage extends Equatable {
   /// forbidden by the dependency rule, so this mirrors its shape).
   final MessageAttachment? attachment;
 
-  bool get isMine => senderId == NexusGroup.localUserId;
+  bool get isMine => LocalIdentity.owns(senderId);
   bool get isDeleted => deletedAt != null;
   bool get isEdited => editedAt != null;
 

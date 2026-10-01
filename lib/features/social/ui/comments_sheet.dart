@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/design_system/sketch_kit.dart';
 import '../../../../core/people/person_sheet.dart';
 import '../../../../core/settings/draft_store.dart';
@@ -226,6 +227,8 @@ class _CommentBubble extends StatelessWidget {
 
   final PostComment comment;
 
+  bool get _mine => LocalIdentity.owns(comment.authorId);
+
   @override
   Widget build(BuildContext context) {
     final golden = GoldenHourExtension.of(context);
@@ -234,12 +237,12 @@ class _CommentBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Align(
         alignment:
-            comment.isMine ? Alignment.centerRight : Alignment.centerLeft,
+            _mine ? Alignment.centerRight : Alignment.centerLeft,
         child: SketchBox(
           seed: comment.id.hashCode & 0x7FFFFFFF,
           radius: 10,
           color: SketchInk.of(context),
-          fill: comment.isMine
+          fill: _mine
               ? theme.colorScheme.primary.withValues(alpha: 0.06)
               : null,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

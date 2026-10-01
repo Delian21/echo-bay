@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 
 import 'core/atmosphere/atmosphere_controller.dart';
 import 'core/auth/auth_repository.dart';
+import 'core/auth/local_identity.dart';
 import 'core/auth/session_store.dart';
 import 'core/backup/backup_service.dart';
 import 'core/database/app_database.dart';
@@ -58,6 +59,9 @@ Future<void> configureDependencies() async {
   // this opaque id (authored posts, messages, memberships).
   final session = await sl<AuthRepository>().currentUser();
   final sessionUserId = session.fold((f) => 'local-user', (s) => s.userId);
+  // Single source of truth for ownership checks everywhere (chat sides,
+  // delete/edit affordances, comments).
+  LocalIdentity.init(sessionUserId);
 
   // core
   sl.registerLazySingleton<AppDatabase>(() => AppDatabase());

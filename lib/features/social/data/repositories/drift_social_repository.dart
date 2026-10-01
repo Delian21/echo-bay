@@ -97,7 +97,7 @@ class DriftSocialRepository implements SocialRepository {
       final comment = PostComment(
         id: _uuid.v4(),
         postId: postId,
-        authorId: 'local-user',
+        authorId: localUserId,
         authorName: 'You',
         body: body,
         createdAt: DateTime.now(),

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
 import '../../../core/attachments/attachment_media_view.dart';
+import '../../../core/auth/local_identity.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
 import '../../../core/design_system/loading_skeletons.dart';
@@ -390,14 +391,16 @@ class _VaultChatPageState extends State<VaultChatPage> {
                       itemCount: messages.length,
                       itemBuilder: (context, index) {
                         final m = messages[index];
+                        final mine = LocalIdentity.owns(m.senderId);
                         return _MessageBubble(
                           message: m,
+                          mine: mine,
                           showTail: index == 0 ||
                               messages[index - 1].senderId != m.senderId,
-                          onEdit: m.isMine && !m.isDeleted
+                          onEdit: mine && !m.isDeleted
                               ? (id) => _beginEdit(id, m.body)
                               : null,
-                          onDelete: m.isMine && !m.isDeleted
+                          onDelete: mine && !m.isDeleted
                               ? () => _rewindDelete(m.id)
                               : null,
                           onReact: () => _react(m.id),
@@ -457,6 +460,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
+    required this.mine,
     required this.showTail,
     this.onEdit,
     this.onDelete,
@@ -465,6 +469,7 @@ class _MessageBubble extends StatelessWidget {
   });
 
   final Message message;
+  final bool mine;
   final bool showTail;
   final ValueChanged<String>? onEdit;
   final VoidCallback? onDelete;
@@ -476,7 +481,7 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mine = message.isMine;
+    final mine = this.mine;
     // Restrained ink (spec §4): the Vault gets the wobbly border stroke
     // but no scribble fills, no paper — a notebook that takes secrets
     // seriously. Gate on the analog layer.
@@ -646,7 +651,7 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (message.isMine && onEdit != null)
+            if (mine && onEdit != null)
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
                 title: const Text('Edit message'),
@@ -658,7 +663,7 @@ class _MessageBubble extends StatelessWidget {
                 title: const Text('Pin to keepsake wall'),
                 onTap: () => Navigator.pop(sheetContext, 'pin'),
               ),
-            if (message.isMine && onDelete != null)
+            if (mine && onDelete != null)
               ListTile(
                 leading: Icon(Icons.delete_outline,
                     color: Theme.of(sheetContext).colorScheme.error),

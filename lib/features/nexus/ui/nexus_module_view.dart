@@ -13,6 +13,7 @@ import '../../../core/error/failures.dart';
 import '../../../core/attachments/post_navigation.dart';
 import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/auth/local_identity.dart';
 import '../../../injection.dart';
 import '../domain/entities/nexus.dart';
 import '../domain/repositories/nexus_repository.dart';
@@ -828,7 +829,7 @@ class _GroupBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mine = message.isMine;
+    final mine = LocalIdentity.owns(message.senderId);
     // Same notebook restraint as the Vault: wobbly ink stroke when the
     // analog layer is on, Material card otherwise.
     final useInk = GoldenHourExtension.of(context).enabled;

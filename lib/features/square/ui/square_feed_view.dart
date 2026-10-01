@@ -11,6 +11,7 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/auth/auth_repository.dart';
+import '../../../core/auth/local_identity.dart';
 import '../../../core/auth/session.dart';
 import '../../../core/error/failures.dart';
 import '../../../injection.dart';
@@ -453,7 +454,9 @@ class _SquareFeedViewState extends State<SquareFeedView> {
             child: SquareFeedCard(
               post: _toModel(_posts[postIndex]),
               onLike: () => _toggleLike(_posts[postIndex]),
-              onDelete: () => _deletePost(_posts[postIndex]),
+              onDelete: LocalIdentity.owns(_posts[postIndex].authorId)
+                  ? () => _deletePost(_posts[postIndex])
+                  : null,
               onShare: () => sharePost(context, _posts[postIndex]),
               onComment: () => CommentsSheet.show(
                 context,

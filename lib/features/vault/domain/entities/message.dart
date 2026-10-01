@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/auth/local_identity.dart';
+
 import '../../../../core/attachments/attachment.dart';
 
 export '../../../../core/attachments/attachment.dart';
@@ -42,12 +44,12 @@ class Message extends Equatable {
   /// Null for plain text messages.
   final MessageAttachment? attachment;
 
-  /// Authorship check. NOTE: with the auth seam, callers that have a
-  /// session pass it explicitly; the fallback keeps the pre-auth constant
-  /// for mock-seeded rows. Do not add new comparisons against
-  /// [Conversation.localUserId] — repositories own this decision via
-  /// their injected `localUserId`.
-  bool get isMine => senderId == Conversation.localUserId;
+  /// Authorship check. Delegates to [LocalIdentity] — the composition
+  /// root's resolved session id, with the legacy pre-auth constant still
+  /// counting as mine so seed rows keep their owner. UI should prefer
+  /// passing the check down (see `LocalIdentity.owns`); this getter stays
+  /// for tests and simple call sites.
+  bool get isMine => LocalIdentity.owns(senderId);
   bool get isDeleted => deletedAt != null;
   bool get isEdited => editedAt != null;
 

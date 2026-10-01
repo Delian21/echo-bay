@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/database/app_database.dart'
     show NotificationKind;
 
@@ -21,7 +22,7 @@ class PostComment extends Equatable {
   final String body;
   final DateTime createdAt;
 
-  bool get isMine => authorId == 'local-user';
+  bool get isMine => LocalIdentity.owns(authorId);
 
   @override
   List<Object?> get props =>

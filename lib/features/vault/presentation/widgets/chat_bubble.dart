@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/design_system/sketch_kit.dart';
 
 import '../../../../core/design_system/status_tick.dart';
@@ -43,7 +44,7 @@ class ChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final isMine = message.isMine;
+    final isMine = LocalIdentity.owns(message.senderId);
 
     final bubbleColor = isMine
         ? scheme.primary.withValues(alpha: 0.16)
