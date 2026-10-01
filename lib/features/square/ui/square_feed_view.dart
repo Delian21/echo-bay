@@ -7,6 +7,7 @@ import 'package:fpdart/fpdart.dart' hide State;
 import 'package:stream_transform/stream_transform.dart';
 
 import '../../../core/design_system/loading_skeletons.dart';
+import '../../../core/design_system/inked_segmented_control.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
@@ -383,14 +384,17 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     if (!_hasFollowGraph) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: SegmentedButton<bool>(
+      // The app's own inked control: hatch carries the selection, so the
+      // label stays ink-on-paper whatever the accent (the stock
+      // SegmentedButton tinted both and washed the amber out).
+      child: InkedSegmentedControl(
         segments: const [
-          ButtonSegment(value: false, label: Text('Everyone')),
-          ButtonSegment(value: true, label: Text('My Window')),
+          (label: 'Everyone', icon: SketchIconKind.threeHeads),
+          (label: 'My Window', icon: SketchIconKind.windowFrame),
         ],
-        selected: {_myWindowOnly},
-        onSelectionChanged: (s) => setState(() {
-          _myWindowOnly = s.first;
+        selectedIndex: _myWindowOnly ? 1 : 0,
+        onSelected: (i) => setState(() {
+          _myWindowOnly = i == 1;
           _stream = _feedStreamForFilter();
         }),
       ),

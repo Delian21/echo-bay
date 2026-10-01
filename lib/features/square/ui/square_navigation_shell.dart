@@ -681,13 +681,44 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   /// Selected state colors via navSelectedIconColor (accent-pill contrast).
   Widget _railIcon(SketchIconKind kind, String label, int index,
       {required bool selected}) {
-    final glyph = SketchGlyph(
+    final scheme = Theme.of(context).colorScheme;
+    Widget glyph = SketchGlyph(
       kind: kind,
       seed: label.hashCode & 0x7FFFFFFF,
-      color: selected
-          ? navSelectedIconColor(Theme.of(context).colorScheme)
-          : null,
+      color: selected ? navSelectedIconColor(scheme) : null,
     );
+    if (selected && GoldenHourExtension.of(context).enabled) {
+      // Hand-shaded selection: a hatch over the same primary@22% pill
+      // the contrast picker assumes, so the glyph stays readable and
+      // the pill reads as pencil shading rather than a flat block.
+      glyph = SizedBox(
+        width: 56,
+        height: 32,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            ScribbleFill(
+              sketchPath: Path()
+                ..addRRect(RRect.fromRectAndRadius(
+                  const Offset(2, 2) & const Size(52, 28),
+                  const Radius.circular(14),
+                )),
+              seed: label.hashCode & 0x7FFFFFFF,
+              color: scheme.primary,
+              opacity: 0.5,
+              density: ScribbleFill.adaptiveDensity(const Size(56, 32)),
+            ),
+            Center(child: glyph),
+          ],
+        ),
+      );
+    }
     final badged = index == 1 && _totalUnread > 0 && _moduleIndex != 1;
     if (!badged) return glyph;
     return Stack(

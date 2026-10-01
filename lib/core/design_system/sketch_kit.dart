@@ -339,6 +339,19 @@ class ScribbleFill extends StatelessWidget {
   final double opacity;
   final double density;
 
+  /// Hatch spacing that reads as a few confident pencil passes at
+  /// [size] rather than texture. Small controls (a segmented cell, a nav
+  /// pill) get coarser strokes; large panels keep the authored default.
+  static double adaptiveDensity(Size size, {double preferred = 5.0}) {
+    final shortest = size.shortestSide;
+    if (shortest <= 0) return preferred;
+    // Aim for ~4 strokes across the shortest side, never finer than the
+    // authored default and never so coarse that one stroke is all there
+    // is.
+    final target = shortest / 4;
+    return target.clamp(preferred, 14.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
