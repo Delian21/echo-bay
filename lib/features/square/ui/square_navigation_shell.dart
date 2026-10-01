@@ -84,12 +84,6 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     with SingleTickerProviderStateMixin {
   int _moduleIndex = 0;
 
-  /// Settings is index 4 but not a rail destination (the app-bar gear
-  /// selects it), so the rail's selectedIndex must stay within 0..3 —
-  /// passing 4 trips NavigationRail's assertion and paints the whole
-  /// shell red.
-  static const _railDestinationCount = 4;
-
   late final AnimationController _fadeController = AnimationController(
     vsync: this,
     duration: kFadeThroughInDuration,
@@ -263,13 +257,10 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
       ..forward(from: reduced ? 1 : 0);
   }
 
-  static const _modules = [
-    ('The Square', SketchIconKind.slateGrid),
-    ('The Vault', SketchIconKind.padlock),
-    ('The Hallway', SketchIconKind.spiralHub),
-    ('The Landline', SketchIconKind.handset),
-    ('Settings', SketchIconKind.cog),
-  ];
+  /// Module bodies by index: 0..3 are the rail/bar destinations (3 is
+  /// Profile on mobile — a pushed page), 4 is Settings. The Landline
+  /// body still mounts at index 3 on desktop routes; mobile never
+  /// selects it.
 
   ChatRepository get _vaultRepository => widget.vaultRepository ??
       // Prefer the DI singleton: opening a second AppDatabase on the same
@@ -488,20 +479,57 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
 
   // -- desktop: NavigationRail + body swap ------------------------------------
 
+  /// Desktop rail destinations — same "places" vocabulary as the
+  /// mobile bar: Square, Vault, Hallway, Profile. The Landline is an
+  /// action (a call log), so it lives in the Square app bar's handset.
+  static const _railModules = [
+    ('The Square', SketchIconKind.slateGrid),
+    ('The Vault', SketchIconKind.padlock),
+    ('The Hallway', SketchIconKind.spiralHub),
+    ('Profile', SketchIconKind.personGlyph),
+  ];
+
   Widget _buildRailScaffold() {
     // Subscribe lazily on first build; see _totalUnreadStream.
     _totalUnreadStream;
     return Scaffold(
+      // Desktop compose: the mobile bar's notch FAB has no analogue here,
+      // so the rail scaffold carries its own New post action.
+      floatingActionButton: ComposeFab(
+        onPressed: _openComposer,
+        onQuickAction: (shape) {
+          if (shape == 'timetravel') {
+            final travel = TimeTravelScope.of(context);
+            if (travel.isActive) {
+              RewindScope.rewind(context, travel.exit);
+            } else {
+              travel.enter(DateTime.now().subtract(const Duration(days: 1)));
+            }
+            return;
+          }
+          _openComposer(promptShape: shape);
+        },
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Row(
         children: [
-          NavigationRail(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: NavigationRail(
             // Settings (index 4) is not a rail destination — pass null so
             // no destination falsely highlights; the trailing icon below
             // carries the selected state. Passing 4 trips NavigationRail's
             // bounds assertion and paints the whole shell red.
-            selectedIndex:
-                _moduleIndex < _railDestinationCount ? _moduleIndex : null,
-            onDestinationSelected: _selectModule,
+            // Settings (module 4) is not a destination: pass null so no
+            // destination falsely highlights; the bottom cog carries its
+            // own selected state. Profile (index 3) is a pushed page, so
+            // it highlights only while open — same rule as mobile.
+            selectedIndex: _moduleIndex < 3
+                ? _moduleIndex
+                : (_moduleIndex == 3 || _profileOpen ? 3 : null),
+            onDestinationSelected: (i) => i == 3 ? _openProfile() : _selectModule(i),
             labelType: NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 16),
@@ -536,11 +564,10 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                 },
               ),
             ),
-            // No trailing Settings cog here: the Square app bar already
-            // carries the gear on every platform, and two cogs in one
-            // window read as two different destinations.
+            // No trailing Settings cog here: the bottom-anchored cog
+            // below the rail owns that destination on desktop.
             destinations: [
-              for (final (i, (label, kind)) in _modules.take(4).indexed)
+              for (final (i, (label, kind)) in _railModules.indexed)
                 NavigationRailDestination(
                   // Chrome glyphs stay chalk in both states; the selected
                   // color is contrast-tested against the accent pill (an
@@ -551,6 +578,47 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
                       _railIcon(kind, label, i, selected: true),
                   label: Text(label),
                 ),
+            ],
+                ),
+              ),
+              // Bottom-anchored Settings: the rail's own destination list
+              // reads "places"; the cog is chrome, so it lives at the
+              // spine's foot like every desktop app's sidebar.
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14, top: 4),
+                child: Column(
+                  children: [
+                    IconButton(
+                      tooltip: 'Settings',
+                      onPressed: _selectSettings,
+                      isSelected: _moduleIndex == 4,
+                      icon: SketchGlyph(
+                        kind: SketchIconKind.cog,
+                        color: _moduleIndex == 4
+                            ? navSelectedIconColor(
+                                Theme.of(context).colorScheme)
+                            : null,
+                      ),
+                    ),
+                    Text(
+                      'Settings',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
+                            fontWeight: _moduleIndex == 4
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: _moduleIndex == 4
+                                ? Theme.of(context).colorScheme.onSurface
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           const VerticalDivider(width: 1, thickness: 1),

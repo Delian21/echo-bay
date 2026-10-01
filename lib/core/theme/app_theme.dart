@@ -544,6 +544,15 @@ ThemeData _theme(
                     : scheme.outline.withValues(alpha: 0.4)),
           )
         : null,
+    // The rail's M3 default indicator is secondaryContainer — but
+    // navSelectedIconColor computes contrast against primary@22% over
+    // surface. Align the pill with the picker's assumption so the
+    // selected glyph is always the readable option (white in dark
+    // themes, ink in light ones).
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: scheme.surface,
+      indicatorColor: scheme.primary.withValues(alpha: 0.22),
+    ),
     segmentedButtonTheme: goldenHour.enabled
         ? SegmentedButtonThemeData(
             style: ButtonStyle(

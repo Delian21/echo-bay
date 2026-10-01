@@ -67,7 +67,7 @@ void main() {
 
       await repo.signUp(
         displayName: 'You',
-        credentials: AuthCredentials(
+        credentials: const AuthCredentials(
           method: AuthMethod.email,
           email: 'you@label.test',
         ),
