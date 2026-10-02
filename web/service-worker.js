@@ -15,10 +15,26 @@
  *     they're fetched, so they survive reloads offline.
  *
  * Version bump (CACHE_NAME) invalidates old caches on redeploy.
+ *
+ * Updates: the build outputs (main.dart.js, flutter_bootstrap.js,
+ * version.json) are served network-first so an installed client picks up
+ * a fresh deploy on the next online load, with the cached copy as the
+ * offline fallback. Everything else stays cache-first (instant boot).
+ * Clients can also ask this worker to activate at once by posting
+ * { type: 'SKIP_WAITING' } — the page's update banner uses this.
  */
 'use strict';
 
-const CACHE_NAME = 'echo-bay-shell-v1';
+const CACHE_NAME = 'echo-bay-shell-v3';
+
+// Served network-first: a redeploy must reach an installed client on the
+// next online visit instead of being masked by the cached build.
+const NETWORK_FIRST_URLS = [
+  'index.html',
+  'flutter_bootstrap.js',
+  'main.dart.js',
+  'version.json',
+];
 
 const PRECACHE_URLS = [
   'index.html',
@@ -71,11 +87,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// The page can hand over an update immediately: the new worker skips the
+// waiting state and takes over, without the user closing every tab.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  // Navigations (deep links included): network-first, so the freshest
+  // shell wins online; offline, every path falls back to the cached
+  // index.html, and the client router resolves the path itself.
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).catch(() =>
+        caches.match('index.html', { ignoreSearch: true }).then(
+          (cached) => cached || Response.error(),
+        ),
+      ),
+    );
+    return;
+  }
 
   // App shell + build outputs: cache-first (immutable per CACHE_NAME).
   // Compare the path relative to the scope (e.g. 'main.dart.js').
@@ -88,6 +126,32 @@ self.addEventListener('fetch', (event) => {
   // CanvasKit also loads from the gstatic CDN depending on the build
   // config; cache whatever variant was actually fetched.
   const isCanvaskitCdn = url.hostname === 'www.gstatic.com';
+
+  // Build outputs: network-first so a fresh deploy wins, cache as the
+  // offline fallback. A navigation to a deep link still falls back to
+  // the cached index.html.
+  if (
+    url.origin === self.location.origin &&
+    NETWORK_FIRST_URLS.includes(rel)
+  ) {
+    event.respondWith(
+      fetch(req)
+        .then((resp) => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, copy));
+          }
+          return resp;
+        })
+        .catch(() =>
+          caches.match(req, { ignoreSearch: true }).then((cached) =>
+            cached ||
+            (req.mode === 'navigate' ? caches.match('index.html') : Response.error()),
+          ),
+        ),
+    );
+    return;
+  }
 
   if (isShell || isCanvaskitCdn) {
     event.respondWith(

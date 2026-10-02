@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -30,9 +28,9 @@ const _themeTransitionCurve = Curves.easeOutCubic;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Web: capture Chrome's beforeinstallprompt for the in-app install card.
-  if (kIsWeb && !Platform.isAndroid && true) {
-    // kIsWeb implies browser; the redundant Platform guard keeps dart:io
-    // out of native builds.
+  // kIsWeb alone gates this — a Platform check would throw on web, where
+  // dart:io has no implementation.
+  if (kIsWeb) {
     InstallPromptService.instance.init();
   }
   // Composition root: database, datasources, repositories. Must complete
