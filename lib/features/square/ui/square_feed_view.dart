@@ -10,6 +10,7 @@ import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/inked_segmented_control.dart';
 import '../../../core/design_system/hand_date.dart';
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/design_system/sketch_refresh_indicator.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/auth/auth_repository.dart';
@@ -359,7 +360,11 @@ class _SquareFeedViewState extends State<SquareFeedView> {
           },
           child: Focus(
             autofocus: true,
-            child: RefreshIndicator(
+            // Hand-drawn refresh: Material's indicator bakes in its arc and
+            // arrowhead with no hook for a glyph, so the gesture is owned
+            // by the sketch kit instead. Kept inside Focus so the up/down
+            // arrow shortcuts still own the keyboard.
+            child: SketchRefreshIndicator(
               onRefresh: _refresh,
               child: _buildList(),
             ),
