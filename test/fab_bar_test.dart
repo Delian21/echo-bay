@@ -198,6 +198,18 @@ void main() {
       expect(find.text('Sentence'), findsOneWidget);
       expect(find.text('Sound'), findsOneWidget);
       expect(find.text('Time travel'), findsOneWidget);
+      // Every row leads with a sketch-kit glyph, not a Material icon —
+      // four hand-drawn marks, one per row (scoped to the sheet: the
+      // FAB behind it carries its own plus glyph).
+      expect(
+        find.descendant(
+          of: find.byType(ListTile),
+          matching: find.byType(SketchIcon),
+        ),
+        findsNWidgets(4),
+      );
+      expect(find.byIcon(Icons.photo_outlined), findsNothing);
+      expect(find.byIcon(Icons.history_rounded), findsNothing);
 
       await tester.tap(find.text('Sentence'));
       await tester.pumpAndSettle();

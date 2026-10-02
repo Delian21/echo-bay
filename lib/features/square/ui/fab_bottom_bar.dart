@@ -188,14 +188,16 @@ class ComposeFab extends StatelessWidget {
   /// ('photo' | 'sentence' | 'sound'). Null disables the quick menu.
   final ValueChanged<String>? onQuickAction;
 
-  /// (shape, icon, label) — labels mirror the prompt shape names.
+  /// (shape, glyph, label) — labels mirror the prompt shape names.
   /// The 4th entry is not a prompt shape: 'timetravel' is a plain
-  /// action token the shell interprets (opens the scrubber).
+  /// action token the shell interprets (opens the scrubber). Icons are
+  /// sketch-kit glyphs, not Material — the sheet is part of the app's
+  /// ink voice.
   static const _quickActions = [
-    ('photo', Icons.photo_outlined, 'Photo'),
-    ('sentence', Icons.short_text_rounded, 'Sentence'),
-    ('sound', Icons.music_note_outlined, 'Sound'),
-    ('timetravel', Icons.history_rounded, 'Time travel'),
+    ('photo', SketchIconKind.photoFrame, 'Photo'),
+    ('sentence', SketchIconKind.scribbleLine, 'Sentence'),
+    ('sound', SketchIconKind.scribbleMic, 'Sound'),
+    ('timetravel', SketchIconKind.rewindSpiral, 'Time travel'),
   ];
 
   Future<void> _showQuickActions(BuildContext context) async {
@@ -205,9 +207,14 @@ class ComposeFab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (shape, icon, label) in _quickActions)
+            for (final (shape, glyph, label) in _quickActions)
               ListTile(
-                leading: Icon(icon),
+                leading: SketchGlyph(
+                  kind: glyph,
+                  size: 24,
+                  // The ListTile's own text carries the semantics.
+                  excludeFromSemantics: true,
+                ),
                 title: Text(label),
                 // Same copy as the prompt body for that shape — one
                 // vocabulary across notification, FAB, and composer.

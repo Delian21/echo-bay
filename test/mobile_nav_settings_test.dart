@@ -224,6 +224,9 @@ void main() {
         // Settings: gear icon in the Square app bar (no bottom destination).
         // Only reachable while the Square is the active module — its app
         // bar unmounts when another module body shows.
+        // Narrow header keeps the gear (the bar has no Settings slot) and
+        // never offers Time travel — that's the FAB long-press row.
+        expect(find.byTooltip('Time travel'), findsNothing);
         await tester.tap(find.byTooltip('Settings').first);
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));
@@ -312,8 +315,11 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         // The trailing settings IconButton (tooltip), not a destination.
-        // A second Settings tooltip exists in the Square app bar (the
-        // mobile gear renders there on every width).
+        // One Settings tooltip only: the rail's foot. The wide header
+        // trades its gear for Time travel (the rail already carries
+        // Settings), so the spiral is the header's trailing action.
+        expect(find.byTooltip('Settings'), findsOneWidget);
+        expect(find.byTooltip('Time travel'), findsOneWidget);
         await tester.tap(find.byTooltip('Settings').first);
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump(const Duration(milliseconds: 300));

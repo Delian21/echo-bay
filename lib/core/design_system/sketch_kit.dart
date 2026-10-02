@@ -491,6 +491,7 @@ enum SketchIconKind {
   autoA,
   windowFrame,
   bookStack,
+  scribbleLine,
 }
 
 /// Screen-reader names for every hand-drawn glyph — a CustomPaint is
@@ -538,6 +539,7 @@ const Map<SketchIconKind, String> kSketchIconLabel = {
   SketchIconKind.sunMark: 'day',
   SketchIconKind.moonCrescent: 'night',
   SketchIconKind.autoA: 'automatic',
+  SketchIconKind.scribbleLine: 'sentence',
 };
 
 /// The five icon set (docs/ART_DIRECTION.md §2), drawn as raw paths with
@@ -1162,6 +1164,15 @@ Path _iconPath(SketchIconKind kind, int seed) {
       lineTo(j(15.5, 16.5, 0.8));
       moveTo(j(9.8, 13.5, 0.6));
       lineTo(j(14.2, 13.5, 0.6));
+    case SketchIconKind.scribbleLine:
+      // Sentence: three ruled chalk lines, the last one trailing off —
+      // one sentence written down, not a paragraph.
+      moveTo(j(3.5, 7, 1.1));
+      lineTo(j(20.5, 6.4, 1.2));
+      moveTo(j(3.5, 13, 1.2));
+      lineTo(j(16, 12.6, 1.1));
+      moveTo(j(3.5, 19, 1.1));
+      lineTo(j(11, 18.7, 0.9));
   }
   return path;
 }

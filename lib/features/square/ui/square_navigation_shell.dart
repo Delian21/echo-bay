@@ -49,10 +49,10 @@ import 'square_feed_view.dart';
 /// Navigation shell for all modules.
 ///
 /// Wide (>= 600 logical px): [NavigationRail] with the module body swapped
-/// in place; Settings lives in the Square app bar (single gear, every
-/// platform).
+/// in place; Settings anchors the rail's foot, and the Square app bar
+/// ends in Time travel (the rewind spiral).
 /// Narrow (mobile): bottom bar with the compose FAB docked in the notch;
-/// Settings again from the Square app bar gear.
+/// Settings is the Square app bar gear (the bar has no Settings slot).
 class SquareNavigationShell extends StatefulWidget {
   const SquareNavigationShell({
     super.key,
@@ -377,7 +377,7 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     // On the rail, index 3 is still the Landline.
     final bodyIndex = (mobile && index == 3) ? 0 : index;
     return switch (bodyIndex) {
-      0 => _squareBody(),
+      0 => _squareBody(mobile: mobile),
       1 => VaultConversationList(
           repository: _vaultRepository,
           embedded: true,
@@ -401,7 +401,11 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     };
   }
 
-  Widget _squareBody() {
+  /// [mobile] drives the header's trailing action: the rail anchors
+  /// Settings at its spine's foot, so the wide header spends its last
+  /// slot on Time travel; the bottom bar has no Settings destination,
+  /// so the narrow header must keep the gear.
+  Widget _squareBody({bool mobile = false}) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('The Square'),
@@ -517,20 +521,37 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
               },
             ),
           ),
-          // Time travel lives in the FAB long-press quick actions now
-          // (read-only — the datasources refuse writes while active);
-          // this keeps the app bar at five icons.
+          // Wide: the rail foot already carries Settings, so the
+          // header's last slot goes to Time travel — the rewind
+          // spiral, the app's undo mark. Tap toggles: into yesterday,
+          // or back out through the rewind animation. Narrow keeps the
+          // gear instead: the mobile bar has no Settings destination.
+          if (mobile)
+            IconButton(
+              tooltip: 'Settings',
+              icon: const SketchGlyph(kind: SketchIconKind.cog),
+              onPressed: _selectSettings,
+            )
+          else
+            IconButton(
+              tooltip: 'Time travel',
+              icon: const SketchGlyph(kind: SketchIconKind.rewindSpiral),
+              onPressed: () {
+                final travel = TimeTravelScope.maybeOf(context);
+                if (travel == null) return; // bare test harness
+                if (travel.isActive) {
+                  RewindScope.rewind(context, travel.exit);
+                } else {
+                  travel.enter(DateTime.now().subtract(const Duration(days: 1)));
+                }
+              },
+            ),
           // No New post button here: the compose FAB owns that action
           // (the duplicate button doubled the entry points for no
           // reason). No Profile button either: the bottom bar carries
           // Profile on mobile; the desktop rail leads with the avatar.
           // Mobile bottom bar has no Settings destination (compose FAB
-          // owns the center) — the gear lives here on every platform.
-          IconButton(
-            tooltip: 'Settings',
-            icon: const SketchGlyph(kind: SketchIconKind.cog),
-            onPressed: _selectSettings,
-          ),
+          // owns the center) — the gear lives here on mobile.
           const SizedBox(width: 4),
         ],
       ),
