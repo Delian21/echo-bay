@@ -9,7 +9,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../../core/io/platform_io.dart';
+import '../../../../../core/design_system/hand_date.dart';
 import '../entities/post.dart';
+
+/// The hand-placed tilt for a share card, in radians.
+///
+/// Seeded from the post id so the same post always exports at the same
+/// angle — a share that re-rolls its tilt on every send reads as a bug,
+/// not a hand. The ±2.5° band is "placed down", not "shaken", and sits
+/// well inside the 28px paper margin (corner travel at that angle is
+/// about 14px).
+double shareCardTilt(String postId) {
+  const maxTilt = 2.5 * math.pi / 180;
+  final seed = postId.hashCode & 0x7FFFFFFF;
+  return (seed % 1001) / 1000 * 2 * maxTilt - maxTilt;
+}
 
 /// Renders a [Post] as a polaroid-style PNG on sepia paper: photo (or a
 /// chalk placeholder when the post is text-only / media is remote),
@@ -62,8 +76,17 @@ Future<Uint8List> renderPostShareCard(
     Paint()..color = paper,
   );
 
-  // Polaroid card with a hand-drawn-feeling charcoal border.
+  // Polaroid card with a hand-drawn-feeling charcoal border. The card
+  // tilts about its own centre; the paper stays square, so the export
+  // reads as a print lying on a flat sheet — the same composition as a
+  // keepsake card on the board.
   final cardRect = const Offset(28, 28) & Size(cardWidth, cardHeight);
+  final cardCenter = cardRect.center;
+  canvas.save();
+  canvas.translate(cardCenter.dx, cardCenter.dy);
+  canvas.rotate(shareCardTilt(post.id));
+  canvas.translate(-cardCenter.dx, -cardCenter.dy);
+
   final polaroidPaint = Paint()..color = polaroid;
   canvas.drawRect(cardRect, polaroidPaint);
   final border = Paint()
@@ -123,9 +146,10 @@ Future<Uint8List> renderPostShareCard(
   );
   y += captionHeight + 12;
 
-  // Date, pencilled lighter.
+  // Date, pencilled lighter — in the app's handwritten voice rather
+  // than an ISO string, which never belonged on sepia paper.
   final date = _paragraph(
-    '${post.createdAt.year}-${post.createdAt.month.toString().padLeft(2, '0')}-${post.createdAt.day.toString().padLeft(2, '0')}',
+    handDateTime(post.createdAt),
     fontSize: 15,
     color: ink.withValues(alpha: 0.65),
     maxWidth: cardWidth - padding * 2,
@@ -213,6 +237,8 @@ Future<Uint8List> renderPostShareCard(
       ..strokeWidth = 1.8
       ..strokeJoin = StrokeJoin.round,
   );
+
+  canvas.restore(); // end the card tilt
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(

@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_bay/core/error/failures.dart';
 import 'package:echo_bay/features/square/domain/entities/post.dart';
+import 'package:echo_bay/features/square/domain/services/post_share_card.dart';
 import 'package:echo_bay/features/square/domain/usecases/share_post_as_image.dart';
 
 void main() {
@@ -14,6 +17,22 @@ void main() {
         mediaUrl: media ? 'https://example.invalid/photo.jpg' : null,
         createdAt: DateTime(2026, 9, 28, 18, 4),
       );
+
+  group('shareCardTilt', () {
+    test('stays in the placed band and never re-rolls for one post', () {
+      const maxTilt = 2.5 * math.pi / 180;
+      const ids = ['p1', 'p2', 'a', 'zzz', '2026-10-02', 'Ada'];
+      for (final id in ids) {
+        expect(shareCardTilt(id).abs(), lessThanOrEqualTo(maxTilt),
+            reason: 'a card outside ±2.5° clips or reads as shaken');
+      }
+      // Deterministic: re-sharing a post must not re-roll its angle.
+      expect(shareCardTilt('p1'), shareCardTilt('p1'));
+      // ...but different posts should not all land the same way.
+      final angles = ids.map(shareCardTilt).toSet();
+      expect(angles.length, greaterThan(1));
+    });
+  });
 
   group('SharePostAsImage', () {
     test('renders non-empty PNG bytes for a text post', () async {
