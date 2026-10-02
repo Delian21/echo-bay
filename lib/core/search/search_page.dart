@@ -4,9 +4,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/people/person_sheet.dart';
+import '../../features/social/domain/entities/peer_directory.dart';
+import '../../features/social/domain/entities/social_entities.dart';
 import '../design_system/loading_skeletons.dart';
 import '../design_system/sketch_kit.dart';
 import '../error/failures.dart';
+import '../router/app_router.dart';
+import '../router/route_push.dart';
 import '../settings/app_settings_store.dart';
 import '../theme/app_theme.dart';
 import 'search_hit.dart';
@@ -15,6 +20,10 @@ import 'search_repository.dart';
 /// Local full-text search over all three modules. On-device only — the
 /// page queries [SearchRepository] which reads the FTS5 indexes over the
 /// drift cache; no network, no backend.
+///
+/// Also resolves people: a typed `@handle` (or a name) offers that
+/// person's page above the content hits, so a peer is reachable by
+/// typing a handle and not only by tapping one of their posts.
 ///
 /// Debounced as-you-type search (250ms quiet period), results grouped by
 /// module (Square / Vault / Hallway boards and dorms), recent searches
@@ -42,6 +51,7 @@ class _SearchPageState extends State<SearchPage> {
   Timer? _debounce;
   bool _searching = false;
   List<SearchHit>? _hits;
+  List<PeerProfile> _people = const [];
   Failure? _failure;
   String _lastQuery = '';
   List<String> _recents = [];
@@ -108,6 +118,7 @@ class _SearchPageState extends State<SearchPage> {
     if (query.isEmpty) {
       setState(() {
         _hits = null;
+        _people = const [];
         _failure = null;
         _searching = false;
         _lastQuery = '';
@@ -129,14 +140,18 @@ class _SearchPageState extends State<SearchPage> {
     // Stale-response guard: a slow earlier query must not overwrite a
     // newer one.
     if (query != _lastQuery) return;
+    // People resolve locally and instantly, independent of the FTS hit.
+    final people = PeerDirectory.lookup(query);
     setState(() {
       _searching = false;
       _failure = result.fold((f) => f, (_) => null);
       _hits = result.fold((_) => null, (h) => h);
+      _people = people;
     });
-    // A finished search with actual matches becomes a recent entry.
+    // A finished search with anything to show — content or a person —
+    // becomes a recent entry.
     final hits = _hits;
-    if (hits != null && hits.isNotEmpty) {
+    if ((hits != null && hits.isNotEmpty) || people.isNotEmpty) {
       await _rememberQuery(query);
     }
   }
@@ -157,7 +172,7 @@ class _SearchPageState extends State<SearchPage> {
             _runSearch(q.trim());
           },
           decoration: const InputDecoration(
-            hintText: 'Search posts and messages',
+            hintText: 'Search posts, messages, and @people',
             filled: false,
             border: InputBorder.none,
           ),
@@ -204,7 +219,9 @@ class _SearchPageState extends State<SearchPage> {
         onClear: _clearRecents,
       );
     }
-    if (hits.isEmpty) {
+    // A handle that matched someone counts as a result, so the "nothing
+    // found" voice never fires over a person the user did find.
+    if (hits.isEmpty && _people.isEmpty) {
       // Empty results in the app's voice — nothing found, warmly said.
       return Center(
         child: Column(
@@ -235,52 +252,121 @@ class _SearchPageState extends State<SearchPage> {
         ),
       );
     }
-    return _GroupedResults(hits: hits);
+    return _GroupedResults(hits: hits, people: _people);
   }
 }
 
-/// Results grouped by module: Square posts, Vault messages, Hallway
-/// board and dorm messages — each section with a handwritten heading.
+/// Results grouped by module: people first (a typed @handle is the most
+/// specific thing the user can ask for), then Square posts, Vault
+/// messages, and Hallway boards and dorms — each section with a
+/// handwritten heading.
 class _GroupedResults extends StatelessWidget {
-  const _GroupedResults({required this.hits});
+  const _GroupedResults({required this.hits, this.people = const []});
 
   final List<SearchHit> hits;
 
+  /// Peers matching the query, best match first.
+  final List<PeerProfile> people;
+
   @override
   Widget build(BuildContext context) {
-    final groups = <(String, List<SearchHit>)>[
-      ('SQUARE POSTS',
-          hits.where((h) => h.source == SearchSource.squarePost).toList()),
-      ('VAULT MESSAGES',
-          hits.where((h) => h.source == SearchSource.vaultMessage).toList()),
+    final sections = <(String, List<Widget>)>[
+      if (people.isNotEmpty)
+        ('PEOPLE', [for (final p in people) _PersonTile(peer: p)]),
+      (
+        'SQUARE POSTS',
+        [
+          for (final h in hits.where((h) => h.source == SearchSource.squarePost))
+            _HitTile(hit: h, showSourceBadge: false),
+        ]
+      ),
+      (
+        'VAULT MESSAGES',
+        [
+          for (final h
+              in hits.where((h) => h.source == SearchSource.vaultMessage))
+            _HitTile(hit: h, showSourceBadge: false),
+        ]
+      ),
       (
         'HALLWAY',
-        hits
-            .where((h) =>
-                h.source == SearchSource.boardPost ||
-                h.source == SearchSource.groupMessage)
-            .toList()
+        [
+          for (final h in hits.where((h) =>
+              h.source == SearchSource.boardPost ||
+              h.source == SearchSource.groupMessage))
+            _HitTile(hit: h, showSourceBadge: true),
+        ]
       ),
-    ].where((g) => g.$2.isNotEmpty).toList();
+    ].where((s) => s.$2.isNotEmpty).toList();
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: groups.fold<int>(0, (sum, g) => sum + g.$2.length + 1),
-      itemBuilder: (context, index) {
-        var cursor = index;
-        for (final (title, rows) in groups) {
-          if (cursor == 0) return _SectionHeading(title: title);
-          cursor--;
-          if (cursor < rows.length) {
-            return _HitTile(
-              hit: rows[cursor],
-              showSourceBadge: title == 'HALLWAY',
-            );
-          }
-          cursor -= rows.length;
-        }
-        throw StateError('index out of grouped range');
-      },
+      children: [
+        for (final (title, rows) in sections) ...[
+          _SectionHeading(title: title),
+          ...rows,
+        ],
+      ],
+    );
+  }
+}
+
+/// A person as a search result: initials, name, and the @handle that
+/// makes the row addressable. Tapping opens their page — pushed, so the
+/// search stays behind and Back returns to these results.
+class _PersonTile extends StatelessWidget {
+  const _PersonTile({required this.peer});
+
+  final PeerProfile peer;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final handle = PeerDirectory.handleFor(peer.name);
+    final initials = peer.name
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase())
+        .take(2)
+        .join();
+
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: accent.withValues(alpha: 0.15),
+        child: Text(
+          initials,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: accent,
+          ),
+        ),
+      ),
+      title: Text(
+        peer.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      subtitle: Text(
+        '@$handle',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      trailing: Text(
+        'Person',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: () => pushDestination(
+        context,
+        AppRoutes.person(handle),
+        fallback: () => PersonRoutePage(handle: handle),
+      ),
     );
   }
 }
@@ -394,7 +480,7 @@ class _SearchHint extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'Search everything on this device.\n'
-            'Encrypted messages are searchable locally only.',
+            'Jump straight to someone with their @handle.',
             textAlign: TextAlign.center,
             style: golden.enabled
                 ? kHandwrittenTextStyle.copyWith(

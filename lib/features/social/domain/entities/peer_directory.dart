@@ -33,6 +33,43 @@ class PeerDirectory {
   /// The peer behind [handle], or null when it was never claimed.
   static String? nameFor(String handle) => handles.nameFor(handle);
 
+  /// Peers matching [query], best match first, so a typed `@handle`
+  /// jumps straight to that person instead of only being reachable by
+  /// tapping one of their posts.
+  ///
+  /// Match tiers, in order: an exact handle, a handle starting with the
+  /// query, a display name starting with it, then a name containing it.
+  /// The leading `@` is optional — people type it, but nothing requires
+  /// it. An empty query matches nobody, so the section only appears
+  /// once something has actually been typed.
+  static List<PeerProfile> lookup(String query) {
+    final q = query.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+    if (q.isEmpty) return const <PeerProfile>[];
+    final ranked = <(int, PeerProfile)>[];
+    for (final name in names) {
+      final peer = bio(name);
+      final handle = handleFor(name);
+      final lowerName = peer.name.toLowerCase();
+      final int tier;
+      if (handle == q) {
+        tier = 0;
+      } else if (handle.startsWith(q)) {
+        tier = 1;
+      } else if (lowerName.startsWith(q)) {
+        tier = 2;
+      } else if (lowerName.contains(q)) {
+        tier = 3;
+      } else {
+        continue;
+      }
+      ranked.add((tier, peer));
+    }
+    // Stable within a tier: the cast order survives, which is the order
+    // the town is introduced in.
+    ranked.sort((a, b) => a.$1.compareTo(b.$1));
+    return ranked.map((r) => r.$2).toList();
+  }
+
   static PeerProfile bio(String name) => PeerProfile(
         name: name,
         bio: _bios[name] ?? 'Here, mostly.',
