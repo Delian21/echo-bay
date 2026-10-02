@@ -272,8 +272,10 @@ class _ConversationTile extends StatelessWidget {
                       backgroundColor: theme.colorScheme.primaryContainer,
                       child: Text(
                         initials,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
+                        // Handwritten, not typeset: the Vault's identity
+                        // marks are drawn by hand like every other glyph.
+                        style: kHandwrittenTextStyle.copyWith(
+                          fontSize: 20,
                           color: theme.colorScheme.onPrimaryContainer,
                         ),
                       ),

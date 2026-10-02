@@ -247,9 +247,13 @@ class _ChannelTile extends StatelessWidget {
         CircleAvatar(
           radius: 24,
           backgroundColor: theme.colorScheme.tertiaryContainer,
-          child: Icon(
-            Icons.campaign_rounded,
+          // The sketch megaphone, not Material's — the tab above already
+          // carries the hand-drawn one, so the tile must match it.
+          child: SketchGlyph(
+            kind: SketchIconKind.megaphone,
+            size: 26,
             color: theme.colorScheme.onTertiaryContainer,
+            seed: seed ^ 0x2C1,
           ),
         ),
         const SizedBox(width: 12),
@@ -799,7 +803,13 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
                       itemCount: messages.length,
                       itemBuilder: (context, index) {
                         final m = messages[index];
-                        return _GroupBubble(message: m);
+                        // Same sender-run rule as the Vault: a message
+                        // opens a run when the sender changes (or it's
+                        // the oldest), which drives both the spacing
+                        // and the sender-name line.
+                        final opensRun = index == 0 ||
+                            messages[index - 1].senderId != m.senderId;
+                        return _GroupBubble(message: m, opensRun: opensRun);
                       },
                     );
                   },
@@ -822,9 +832,14 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
 }
 
 class _GroupBubble extends StatelessWidget {
-  const _GroupBubble({required this.message});
+  const _GroupBubble({required this.message, required this.opensRun});
 
   final GroupMessage message;
+
+  /// True when this message starts a sender's run — it carries the
+  /// sender's name and sits below the previous speaker; the rest of
+  /// the run stacks tight underneath it.
+  final bool opensRun;
 
   @override
   Widget build(BuildContext context) {
@@ -839,7 +854,7 @@ class _GroupBubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!mine)
+        if (!mine && opensRun)
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -918,9 +933,11 @@ class _GroupBubble extends StatelessWidget {
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
+        // Same rhythm as the Vault: 12px when a speaker changes, 2px
+        // inside a burst — a run reads as one block.
         margin: EdgeInsets.only(
-          top: 3,
-          bottom: 3,
+          top: opensRun ? 12 : 2,
+          bottom: 2,
           left: mine ? 56 : 0,
           right: mine ? 0 : 56,
         ),
@@ -945,17 +962,17 @@ class _OutboxTick extends StatelessWidget {
       switch (status) {
         case OutboxStatus.pending:
           return Icon(Icons.schedule_rounded,
-              size: 13,
+              size: 15,
               color:
                   theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7));
         case OutboxStatus.sent:
           return Icon(Icons.done_all_rounded,
-              size: 14,
+              size: 16,
               color:
                   theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
         case OutboxStatus.failed:
           return Icon(Icons.error_outline_rounded,
-              size: 14, color: theme.colorScheme.error);
+              size: 16, color: theme.colorScheme.error);
       }
     }
     final color = switch (status) {
@@ -969,7 +986,8 @@ class _OutboxTick extends StatelessWidget {
       OutboxStatus.sent => SketchIconKind.doubleTick,
       OutboxStatus.failed => SketchIconKind.xHeart,
     };
-    return SketchIcon(kind: kind, size: 14, color: color, seed: 11);
+    // 16px, matching the Vault's tick — at 14 it read as debris.
+    return SketchIcon(kind: kind, size: 16, color: color, seed: 11);
   }
 }
 

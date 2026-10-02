@@ -184,9 +184,12 @@ class _LivePin extends StatelessWidget {
             reference.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // The card is always cream paper (theme-independent), so its
+            // ink is pinned to charcoal — theme colors go chalk in dark
+            // mode and vanish on the paper.
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: SketchInk.charcoal,
             ),
           ),
           if (reference.body.isNotEmpty)
@@ -194,7 +197,10 @@ class _LivePin extends StatelessWidget {
               reference.body,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: kHandwrittenTextStyle.copyWith(fontSize: 13),
+              style: kHandwrittenTextStyle.copyWith(
+                fontSize: 13,
+                color: SketchInk.charcoal,
+              ),
             ),
         ],
       ),
@@ -211,7 +217,13 @@ class _PinFallbackIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: SketchIcon(kind: SketchIconKind.photoFrame, size: 34, seed: 67),
+      child: SketchIcon(
+        kind: SketchIconKind.photoFrame,
+        size: 34,
+        seed: 67,
+        // Cream card, chalk glyph in dark mode = invisible (see _LivePin).
+        color: SketchInk.charcoal,
+      ),
     );
   }
 }
@@ -225,16 +237,15 @@ class _FadedPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SketchIcon(
+          const SketchIcon(
             kind: SketchIconKind.rewindSpiral,
             size: 22,
             seed: 13,
-            color: theme.colorScheme.onSurfaceVariant,
+            color: SketchInk.charcoal,
           ),
           const SizedBox(height: 6),
           Text(
@@ -243,7 +254,7 @@ class _FadedPin extends StatelessWidget {
             style: kHandwrittenTextStyle.copyWith(
               fontSize: 13,
               fontStyle: FontStyle.italic,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: SketchInk.charcoal,
             ),
           ),
         ],

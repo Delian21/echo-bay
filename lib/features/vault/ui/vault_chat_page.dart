@@ -49,7 +49,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
   bool _sending = false;
   String? _editingMessageId;
 
-  /// "Rune is typing…" — driven by the repository's typing stream when
+  /// "Rune is writing…" — driven by the repository's typing stream when
   /// it provides one (the mock does; a real transport would push typing
   /// receipts over the wire).
   StreamSubscription<(String, bool)>? _typingSub;
@@ -303,8 +303,8 @@ class _VaultChatPageState extends State<VaultChatPage> {
                     .map((w) => w[0].toUpperCase())
                     .take(2)
                     .join(),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+                style: kHandwrittenTextStyle.copyWith(
+                  fontSize: 17,
                   color: theme.colorScheme.onPrimaryContainer,
                 ),
               ),
@@ -425,7 +425,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
               },
             ),
           ),
-          // "Rune is typing…" — sits above the composer like a real
+          // "Rune is writing…" — sits above the composer like a real
           // messenger; vanishes when the reply lands.
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
@@ -437,7 +437,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
                       child: Text(
                         '${widget.conversation.title.split(' ').first} '
-                            'is typing…',
+                            'is writing…',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                           fontStyle: FontStyle.italic,
@@ -557,14 +557,19 @@ class _MessageBubble extends StatelessWidget {
       );
 
     // Ink mode: wobbly notebook box instead of the smooth container.
+    // Spacing rule: a message that opens a sender's run sits 12px below
+    // whoever spoke before it; messages inside the run stack at 2px so a
+    // burst reads as one block and a speaker change reads as a breath.
+    final vMargin = EdgeInsets.only(
+      top: showTail ? 12 : 2,
+      bottom: 2,
+      left: mine ? 56 : 0,
+      right: mine ? 0 : 56,
+    );
+
     final Widget bubble = useInk
         ? Container(
-            margin: EdgeInsets.only(
-              top: 3,
-              bottom: 3,
-              left: mine ? 56 : 0,
-              right: mine ? 0 : 56,
-            ),
+            margin: vMargin,
             child: SketchBox(
               seed: message.id.hashCode & 0x7FFFFFFF,
               radius: 6,
@@ -579,14 +584,8 @@ class _MessageBubble extends StatelessWidget {
             ),
           )
         : Container(
-            margin: EdgeInsets.only(
-              top: 3,
-              bottom: 3,
-              left: mine ? 56 : 0,
-              right: mine ? 0 : 56,
-            ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            margin: vMargin,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: mine
                   ? theme.colorScheme.primaryContainer
@@ -602,17 +601,14 @@ class _MessageBubble extends StatelessWidget {
           );
 
     // Tombstone: delete-for-everyone renders the placeholder, never the
-    // body (which the store blanks anyway) — Telegram/WhatsApp pattern.
+    // body (which the store blanks anyway). The copy is the app's own
+    // — this is a rewind, not a WhatsApp delete — and the mark is the
+    // rewind spiral rather than a block sign.
     if (message.isDeleted) {
       return Align(
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
-          margin: EdgeInsets.only(
-            top: 3,
-            bottom: 3,
-            left: mine ? 56 : 0,
-            right: mine ? 0 : 56,
-          ),
+          margin: vMargin,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest
@@ -622,11 +618,15 @@ class _MessageBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.block_rounded,
-                  size: 13, color: theme.colorScheme.onSurfaceVariant),
+              SketchIcon(
+                kind: SketchIconKind.rewindSpiral,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+                seed: 13,
+              ),
               const SizedBox(width: 6),
               Text(
-                mine ? 'You deleted this message' : 'Message deleted',
+                mine ? 'You rewound this message' : 'Rewound',
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontStyle: FontStyle.italic,
                   color: theme.colorScheme.onSurfaceVariant,
@@ -728,25 +728,25 @@ class _StatusTickState extends State<_StatusTick> {
       switch (widget.status) {
         case DeliveryStatus.pending:
           return Icon(Icons.schedule_rounded,
-              size: 13,
+              size: 15,
               color:
                   theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7));
         case DeliveryStatus.sent:
           return Icon(Icons.done_rounded,
-              size: 14,
+              size: 16,
               color:
                   theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
         case DeliveryStatus.delivered:
           return Icon(Icons.done_all_rounded,
-              size: 14,
+              size: 16,
               color:
                   theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
         case DeliveryStatus.read:
           return Icon(Icons.done_all_rounded,
-              size: 14, color: theme.colorScheme.primary);
+              size: 16, color: theme.colorScheme.primary);
         case DeliveryStatus.failed:
           return Icon(Icons.error_outline_rounded,
-              size: 14, color: theme.colorScheme.error);
+              size: 16, color: theme.colorScheme.error);
       }
     }
     final color = switch (widget.status) {
@@ -765,7 +765,8 @@ class _StatusTickState extends State<_StatusTick> {
       DeliveryStatus.failed => SketchIconKind.xHeart,
     };
 
-    final tick = SketchIcon(kind: kind, size: 14, color: color, seed: 11);
+    // 16px: at 14 the chalk tick read as debris beside the timestamp.
+    final tick = SketchIcon(kind: kind, size: 16, color: color, seed: 11);
 
     // The read flip plays once per transition (TweenAnimationBuilder
     // re-animates only when its end value changes): a sketchy pen-press

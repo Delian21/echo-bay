@@ -292,7 +292,9 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
         seed: item.id.hashCode & 0x7FFFFFFF,
         radius: 6,
         strokeWidth: 2,
-        color: SketchInk.of(context),
+        // The card is always cream, in both modes — theme-derived ink
+        // goes chalk under dark mode and the note disappears on it.
+        color: SketchInk.charcoal,
         fill: Colors.amber.shade50,
         padding: const EdgeInsets.all(10),
         child: SizedBox(
@@ -302,7 +304,10 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
               ? PinnedReferenceCard(referenceId: item.postId ?? '')
               : Text(
                   item.noteText ?? '',
-                  style: kHandwrittenTextStyle.copyWith(fontSize: 17),
+                  style: kHandwrittenTextStyle.copyWith(
+                    fontSize: 17,
+                    color: SketchInk.charcoal,
+                  ),
                   maxLines: 5,
                   overflow: TextOverflow.ellipsis,
                 ),

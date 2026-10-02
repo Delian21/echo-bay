@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/design_system/sketch_kit.dart';
 import 'package:echo_bay/features/keepsake/data/repositories/drift_keepsake_repository.dart';
 import 'package:echo_bay/features/keepsake/domain/entities/keepsake_item.dart';
 import 'package:echo_bay/features/keepsake/ui/keepsake_board_page.dart';
@@ -82,5 +83,28 @@ void main() {
     final board = (await repo.watchBoard().first)
         .fold((_) => <KeepsakeItem>[], (l) => l.toList());
     expect(board, isEmpty);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  testWidgets('card ink is pinned charcoal under a dark theme',
+      (tester) async {
+    // Regression: the card is always cream (theme-independent), but its
+    // ink used to come from Theme — chalk under dark mode, invisible.
+    await repo.addNote(noteText: 'soup night', posX: 0.1, posY: 0.1);
+    await repo.pinPost(postId: 'p1', posX: 0.4, posY: 0.4);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.dark(useMaterial3: true),
+      home: KeepsakeBoardPage(repository: repo),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final note = tester.widget<Text>(find.text('soup night'));
+    expect(note.style?.color, SketchInk.charcoal,
+        reason: 'the note must read on cream, not in chalk');
+
+    // No FeedRepository in DI here, so the pinned post renders the
+    // faded note — same paper, same rule.
+    final faded = tester.widget<Text>(find.textContaining('rewound'));
+    expect(faded.style?.color, SketchInk.charcoal);
   }, timeout: const Timeout(Duration(minutes: 2)));
 }
