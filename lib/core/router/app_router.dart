@@ -175,10 +175,14 @@ final appRouter = GoRouter(
         return PersonRoutePage(handle: handle);
       },
     ),
+    // A person page. `state.extra` carries the exact author name when the
+    // tap came from inside the app; a cold deep link has none and falls
+    // back to the inverse of the slug.
     GoRoute(
       path: '/person/:handle',
       builder: (context, state) => PersonRoutePage(
         handle: state.pathParameters['handle'] ?? '',
+        name: state.extra is String ? state.extra as String : null,
       ),
     ),
   ],

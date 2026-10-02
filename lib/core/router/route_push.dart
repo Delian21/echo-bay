@@ -12,14 +12,20 @@ import 'package:go_router/go_router.dart';
 ///
 /// The returned future completes when the destination is popped, exactly
 /// like `Navigator.push`.
+///
+/// [extra] rides along with the router push only — it reaches the route's
+/// builder as `state.extra` and is absent after a reload or a cold deep
+/// link. Use it to hand the destination something the URL cannot carry
+/// verbatim (e.g. the exact display name behind a slug).
 Future<void> pushDestination(
   BuildContext context,
   String location, {
   required Widget Function() fallback,
+  Object? extra,
 }) async {
   final router = GoRouter.maybeOf(context);
   if (router != null) {
-    await router.push(location);
+    await router.push(location, extra: extra);
     return;
   }
   await Navigator.of(context).push(
