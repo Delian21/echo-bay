@@ -173,11 +173,13 @@ void main() {
       addTearDown(repo.dispose);
       await repo.ensureSeeded();
 
-      // Two peer messages, no cursor yet: unread = 2. Distinct
-      // timestamps so the cursor can split them.
+      // conv-2, not conv-1: the seed greets a fresh install with Rune's
+      // welcome message in conv-1, which would land in this count. Two
+      // peer messages, no cursor yet: unread = 2. Distinct timestamps
+      // so the cursor can split them.
       await local.insertMessage(MessagesCompanion.insert(
         id: 'p1',
-        conversationId: 'conv-1',
+        conversationId: 'conv-2',
         senderId: 'peer-rune',
         body: 'one',
         syncStatus: MsgSyncStatus.delivered,
@@ -185,31 +187,31 @@ void main() {
       ));
       await local.insertMessage(MessagesCompanion.insert(
         id: 'p2',
-        conversationId: 'conv-1',
+        conversationId: 'conv-2',
         senderId: 'peer-rune',
         body: 'two',
         syncStatus: MsgSyncStatus.delivered,
         createdAt: DateTime.now(),
       ));
 
-      final unread = await repo.unreadCount(conversationId: 'conv-1');
+      final unread = await repo.unreadCount(conversationId: 'conv-2');
       expect(unread.fold((f) => throw f, (v) => v), 2);
 
       // Read the first; one remains.
       await local.advanceReadCursor(
-        conversationId: 'conv-1',
+        conversationId: 'conv-2',
         userId: 'user-1',
         messageId: 'p1',
         at: DateTime.now().subtract(const Duration(minutes: 1)),
       );
-      final afterOne = await repo.unreadCount(conversationId: 'conv-1');
+      final afterOne = await repo.unreadCount(conversationId: 'conv-2');
       expect(afterOne.fold((f) => throw f, (v) => v), 1);
 
       // Own message never counts.
       final result =
-          await repo.sendMessage(conversationId: 'conv-1', body: 'mine');
+          await repo.sendMessage(conversationId: 'conv-2', body: 'mine');
       expect(result.isRight(), isTrue);
-      final afterMine = await repo.unreadCount(conversationId: 'conv-1');
+      final afterMine = await repo.unreadCount(conversationId: 'conv-2');
       expect(afterMine.fold((f) => throw f, (v) => v), 1);
     });
   });
