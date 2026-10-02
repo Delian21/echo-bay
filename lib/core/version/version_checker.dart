@@ -15,12 +15,14 @@ typedef SettingsLookup = AppSettingsStore? Function();
 /// Detects a freshly deployed web build and tells the UI to offer a
 /// refresh.
 ///
-/// How it knows: Flutter stamps every build's `version.json` with a
-/// unique compile hash. The checker fetches it (cache-busted so the
-/// browser can't answer from the immutable HTTP cache) and compares
-/// against the last hash this install has seen, remembered in the
-/// settings store ([appVersionSeenKey]). First-ever visitors never see
-/// the banner — only returning browsers after a redeploy do.
+/// How it knows: Flutter writes `version.json` per build, and the build
+/// number stamped by `flutter build web --build-number=…` is the field
+/// that changes between deploys ([versionHashOf]). The checker fetches
+/// it (cache-busted so the browser can't answer from the immutable HTTP
+/// cache) and compares against the last hash this install has seen,
+/// remembered in the settings store ([appVersionSeenKey]). First-ever
+/// visitors never see the banner — only returning browsers after a
+/// redeploy do.
 ///
 /// Checks run: once at boot, when the tab becomes visible again
 /// (the most common moment to catch a deploy that happened while the
@@ -76,7 +78,7 @@ class VersionChecker extends ChangeNotifier {
     _checking = true;
     try {
       final body = await fetchVersionJsonBody();
-      final hash = _hashOf(body);
+      final hash = body == null ? null : versionHashOf(body);
       if (hash == null) return;
 
       if (!_seenLoaded) {
@@ -99,17 +101,6 @@ class VersionChecker extends ChangeNotifier {
     }
   }
 
-  String? _hashOf(String? body) {
-    if (body == null) return null;
-    try {
-      final map = convert.jsonDecode(body) as Map<String, dynamic>;
-      final raw = map['version'] ?? map['compileCompilationUnit_hint'];
-      return raw?.toString();
-    } on Object {
-      return null;
-    }
-  }
-
   /// Manual refresh path (the banner's action): drop the old service
   /// worker and its caches, then reload into the fresh build.
   Future<void> applyUpdate() async {
@@ -121,6 +112,23 @@ class VersionChecker extends ChangeNotifier {
     _updateAvailable = false;
     notifyListeners();
     reloadPage();
+  }
+}
+
+/// The deploy fingerprint [VersionChecker] compares between builds: the
+/// pubspec version joined with the build number, which only changes
+/// when the build passes `--build-number`. Null when the body is not
+/// JSON or carries neither field.
+String? versionHashOf(String body) {
+  try {
+    final map = convert.jsonDecode(body) as Map<String, dynamic>;
+    final parts = <String>[
+      if (map['version'] != null) map['version'].toString(),
+      if (map['build_number'] != null) map['build_number'].toString(),
+    ];
+    return parts.isEmpty ? null : parts.join('+');
+  } on Object {
+    return null;
   }
 }
 

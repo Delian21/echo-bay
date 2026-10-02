@@ -42,6 +42,9 @@ dependencies:
   share_plus: ^13.3.0 # system share sheet for post share-cards
   url_launcher: ^6.3.1 # feedback mailto (Settings → "tell me what's broken")
   web: ^1.1.0 # browser interop for the web download path (IO seam)
+  # Path URL strategy for the browser (main() on web); non-web is a no-op.
+  flutter_web_plugins:
+    sdk: flutter
 
   # misc
   uuid: ^4.5.0

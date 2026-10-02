@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -26,6 +27,11 @@ const _themeTransitionDuration = Duration(milliseconds: 350);
 const _themeTransitionCurve = Curves.easeOutCubic;
 
 Future<void> main() async {
+  // Path URLs, not #/fragments: /vault is a link that can be pasted
+  // anywhere. Netlify's /* fallback and the offline worker's navigate
+  // handler already answer deep links with the shell. Non-web builds
+  // no-op (flutter_web_plugins ships a stub).
+  usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
   // Web: capture Chrome's beforeinstallprompt for the in-app install card.
   // kIsWeb alone gates this — a Platform check would throw on web, where

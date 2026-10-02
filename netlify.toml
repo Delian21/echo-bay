@@ -12,7 +12,12 @@
   # (dart2wasm) alongside dart2js and OOMs Netlify's build instances
   # (exit code 2). This app targets dart2js only; the dry run buys
   # nothing here. Local CI repro confirmed the same crash without it.
-  command = "flutter build web --release --no-wasm-dry-run"
+  # --build-number: this is what makes version.json differ between deploys.
+  # VersionChecker compares the value and only offers the "a new page was
+  # inked" refresh banner when it changes; pubspec's version is constant,
+  # so without this stamp the banner can never fire. Strip it and the
+  # feature silently dies — keep it.
+  command = "flutter build web --release --no-wasm-dry-run --build-number=\"$(date +%s)\""
 
 # Flutter web is a single-page app: any deep link (e.g. /vault/conversation/1)
 # must fall back to index.html so the router can take over after boot.
