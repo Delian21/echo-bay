@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/attachments/post_navigation.dart';
+import '../../core/settings/app_settings_store.dart';
 import '../../features/calls/domain/repositories/calls_repository.dart';
 import '../../features/calls/ui/calls_module_view.dart';
 import '../../features/keepsake/domain/repositories/keepsake_repository.dart';
 import '../../features/keepsake/ui/keepsake_board_page.dart';
-import '../../features/nexus/domain/entities/nexus.dart';
 import '../../features/nexus/domain/repositories/nexus_repository.dart';
 import '../../features/nexus/ui/nexus_module_view.dart';
 import '../../features/profile/ui/profile_page.dart';
@@ -15,10 +14,11 @@ import '../../features/social/domain/repositories/social_repository.dart';
 import '../../features/square/ui/square_feed_view.dart' show SquareDayViewPage;
 import '../../features/square/ui/square_navigation_shell.dart';
 import '../../features/vault/domain/repositories/chat_repository.dart';
-import '../../features/vault/ui/vault_chat_page.dart';
 import '../../features/vault/ui/vault_conversation_list.dart';
 import '../../core/people/person_sheet.dart';
 import '../../core/profile/profile_controller.dart';
+import '../../core/search/search_page.dart';
+import '../../core/search/search_repository.dart';
 import '../../features/square/domain/repositories/feed_repository.dart';
 import '../../injection.dart' as di;
 
@@ -36,13 +36,16 @@ class AppRoutes {
   static String vaultConversation(String id) => '/vault/conversation/$id';
   static const nexus = '/nexus';
   static String nexusGroup(String id) => '/nexus/group/$id';
-  static String nexusChannel(String id) => '/nexus/channel/$id';
-  static const profile = '/profile';
-  static String person(String name) => '/person/${Uri.encodeComponent(name)}';
-  static String squareDay(DateTime day) =>
-      '/square/day/${day.toIso8601String()}';
   static const keepsake = '/keepsake';
   static const notifications = '/notifications';
+  static const search = '/search';
+  static const profile = '/profile';
+  static String profileFor(String handle) =>
+      '/profile/${Uri.encodeComponent(handle)}';
+  static String person(String handle) =>
+      '/person/${Uri.encodeComponent(handle)}';
+  static String squareDay(DateTime day) =>
+      '/square/day/${Uri.encodeComponent(day.toIso8601String())}';
 }
 
 // NexusModuleView requires a repository — resolved through the same DI
@@ -94,6 +97,20 @@ final appRouter = GoRouter(
         return _PostOpenProxy(postId: postId);
       },
     ),
+    // A journal day, addressed directly — the same surface the post
+    // proxy resolves to. An unparseable day falls back to the shell.
+    GoRoute(
+      path: '/square/day/:day',
+      builder: (context, state) {
+        final raw = Uri.decodeComponent(state.pathParameters['day'] ?? '');
+        final day = DateTime.tryParse(raw);
+        if (day == null) return const SquareNavigationShell();
+        return SquareDayViewPage(
+          repository: di.sl<FeedRepository>(),
+          day: day,
+        );
+      },
+    ),
     GoRoute(
       path: AppRoutes.calls,
       builder: (context, state) =>
@@ -127,12 +144,64 @@ final appRouter = GoRouter(
         return _nexusWith(deepLinkGroupId: id);
       },
     ),
+    GoRoute(
+      path: AppRoutes.keepsake,
+      builder: (context, state) =>
+          KeepsakeBoardPage(repository: di.sl<KeepsakeRepository>()),
+    ),
+    GoRoute(
+      path: AppRoutes.notifications,
+      builder: (context, state) =>
+          NotificationsPage(repository: di.sl<SocialRepository>()),
+    ),
+    GoRoute(
+      path: AppRoutes.search,
+      builder: (context, state) => SearchPage(
+        searchRepository: di.sl<SearchRepository>(),
+        settingsStore: di.sl<AppSettingsStore>(),
+      ),
+    ),
+    // The local user's own profile. `/profile/:handle` is the sharable
+    // form: my handle lands here, anyone else's opens their page.
+    GoRoute(
+      path: AppRoutes.profile,
+      builder: (context, state) => _profilePage(),
+    ),
+    GoRoute(
+      path: '/profile/:handle',
+      builder: (context, state) {
+        final handle = state.pathParameters['handle'] ?? '';
+        if (_isMyHandle(handle)) return _profilePage();
+        return PersonRoutePage(handle: handle);
+      },
+    ),
+    GoRoute(
+      path: '/person/:handle',
+      builder: (context, state) => PersonRoutePage(
+        handle: state.pathParameters['handle'] ?? '',
+      ),
+    ),
   ],
 );
 
-/// Pushes a full-screen shell behind the day view for one post, then
-/// opens it. A route widget (not a redirect) so the back button returns
-/// to the Square, not out of the app.
+/// The local user's editable profile, wired from DI.
+Widget _profilePage() => ProfilePage(
+      profileController: di.sl<ProfileController>(),
+      feedRepository: di.sl.isRegistered<FeedRepository>()
+          ? di.sl<FeedRepository>()
+          : null,
+    );
+
+/// Whether [handle] belongs to the local user. Handles are not globally
+/// unique yet (a backend concern), so this is a local comparison only.
+bool _isMyHandle(String handle) {
+  if (!di.sl.isRegistered<ProfileController>()) return false;
+  return di.sl<ProfileController>().profile.handle == handle;
+}
+
+/// Pushes a full-screen destination behind the day view for one post,
+/// then opens it. A route widget (not a redirect) so the back button
+/// returns to the Square, not out of the app.
 class _PostOpenProxy extends StatefulWidget {
   const _PostOpenProxy({required this.postId});
 
@@ -146,14 +215,15 @@ class _PostOpenProxyState extends State<_PostOpenProxy> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      openSquarePost(context, widget.postId).then((_) {
-        if (mounted && context.mounted) {
-          // Replacing: the proxy itself is never a screen to sit on.
-          GoRouter.of(context).replace<void>(AppRoutes.square);
-        }
-      });
+      final repo = di.sl<FeedRepository>();
+      final either = await repo.findPostById(widget.postId);
+      final post = either.fold((_) => null, (p) => p);
+      if (!mounted || !context.mounted) return;
+      // Replacing: the proxy itself is never a screen to sit on, and the
+      // day route is the destination the post resolves to.
+      context.replace(AppRoutes.squareDay(post?.createdAt ?? DateTime.now()));
     });
   }
 

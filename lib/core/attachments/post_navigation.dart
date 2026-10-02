@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../injection.dart';
 import '../../features/square/domain/repositories/feed_repository.dart';
 import '../../features/square/ui/square_feed_view.dart' show SquareDayViewPage;
+import '../router/app_router.dart';
+import '../router/route_push.dart';
 
 /// Opens a Square post in context (its journal day view) from anywhere —
 /// chat bubbles, keepsake wall, notifications. The navigation shape is
@@ -27,7 +29,9 @@ Future<void> openSquarePost(BuildContext context, String postId) async {
   final post = either.fold((_) => null, (p) => p);
   final day = post?.createdAt ?? DateTime.now();
   if (!context.mounted) return;
-  Navigator.of(context).push(MaterialPageRoute<void>(
-    builder: (_) => SquareDayViewPage(repository: repo!, day: day),
-  ));
+  await pushDestination(
+    context,
+    AppRoutes.squareDay(day),
+    fallback: () => SquareDayViewPage(repository: repo!, day: day),
+  );
 }

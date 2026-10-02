@@ -11,6 +11,8 @@ import '../../../../injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/database/app_database.dart' show KeepsakeKind;
 import '../../../../core/motion/rewind_scope.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/router/route_push.dart';
 import '../domain/entities/keepsake_item.dart';
 import '../domain/repositories/keepsake_repository.dart';
 
@@ -26,9 +28,11 @@ class KeepsakeBoardPage extends StatefulWidget {
 
   static Future<void> show(BuildContext context,
           {required KeepsakeRepository repository}) =>
-      Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) => KeepsakeBoardPage(repository: repository),
-      ));
+      pushDestination(
+        context,
+        AppRoutes.keepsake,
+        fallback: () => KeepsakeBoardPage(repository: repository),
+      );
 
   @override
   State<KeepsakeBoardPage> createState() => _KeepsakeBoardPageState();

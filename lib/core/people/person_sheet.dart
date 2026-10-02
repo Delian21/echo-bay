@@ -5,6 +5,7 @@ import '../../features/social/domain/entities/social_entities.dart';
 import '../../features/social/domain/repositories/follow_repository.dart';
 import '../../injection.dart';
 import '../error/failures.dart';
+import '../profile/handles.dart';
 import '../profile/profile_controller.dart';
 import '../theme/app_theme.dart';
 import '../../features/profile/ui/profile_page.dart';
@@ -50,9 +51,13 @@ Future<void> openPerson(
 /// button. Vocabulary is fixed app-wide: "Keep close", "Drift apart",
 /// "Keeping close".
 class PersonSheet extends StatefulWidget {
-  const PersonSheet({super.key, required this.name});
+  const PersonSheet({super.key, required this.name, this.handle});
 
   final String name;
+
+  /// The peer's @handle, when opened through a `/person/:handle` link.
+  /// Null on plain name taps — the sheet shows no handle rail then.
+  final String? handle;
 
   @override
   State<PersonSheet> createState() => _PersonSheetState();
@@ -113,6 +118,15 @@ class _PersonSheetState extends State<PersonSheet> {
                     fontSize: 26, color: theme.colorScheme.onSurface)
                 : theme.textTheme.titleLarge,
           ),
+          if (widget.handle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              '@${widget.handle}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 2),
           Text(
             'On the Square',
@@ -215,6 +229,24 @@ class _PersonSheetState extends State<PersonSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A peer's profile as a full page, for the `/person/:handle` route.
+/// A peer has no stored handle yet (that needs a backend), so the handle
+/// is the slug of their name and the name shown is its inverse.
+class PersonRoutePage extends StatelessWidget {
+  const PersonRoutePage({super.key, required this.handle});
+
+  final String handle;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = nameForHandle(handle);
+    return Scaffold(
+      appBar: AppBar(title: Text(name)),
+      body: PersonSheet(name: name, handle: handle),
     );
   }
 }

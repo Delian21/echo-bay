@@ -38,6 +38,8 @@ import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../core/profile/profile_controller.dart';
 import '../../../core/profile/user_profile.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/router/route_push.dart';
 import '../../../core/search/search_page.dart';
 import '../../../core/search/search_repository.dart';
 import '../../../injection.dart';
@@ -174,9 +176,11 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
   bool get _hasSocialSource => sl.isRegistered<SocialRepository>();
 
   void _openNotifications() {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => NotificationsPage(repository: sl<SocialRepository>()),
-    ));
+    pushDestination(
+      context,
+      AppRoutes.notifications,
+      fallback: () => NotificationsPage(repository: sl<SocialRepository>()),
+    );
   }
 
   Stream<int> get _totalUnreadStream {
@@ -198,14 +202,14 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     final controller = _profileController;
     if (controller == null) return;
     setState(() => _profileOpen = true);
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(
-      builder: (_) => ProfilePage(
+    pushDestination(
+      context,
+      AppRoutes.profile,
+      fallback: () => ProfilePage(
         profileController: controller,
         feedRepository: sl<FeedRepository>(),
       ),
-    ))
-        .whenComplete(() {
+    ).whenComplete(() {
       if (mounted) setState(() => _profileOpen = false);
     });
   }
@@ -301,27 +305,40 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= AppBreakpoints.wide;
       final scaffold = wide ? _buildRailScaffold() : _buildBottomNavScaffold();
-      // Time travel: scrubber docks on top, aged-paper wash over all,
-      // writes refused by the datasources themselves.
-      return Stack(
-        children: [
+      // Sibling-back: module switching is in-place state, not history, so
+      // the system/browser back would otherwise exit from any module.
+      // Intercept it on every module but the Square and return to the
+      // Square instead — one back always lands "home", a second exits.
+      // Pushed pages (profile, notices, ...) sit above the shell and own
+      // their own pop, so this only fires on the shell itself.
+      return PopScope(
+        canPop: _moduleIndex == 0,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (_moduleIndex != 0) _selectModule(0);
+        },
+        // Time travel: scrubber docks on top, aged-paper wash over all,
+        // writes refused by the datasources themselves.
+        child: Stack(
+          children: [
           Positioned.fill(child: scaffold),
-          if (TimeTravelScope.maybeOf(context)?.isActive ?? false) ...[
-            const Positioned.fill(
-              child: IgnorePointer(
-                child: ColoredBox(
-                  color: Color(0x14201A10),
+            if (TimeTravelScope.maybeOf(context)?.isActive ?? false) ...[
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(
+                    color: Color(0x14201A10),
+                  ),
                 ),
               ),
-            ),
-            Align(
-              alignment: Alignment.topCenter,
-              child: TimeTravelScrubber(
-                controller: TimeTravelScope.of(context),
+              Align(
+                alignment: Alignment.topCenter,
+                child: TimeTravelScrubber(
+                  controller: TimeTravelScope.of(context),
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       );
     });
   }
@@ -393,14 +410,14 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           IconButton(
             tooltip: 'Search',
             icon: const SketchGlyph(kind: SketchIconKind.searchGlass),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => SearchPage(
-                  searchRepository: sl<SearchRepository>(),
-                  settingsStore: sl<AppSettingsStore>(),
-                ),
-              ));
-            },
+            onPressed: () => pushDestination(
+              context,
+              AppRoutes.search,
+              fallback: () => SearchPage(
+                searchRepository: sl<SearchRepository>(),
+                settingsStore: sl<AppSettingsStore>(),
+              ),
+            ),
           ),
           // The Landline: a pushed page, like Search. Calls are an
           // action (a recents visit), not a place you live — the chat
@@ -410,12 +427,12 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           IconButton(
             tooltip: 'The Landline',
             icon: const SketchGlyph(kind: SketchIconKind.handset),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) =>
-                    CallsModuleView(repository: _callsRepository),
-              ));
-            },
+            onPressed: () => pushDestination(
+              context,
+              AppRoutes.calls,
+              fallback: () =>
+                  CallsModuleView(repository: _callsRepository),
+            ),
           ),
           // Notices bell: unread comments/reactions from the Square's
           // regulars. Badge via live count; hidden when DI has no

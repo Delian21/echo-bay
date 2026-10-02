@@ -5,6 +5,7 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/profile/handles.dart';
 import '../../../core/profile/profile_controller.dart';
 import '../../../core/profile/user_profile.dart';
 import '../../../core/theme/app_theme.dart';
@@ -47,6 +48,8 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late final TextEditingController _name =
       TextEditingController(text: widget.profileController.profile.displayName);
+  late final TextEditingController _handle =
+      TextEditingController(text: widget.profileController.profile.handle);
   late final TextEditingController _bio =
       TextEditingController(text: widget.profileController.profile.bio ?? '');
   late String? _avatarPath = widget.profileController.profile.avatarPath;
@@ -65,6 +68,8 @@ class _ProfilePageState extends State<ProfilePage> {
     widget.profileController.update(UserProfile(
       displayName:
           _name.text.trim().isEmpty ? 'You' : _name.text.trim(),
+      // Always store a slug: a half-typed handle can never reach a route.
+      handle: handleForName(_handle.text),
       bio: _bio.text.trim().isEmpty ? null : _bio.text.trim(),
       avatarPath: _avatarPath,
       accentColor: _accent,
@@ -133,6 +138,14 @@ class _ProfilePageState extends State<ProfilePage> {
                       _name.text.trim().isEmpty ? 'You' : _name.text.trim(),
                       style: theme.textTheme.headlineSmall,
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${handleForName(_handle.text)}',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                     // The bio renders in the handwritten voice (Caveat),
                     // like a note pencilled under a yearbook photo. Empty
                     // shows a quiet invitation, never a blank gap.
@@ -180,6 +193,46 @@ class _ProfilePageState extends State<ProfilePage> {
                     _commit();
                   },
                   onSubmitted: (_) => _commit(),
+                ),
+              ),
+            ),
+          ),
+
+          const _SectionHeader('Handle'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _handle,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        prefixText: '@',
+                        hintText: 'yourhandle',
+                        filled: false,
+                        border: InputBorder.none,
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                        _commit();
+                      },
+                      onSubmitted: (_) => _commit(),
+                    ),
+                    Text(
+                      isValidHandle(handleForName(_handle.text))
+                          ? 'People reach you at /person/'
+                              '${handleForName(_handle.text)}'
+                          : 'Use at least two letters, numbers or underscores.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

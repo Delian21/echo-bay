@@ -15,6 +15,7 @@ class AppSettingsStore {
   static const _atmosphereSoundsKey = 'atmosphere_sounds';
   static const _atmosphereHapticsKey = 'atmosphere_haptics';
   static const _profileNameKey = 'profile_name';
+  static const _profileHandleKey = 'profile_handle';
   static const _profileBioKey = 'profile_bio';
   static const _profileAvatarKey = 'profile_avatar';
   static const _profileAccentKey = 'profile_accent';
@@ -77,6 +78,7 @@ class AppSettingsStore {
   /// to [UserProfile]'s defaults at the controller layer.
   Future<UserProfile> readProfile() async {
     final name = await _read(_profileNameKey);
+    final handle = await _read(_profileHandleKey);
     final bio = await _read(_profileBioKey);
     final avatar = await _read(_profileAvatarKey);
     final accent = await _read(_profileAccentKey);
@@ -87,6 +89,7 @@ class AppSettingsStore {
     }
     return UserProfile(
       displayName: name ?? 'You',
+      handle: (handle == null || handle.isEmpty) ? 'you' : handle,
       bio: (bio == null || bio.isEmpty) ? null : bio,
       avatarPath: avatar,
       accentColor: accentColor ?? const UserProfile().accentColor,
@@ -95,6 +98,7 @@ class AppSettingsStore {
 
   Future<void> writeProfile(UserProfile profile) async {
     await _write(_profileNameKey, profile.displayName);
+    await _write(_profileHandleKey, profile.handle);
     // Null bio removes the key so a cleared line stays cleared.
     if (profile.bio == null || profile.bio!.isEmpty) {
       try {

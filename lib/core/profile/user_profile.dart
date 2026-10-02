@@ -7,12 +7,19 @@ import 'package:flutter/material.dart';
 class UserProfile {
   const UserProfile({
     this.displayName = 'You',
+    this.handle = 'you',
     this.bio,
     this.avatarPath,
     this.accentColor = const Color(0xFFD98324),
   });
 
   final String displayName;
+
+  /// The local user's @handle — a display slug for `/person/:handle`
+  /// links, not a globally unique id (uniqueness awaits a backend).
+  /// Edited in the profile editor; the stored value is always a valid
+  /// slug (see handles.dart).
+  final String handle;
 
   /// Handwritten one-liner shown under the display name on the profile
   /// page (Caveat). Null = never written; the UI shows a quiet invitation
@@ -40,6 +47,7 @@ class UserProfile {
 
   UserProfile copyWith({
     String? displayName,
+    String? handle,
     String? bio,
     String? avatarPath,
     Color? accentColor,
@@ -48,6 +56,7 @@ class UserProfile {
   }) =>
       UserProfile(
         displayName: displayName ?? this.displayName,
+        handle: handle ?? this.handle,
         bio: clearBio ? null : (bio ?? this.bio),
         avatarPath: clearAvatar ? null : (avatarPath ?? this.avatarPath),
         accentColor: accentColor ?? this.accentColor,
@@ -57,13 +66,14 @@ class UserProfile {
   bool operator ==(Object other) =>
       other is UserProfile &&
       other.displayName == displayName &&
+      other.handle == handle &&
       other.bio == bio &&
       other.avatarPath == avatarPath &&
       other.accentColor.toARGB32() == accentColor.toARGB32();
 
   @override
   int get hashCode =>
-      Object.hash(displayName, bio, avatarPath, accentColor.toARGB32());
+      Object.hash(displayName, handle, bio, avatarPath, accentColor.toARGB32());
 }
 
 /// Preset accent palette for the profile editor — the ink pots. Curated
