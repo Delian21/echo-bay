@@ -54,6 +54,25 @@ The Hallway replaced The Nexus because Nexus was the only tech-flavoured
 name in a hand-inked world — dorms hang off a hallway, the Board hangs on
 a hallway wall.
 
+## In-app vocabulary
+
+The same rule applied to words: the app never borrows a stock UI phrase
+when the app already has its own. The recurring test is *would a
+small-town person say this, or would a messenger app say this?*
+
+| Concept | Stock phrasing (rejected) | What the app says |
+|---|---|---|
+| Undo, take back, unsend | "Undo", "Delete for everyone", "Delete message" | **Rewind** — the gesture, the spiral icon, and the tombstone: *"You rewound this message"* / *"Rewound"* |
+| A peer is composing | "Rune is typing…" | **"Rune is writing…"** — same fact, the app's register |
+| Looking at the past | "History", "Activity log" | **Time travel** |
+| Following a peer | "Follow" / "Unfollow" | **Keep close** / **Drift apart** (also My Circle, My Window) |
+| Today in the Hallway | "Forum", "Feed" | **The Board** / **The Dorms** |
+
+A tombstone in particular is worth locking down: "You deleted this
+message" is WhatsApp's voice, and reading it inside a sketchbook made the
+whole screen sound borrowed. The rewind already existed as the app's undo
+gesture, so the deletion inherits its word and its spiral.
+
 ## Naming decision record
 
 | Asset | Old | New |

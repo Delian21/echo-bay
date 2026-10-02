@@ -422,11 +422,17 @@ colours rather than inks that could come out of a pen pot.
 language: `SketchBox` (wobbly notebook border — seeded jittered polyline,
 fill painted behind the child, border in front; a foreground fill painter
 was the "blank card" bug), `ScribbleFill` (three authored hatch/loop
-variants clipped to a path, chosen by seed), and `SketchIcon` — the five
-hand-drawn icons (scribble heart, rewind spiral, X-scratched heart,
-jagged bubble, paper plane). Every wobble/scribble is **deterministic**
-(seed from element id) — nothing re-randomizes on rebuild, nothing
-animates per frame.
+variants clipped to a path, chosen by seed), and `SketchIcon` — five
+signature hand-drawn icons (scribble heart, rewind spiral, X-scratched
+heart, jagged bubble, paper plane) now grown into **41 kinds** covering
+navigation, call affordances, status ticks and composer tools. Every
+wobble/scribble is **deterministic** (seed from element id) — nothing
+re-randomizes on rebuild, nothing animates per frame. Adding a kind means
+an enum value, a painter case in `_iconPath`, and a screen-reader label in
+`kSketchIconLabel` (a `CustomPaint` is invisible to TalkBack without one).
+Chrome carries no Material glyphs: the compose FAB's long-press sheet and
+the Board's channel tiles draw chalk too, because one Material icon beside
+four chalk ones reads as an unfinished seam.
 
 **The rewind** (`core/motion/rewind_scope.dart`). The signature undo
 gesture: a ~600ms mirror-wobble with the undo action firing at the
@@ -449,13 +455,13 @@ timers, and the whole persona chain can be disabled with
 `peerReplies: false` (test teardown invariant, same family as
 `startTicker: false`).
 
-**Daily Square E2E.** All composer entry points (app bar, deep link
-from the notification tap, FAB quick actions) route through the shell's
-prompt-aware `_openComposer`: it fetches `activePrompt()`, pre-seeds the
-composer with the prompt copy, and `recordPosted` retires the prompt on
-publish (§6c rule 2). A quick-action shape overrides the prompt's own
-shape; a prompt-less open (opted out / paused / outside window / already
-acted) is a normal, healthy state.
+**Daily Square E2E.** All composer entry points (the compose FAB, deep
+link from the notification tap, FAB quick actions) route through the
+shell's prompt-aware `_openComposer`: it fetches `activePrompt()`,
+pre-seeds the composer with the prompt copy, and `recordPosted` retires
+the prompt on publish (§6c rule 2). A quick-action shape overrides the
+prompt's own shape; a prompt-less open (opted out / paused / outside
+window / already acted) is a normal, healthy state.
 
 **Vault two-pane.** The embedded Vault renders master-detail above the
 600px breakpoint: the conversation list takes ~34% of the shell body
@@ -479,8 +485,25 @@ pattern as the conversation list's `_conversations`.
 and composer (restrained: stroke, no scribble/paper per spec §4),
 Hallway Board + Dorms tiles + bulletin masthead, composer sheet (title
 + media frame), Landline masthead (handwriting only, no boxes), empty
-states in Landline/Hallway/search, and the rewind-spiral icon in the
-undo snackbar.
+states in Landline/Hallway/search, the keepsake cards, the compose FAB's
+long-press sheet, and the rewind-spiral icon in the undo snackbar.
+
+**Square header.** One header, two trailing actions, chosen by width.
+Wide gets the rewind spiral (Time travel) because the rail already anchors
+Settings at its spine's foot and the two were duplicating each other;
+narrow keeps the gear because the mobile bar has no Settings destination
+at all. `_squareBody({mobile})` takes the flag the shell already computed
+to pick its scaffold, so the header can never disagree with the layout.
+
+**Message rhythm.** Both conversation surfaces compute whether a message
+*opens a sender's run* (`index == 0 || previous.senderId != mine`) and
+turn it into vertical margin — 12px across a speaker change, 2px inside a
+run, so a burst reads as one block. The Dorms additionally print the
+sender's name only on the message that opens a run. The delete tombstone
+speaks the app's own vocabulary: "You rewound this message" with the
+rewind spiral, and the delivery ticks sit at 16px (at 14 they read as
+debris beside the timestamp). The peer indicator is "Rune is writing…",
+not "typing".
 
 **Social layer** (`features/social`, schema v13). Comments on Square
 posts (`post_comments`) plus a notices feed (`social_notifications`,
@@ -513,7 +536,17 @@ row renders correctly at any viewport — positions are never screen
 pixels. Items string together (`strungTo`, one outgoing string each,
 drawn as a stable seeded wobbly ink line). Unpin is a **soft tombstone**
 (`unpinned_at`, v14): the present board filters unpinned rows query-side,
-and time travel can reconstruct a past board exactly.
+and time travel can reconstruct a past board exactly. The ground and the
+cards are **fixed colours in both themes**, so every ink printed on a card
+is pinned to `SketchInk.charcoal` rather than read from `Theme` — dark
+mode otherwise hands the card chalk and the note vanishes. Every card also
+carries a **maker's mark** (`keepsake_stamp.dart`): a bottom-left stamp in
+the shared handwritten date voice (`core/design_system/hand_date.dart`,
+pure Dart so the non-widget share renderer can use it too). The clock is
+per-kind — a pinned post or message stamps the **moment's own** time, a
+note stamps when it was written, and a card whose moment no longer
+resolves falls back to its pin time. It is a `Positioned` overlay rather
+than a footer, so it can never reflow the clipped card body.
 
 **Time travel** (`core/timetravel`, no schema change). A read-only
 "as of" mode. One `TimeTravelController` above `MaterialApp` holds the
@@ -536,7 +569,15 @@ injectable clock (`DateTime Function()`) for deterministic tests.
 **Post share-as-image** (`features/square/domain/services/
 post_share_card.dart`). A pure `dart:ui` `PictureRecorder` composition
 (no widget/RepaintBoundary path — that failed to work on web), rendering
-the polaroid card with handwritten date and the "made with Echo Bay"
-corner mark. `SharePostAsImage` returns `Either<Failure, Uint8List>`;
-delivery goes through the IO seam (`core/io`): share sheet on native,
-anchor-download on web. No `dart:io` under `lib/`.
+the polaroid card with the handwritten date (`handDateTime`, shared with
+the keepsake stamps — it stopped being an ISO string) and the "made with
+Echo Bay" corner mark. The card tilts about its own centre by up to 2.5°,
+the "placed down" band; the **paper stays square**, so the export reads as
+a print lying on a flat sheet — the same composition as a keepsake card on
+the corkboard — and the existing 28px margin absorbs the corner travel
+(3° ≈ 17px) without clipping. The angle is **seeded from the post id**:
+sharing the same post twice must produce the same card, or it reads as a
+bug rather than a hand. `SharePostAsImage` returns
+`Either<Failure, Uint8List>`; delivery goes through the IO seam
+(`core/io`): share sheet on native, anchor-download on web. No `dart:io`
+under `lib/`.

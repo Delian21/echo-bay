@@ -135,13 +135,19 @@ The building blocks:
 - **`SketchRng`** — a seeded random number generator. Same seed → same
   wobble, every rebuild. Nothing is ever `Random()` unseeded, so nothing
   re-randomises when Flutter rebuilds a widget.
-- **`SketchIconKind`** — an enum of 38 icon shapes (hearts, spirals,
-  handset, dialPad, sunMark, moonCrescent…).
+- **`SketchIconKind`** — an enum of 41 icon shapes (hearts, spirals,
+  handset, dialPad, sunMark, moonCrescent, scribbleLine…).
 - **`SketchIcon`** — takes a `kind:` and a `seed:` and paints the shape
   with two jittered passes of charcoal (or chalk in dark mode), so the
   line looks like the pen went over it twice.
 - **`SketchBox`** — wobbly notebook-border container.
 - **`WobblyCircleClipper`** — clips avatars into imperfect circles.
+- **`hand_date.dart`** — the app's handwritten *date voice*, shared by
+  every surface that prints a date the reader sees as handwriting:
+  `handDateTime` (the maker's mark, `'Fri 2 Oct · 18:40'`) and
+  `handDayLine` (the masthead long form, `'Friday, October 2'`). Pure
+  string work with no Flutter import, which is what lets the non-widget
+  share-card renderer print in the same voice as the feed.
 
 ### Tracing one icon end-to-end
 
@@ -166,6 +172,17 @@ because Material 3 otherwise prepends a ✓ that shoves the glyph aside.
 To add an icon: add an enum value to `SketchIconKind`, write its painter
 case, and use it with a stable seed.
 
+**No Material glyphs in app chrome.** The FAB's long-press quick-action
+sheet (Photo / Sentence / Sound / Time travel) and the Board's channel
+tiles all draw chalk glyphs; a Material icon sitting next to them reads
+as an unfinished seam. There is a regression test
+(`test/fab_bar_test.dart`) asserting the sheet leads with four `SketchIcon`s.
+
+**Ink on paper is pinned, never themed.** A surface that is the same
+colour in both themes (the keepsake card is always cream) must not take
+its ink from `Theme` — dark mode hands you chalk and the text vanishes.
+Such surfaces hard-code `SketchInk.charcoal`.
+
 ---
 
 ## 6. Tracing a sent message (The Vault)
@@ -180,8 +197,8 @@ case, and use it with a stable seed.
    delivered → read`, each step a timer that updates the row; drift's
    reactive stream pushes the change to the UI automatically — that's
    what drives the tick marks (`status_tick.dart`).
-5. The peer persona (Rune, Mila…) schedules an in-character reply with a
-   typing indicator exposed via `watchTyping`.
+5. The peer persona (Rune, Mila…) schedules an in-character reply with an
+   is-writing indicator ("Rune is writing…") exposed via `watchTyping`.
 6. Offline (`setOnline(false)`)? Timers stall, messages pile up as
    pending; `syncOutbox()` is the one function a future background worker
    will call to flush them.
@@ -190,7 +207,15 @@ Edits and delete-for-everyone are **tombstone writes** (`editedAt` /
 `deletedAt` timestamps), never hard deletes — a deleted message keeps its
 row with a blanked body, and the same machinery can undo it (the app-wide
 **rewind** gesture, ~600ms mirror-wobble whose undo fires at the visual
-midpoint).
+midpoint). The tombstone reads "You rewound this message" and carries the
+rewind spiral: the app's own vocabulary, not a stock delete notice.
+
+**Message rhythm.** Every conversation list computes whether a message
+*opens a sender's run* (`index == 0 || previous.senderId != mine`) and
+passes that flag down. The Vault turns it into vertical margin — 12px when
+the speaker changes, 2px inside a run — so a burst reads as one block.
+The Dorms additionally show the sender's name only on the message that
+opens the run, instead of repeating it above every bubble.
 
 ---
 
@@ -263,6 +288,25 @@ ink line. **Unpin is a soft tombstone** (`unpinned_at`, v14): the row
 survives so time travel can rebuild past boards; the present board simply
 filters `unpinned_at IS NULL`.
 
+The corkboard ground and the cards on it are fixed colours in *both*
+themes, so everything printed on a card pins its ink to
+`SketchInk.charcoal` rather than reading it from `Theme`. Taking it from
+`Theme` meant dark mode painted chalk on cream paper and the notes became
+unreadable. `test/keepsake_board_widget_test.dart` renders the board under
+`ThemeData.dark()` and asserts the note ink, so the regression can't
+quietly come back.
+
+**The maker's mark.** Every card is stamped bottom-left in
+`handDateTime` format, like the imprint on the back of a passport photo —
+the wall was the only undated surface in an app otherwise obsessed with
+*when*. Which clock it shows depends on the card: a pinned post or message
+stamps the **moment's own** time (a photo of a sunset pinned on Saturday
+reads Friday 18:40), a handwritten note stamps when it was scratched down,
+and a card whose moment can no longer resolve falls back to its pin time
+rather than going blank. The stamp is a `Positioned` overlay, never a
+footer: the card body clips to three lines and five, and a date that
+reflows the thing it labels would be worse than no date at all.
+
 ## 11. Time travel (read-only past)
 
 One `TimeTravelController` lives above `MaterialApp`
@@ -281,6 +325,13 @@ filter every read by timestamp:
 While active, **every write path throws** (`writes are refused while time
 traveling`) — the past is read-only. The scrubber is a hand-drawn film
 strip; "Return to today" exits through the app-wide rewind animation.
+
+Two entry points, one handler: the rewind spiral at the end of the
+Square header on **wide** layouts (the rail already carries Settings at
+its foot), and the "Time travel" row in the compose FAB's long-press sheet
+on every platform. Both toggle the same controller — in and out of
+yesterday — and the mobile header keeps its gear, because the bottom bar
+carries no Settings destination.
 
 Honest limits: post hard-purge (the 10s undo window) and pre-edit Vault
 bodies are not reconstructible — those writes overwrite history. Making

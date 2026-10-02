@@ -59,6 +59,15 @@ it's the one symbol too identifying with the reference property), polaroid-
 frame and journal-tab as "comment" (they mean photo/file, not reply),
 double arrows as "share" (reads as seek).
 
+**Beyond the five.** The kit has grown to 41 kinds so that *chrome* can
+stay hand-drawn too — the Board tiles' megaphone, the call affordances,
+the delivery ticks, the composer's attach tools, and the quick-action
+sheet's Photo / Sentence / Sound rows. The rule that started as "no
+Material glyphs on action rows" is now app-wide: a Material icon sitting
+beside four chalk ones reads as an unfinished seam. ("Sentence" needed a
+kind of its own, `scribbleLine` — three trailing chalk rules — rather than
+falling back to Material.)
+
 ## 3. Palette
 
 - **Surfaces (light):** warm sepia paper #F5EFE2, aged cardboard #E7DCC4,
@@ -80,9 +89,9 @@ base; the ink language and accents layer on top rather than replacing it.
 
 | Module | Treatment |
 | --- | --- |
-| **The Square** | *Full ink.* Sketch icons, wobbly polaroid frames, scribble like-fills, handwritten headers, develop reveal. This is the showpiece. |
-| **The Hallway** (the Board + the Dorms) | *Bulletin board.* Same stroke language on every tile (channels and group chats alike), handwritten masthead ("The board is up."), yellow highlighter emphasis, slightly denser layout. |
-| **The Vault** | *Restrained ink.* Wobbly borders and sketch strokes but NO paper textures, NO scribble fills — a notebook that takes secrets seriously. The composer is an inked note box with the paper-plane send on an amber disc; the typing indicator sits above it like a pencil margin note. Standard encrypted-green tick marks. |
+| **The Square** | *Full ink.* Sketch icons, wobbly polaroid frames, scribble like-fills, handwritten headers, develop reveal. This is the showpiece. The exported share card sits crooked on square paper — see §6. |
+| **The Hallway** (the Board + the Dorms) | *Bulletin board.* Same stroke language on every tile (channels and group chats alike), handwritten masthead ("The board is up."), yellow highlighter emphasis, slightly denser layout. Channel tiles lead with the sketch megaphone on the amber disc. |
+| **The Vault** | *Restrained ink.* Wobbly borders and sketch strokes but NO paper textures, NO scribble fills — a notebook that takes secrets seriously. The composer is an inked note box with the paper-plane send on an amber disc; the is-writing indicator sits above it like a pencil margin note ("Rune is writing…"). Standard encrypted-green tick marks, drawn at 16px so they read beside the timestamp. Bubbles group by sender: tight within a run, a breath across a speaker change. Handwritten initials on every identity disc. |
 | **The Landline** | *Cleanest.* Handwritten masthead ("The line is open.") and nothing else — no ink boxes, no paper. A dialer with grain is a dialer that's harder to read mid-call. |
 
 Rule of thumb: **ink intensity scales with how "memory-like" the surface
@@ -115,8 +124,25 @@ Full decision record in `docs/NAMING.md`.
 
 - Icon paths + wobble/scribble painters live in a shared
   `core/design_system` sketch kit: `SketchBox` (wobbly border container),
-  `ScribbleFill` (cached hatch pictures), `SketchIcon` (the five icons).
+  `ScribbleFill` (cached hatch pictures), `SketchIcon` (five signature
+  icons, now 41 kinds). Adding one = enum value + painter case + label.
 - All wobble/scribble randomness is **seeded** (widget id, post id) and
   **deterministic** — identical output on every build, cheap to render.
 - Reduced motion: scribble fill appears/disappears without animation.
 - Fonts: Caveat (OFL) stays the handwriting voice; body text stays Roboto.
+- **Ink on fixed-colour paper is pinned, not themed.** A surface that is
+  the same colour in both modes (keepsake cards are always cream) must
+  hard-code `SketchInk.charcoal`; dark mode would otherwise paint chalk
+  on paper and the note disappears.
+- **Dates are a maker's mark.** Every date the reader sees as handwriting
+  is formatted by one shared voice (`handDateTime` / `handDayLine`) so a
+  keepsake stamp, the feed masthead and an exported card say the same
+  thing in the same shape. Short form `'Fri 2 Oct · 18:40'` for anything
+  stamped onto an object; long form `'Friday, October 2'` only where a
+  masthead has room.
+- **Tilt, but keep the ground flat.** Cards on the wall and the exported
+  polaroid sit crooked (±2.5° is "placed down", not "shaken"), but the
+  corkboard and the sheet of paper stay square — a crooked card on a
+  square ground reads as an object in a room; a tilted *ground* just
+  looks like a cropping bug. Seed the angle from the item id so the same
+  card always comes out the same way.

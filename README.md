@@ -20,12 +20,15 @@ record.
   action) or permanent. Un-liking and un-posting play the signature
   **rewind** — the app-wide undo gesture. Comments with mock-peer
   replies, a notices bell with unread badges, share-any-post-as-image
-  export cards, an audience switch between **Everyone** and **My
+  export cards (tilted a couple of degrees, like a print set down by
+  hand), an audience switch between **Everyone** and **My
   Window** (only people you keep close), and a **time travel** scrubber
   that rewinds the whole app to any past day (read-only; deletes are
-  soft, so the past stays recoverable). Peers' names and avatars open
-  their profile, where you can **Keep close** (follow) or **Drift
-  apart** (unfollow) — no confirm, no fuss. From your own profile, **My
+  soft, so the past stays recoverable). On wide screens the Square header
+  ends with the rewind spiral that toggles that mode — the narrow header
+  keeps its gear instead, since the mobile bar has no Settings slot.
+  Peers' names and avatars open their profile, where you can **Keep
+  close** (follow) or **Drift apart** (unfollow) — no confirm, no fuss. From your own profile, **My
   Circle** lists who keeps you close and **My Window** lists who you
   keep close; drifts are soft, so time travel shows past states. Once
   in a while a peer starts keeping you close on their own — you get a
@@ -38,13 +41,19 @@ record.
   photo/video/voice attachments with playable waveform chips. On
   desktop the list and the open chat sit side by side, Telegram-style.
   The mock peers (Rune, Mila, the Ops channel) answer in character,
-  with typing indicators and realistic delays. The composer is an
+  with "Rune is writing…" indicators and realistic delays. Messages
+  group by sender: a run of the same person stacks tight, and a change
+  of speaker gets a breath of space. A deleted-for-everyone message
+  leaves a rewind tombstone ("You rewound this message") with the
+  rewind spiral, never a stock delete notice. The composer is an
   inked note box with a paper-plane send. The schema carries an
   unused ciphertext column for end-to-end encryption — a design goal,
   not a shipped feature.
 - **The Hallway** — community bulletin: the Board (broadcast channels,
   remote-first cache model) and the Dorms (group chats, local-first
-  outbox model), each with its own notebook-box treatment.
+  outbox model), each with its own notebook-box treatment. Board tiles
+  lead with the hand-drawn megaphone, and Dorms group their messages by
+  sender the same way the Vault does.
 - **The Landline** — a deliberate utility island: the cleanest module in
   the app (a handwritten masthead, nothing more), because a dialer with
   decorative grain is a dialer that's harder to read mid-call. Redial
@@ -54,8 +63,12 @@ record.
   polaroid thumbnails that open the day they belong to.
 - **Keepsake wall** — a corkboard where you pin your own posts and
   handwritten notes; items drag, tilt, and string together with an
-  inked line. Unpinning is a soft tombstone, so time travel can show
-  the board as it was.
+  inked line. Every card is stamped bottom-left with the time it
+  remembers — the moment's own clock for a pinned post, the writing
+  hour for a note. The paper is the same cream in both themes, so the
+  cards' ink is pinned to charcoal and the notes stay readable under dark
+  mode. Unpinning is a soft tombstone, so time travel can show the board
+  as it was.
 - **Search** — one box across posts, board posts, and messages (FTS5,
   tombstone-aware) with recent searches.
 - **Settings** — theme, reduced motion, Daily Square prefs, and profile
