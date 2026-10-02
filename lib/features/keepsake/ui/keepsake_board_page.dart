@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'pinned_reference_card.dart' show PinnedReferenceCard;
+import 'keepsake_stamp.dart' show KeepsakeStamp;
 
 import '../../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../../core/design_system/sketch_kit.dart';
@@ -300,16 +301,30 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
         child: SizedBox(
           width: boardSize.width * _cardWidthFraction,
           height: boardSize.height * _cardHeightFraction,
+          // Stack, not a footer: the note clips to five lines, so the
+          // date sits in the corner and never reflows the text.
           child: item.kind == KeepsakeKind.post
-              ? PinnedReferenceCard(referenceId: item.postId ?? '')
-              : Text(
-                  item.noteText ?? '',
-                  style: kHandwrittenTextStyle.copyWith(
-                    fontSize: 17,
-                    color: SketchInk.charcoal,
-                  ),
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
+              ? PinnedReferenceCard(
+                  referenceId: item.postId ?? '',
+                  pinnedAt: item.pinnedAt,
+                )
+              : Stack(
+                  children: [
+                    Text(
+                      item.noteText ?? '',
+                      style: kHandwrittenTextStyle.copyWith(
+                        fontSize: 17,
+                        color: SketchInk.charcoal,
+                      ),
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Positioned(
+                      left: 0,
+                      bottom: 0,
+                      child: KeepsakeStamp(at: item.pinnedAt),
+                    ),
+                  ],
                 ),
         ),
       );

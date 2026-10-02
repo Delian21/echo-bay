@@ -4,6 +4,7 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../injection.dart';
+import 'keepsake_stamp.dart';
 import '../../square/ui/square_feed_view.dart' show SquareDayViewPage;
 import '../../vault/ui/vault_chat_page.dart';
 import '../../vault/domain/repositories/chat_repository.dart';
@@ -18,9 +19,17 @@ import '../../square/domain/repositories/feed_repository.dart';
 ///
 /// Tapping opens the item in context (post day view / conversation).
 class PinnedReferenceCard extends StatefulWidget {
-  const PinnedReferenceCard({super.key, required this.referenceId});
+  const PinnedReferenceCard({
+    super.key,
+    required this.referenceId,
+    required this.pinnedAt,
+  });
 
   final String referenceId;
+
+  /// When this reference was pinned — the stamp's fallback, used when
+  /// the moment it points at can no longer be resolved.
+  final DateTime pinnedAt;
 
   @override
   State<PinnedReferenceCard> createState() => _PinnedReferenceCardState();
@@ -51,6 +60,7 @@ class _PinnedReferenceCardState extends State<PinnedReferenceCard> {
             mediaUrl: post.mediaUrl,
             expired: post.expiresAt?.isBefore(DateTime.now()) ?? false,
             deleted: post.deletedAt != null,
+            momentAt: post.createdAt,
           );
         }
       }
@@ -66,6 +76,7 @@ class _PinnedReferenceCardState extends State<PinnedReferenceCard> {
             mediaUrl: null,
             expired: false,
             deleted: false,
+            momentAt: message.createdAt,
           );
         }
       }
@@ -82,11 +93,14 @@ class _PinnedReferenceCardState extends State<PinnedReferenceCard> {
       builder: (context, snap) {
         final ref = snap.data;
         if (ref == null) {
-          return const _FadedPin();
+          return _FadedPin(at: widget.pinnedAt);
         }
         if (ref.deleted || ref.expired) {
           return _FadedPin(
             reason: ref.deleted ? 'This moment was rewound.' : 'It faded.',
+            // The moment's own date is unknowable once it is gone — the
+            // card dates itself to when it went up on the wall instead.
+            at: widget.pinnedAt,
           );
         }
         return _LivePin(reference: ref, referenceId: widget.referenceId);
@@ -103,6 +117,7 @@ class _Reference {
     required this.mediaUrl,
     required this.expired,
     required this.deleted,
+    required this.momentAt,
   });
 
   final bool isPost;
@@ -111,6 +126,10 @@ class _Reference {
   final String? mediaUrl;
   final bool expired;
   final bool deleted;
+
+  /// When the moment itself happened — what the card stamps, as
+  /// distinct from when it was pinned to the wall.
+  final DateTime momentAt;
 }
 
 class _LivePin extends StatelessWidget {
@@ -150,58 +169,71 @@ class _LivePin extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: () => _open(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
+      // Stack, not a footer: the body clips to three lines, so the date
+      // is an overlay pinned to the corner and can never reflow it.
+      child: Stack(
         children: [
-          if (reference.mediaUrl != null && reference.mediaUrl!.isNotEmpty)
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: _isLocal(reference.mediaUrl!)
-                      ? Image(
-                          image: platformImageProvider(reference.mediaUrl!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const _PinFallbackIcon(),
-                        )
-                      : Image.network(
-                          reference.mediaUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const _PinFallbackIcon(),
-                        ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (reference.mediaUrl != null &&
+                  reference.mediaUrl!.isNotEmpty)
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _isLocal(reference.mediaUrl!)
+                          ? Image(
+                              image:
+                                  platformImageProvider(reference.mediaUrl!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const _PinFallbackIcon(),
+                            )
+                          : Image.network(
+                              reference.mediaUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const _PinFallbackIcon(),
+                            ),
+                    ),
+                  ),
+                )
+              else
+                const _PinFallbackIcon(),
+              const SizedBox(height: 6),
+              Text(
+                reference.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                // The card is always cream paper (theme-independent), so its
+                // ink is pinned to charcoal — theme colors go chalk in dark
+                // mode and vanish on the paper.
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: SketchInk.charcoal,
                 ),
               ),
-            )
-          else
-            const _PinFallbackIcon(),
-          const SizedBox(height: 6),
-          Text(
-            reference.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            // The card is always cream paper (theme-independent), so its
-            // ink is pinned to charcoal — theme colors go chalk in dark
-            // mode and vanish on the paper.
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: SketchInk.charcoal,
-            ),
+              if (reference.body.isNotEmpty)
+                Text(
+                  reference.body,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: kHandwrittenTextStyle.copyWith(
+                    fontSize: 13,
+                    color: SketchInk.charcoal,
+                  ),
+                ),
+            ],
           ),
-          if (reference.body.isNotEmpty)
-            Text(
-              reference.body,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: kHandwrittenTextStyle.copyWith(
-                fontSize: 13,
-                color: SketchInk.charcoal,
-              ),
-            ),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: KeepsakeStamp(at: reference.momentAt),
+          ),
         ],
       ),
     );
@@ -231,7 +263,13 @@ class _PinFallbackIcon extends StatelessWidget {
 /// The pinned reference no longer resolves (rewound, deleted, expired,
 /// or purged). A small handwritten note in the card's place.
 class _FadedPin extends StatelessWidget {
-  const _FadedPin({this.reason = 'This moment was rewound.'});
+  const _FadedPin({
+    required this.at,
+    this.reason = 'This moment was rewound.',
+  });
+
+  /// The date to stamp: the pin time, since the moment itself is gone.
+  final DateTime at;
 
   final String reason;
 
@@ -257,6 +295,10 @@ class _FadedPin extends StatelessWidget {
               color: SketchInk.charcoal,
             ),
           ),
+          const SizedBox(height: 4),
+          // The moment's own date died with it — this card dates itself
+          // to when it was pinned instead.
+          KeepsakeStamp(at: at),
         ],
       ),
     );

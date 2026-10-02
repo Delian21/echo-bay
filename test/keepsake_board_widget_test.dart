@@ -6,6 +6,7 @@ import 'package:echo_bay/core/design_system/sketch_kit.dart';
 import 'package:echo_bay/features/keepsake/data/repositories/drift_keepsake_repository.dart';
 import 'package:echo_bay/features/keepsake/domain/entities/keepsake_item.dart';
 import 'package:echo_bay/features/keepsake/ui/keepsake_board_page.dart';
+import 'package:echo_bay/features/keepsake/ui/keepsake_stamp.dart';
 
 // One fast widget test: pin a post, drag its card, verify the new
 // board-relative position landed in drift.
@@ -106,5 +107,19 @@ void main() {
     // faded note — same paper, same rule.
     final faded = tester.widget<Text>(find.textContaining('rewound'));
     expect(faded.style?.color, SketchInk.charcoal);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  testWidgets('every card is stamped with a date', (tester) async {
+    // A note stamps its own pin time; a pin whose moment can no longer
+    // resolve falls back to the pin time rather than going blank.
+    await repo.addNote(noteText: 'soup night', posX: 0.1, posY: 0.1);
+    await repo.pinPost(postId: 'p1', posX: 0.4, posY: 0.4);
+
+    await tester.pumpWidget(MaterialApp(
+      home: KeepsakeBoardPage(repository: repo),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(KeepsakeStamp), findsNWidgets(2));
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

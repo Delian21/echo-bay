@@ -8,6 +8,7 @@ import 'package:stream_transform/stream_transform.dart';
 
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/inked_segmented_control.dart';
+import '../../../core/design_system/hand_date.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
@@ -515,16 +516,7 @@ class SquareDayViewPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const weekdays = [
-      'Monday', 'Tuesday', 'Wednesday',
-      'Thursday', 'Friday', 'Saturday', 'Sunday',
-    ];
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June', 'July',
-      'August', 'September', 'October', 'November', 'December',
-    ];
-    final dateLine =
-        '${weekdays[day.weekday - 1]}, ${months[day.month - 1]} ${day.day}';
+    final dateLine = handDayLine(day);
 
     return Scaffold(
       appBar: AppBar(title: Text(dateLine)),
@@ -622,16 +614,7 @@ class _JournalHeader extends StatelessWidget {
     if (!golden.enabled) return const SizedBox.shrink();
 
     final now = DateTime.now();
-    const weekdays = [
-      'Monday', 'Tuesday', 'Wednesday',
-      'Thursday', 'Friday', 'Saturday', 'Sunday',
-    ];
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June', 'July',
-      'August', 'September', 'October', 'November', 'December',
-    ];
-    final dateLine =
-        '${weekdays[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
+    final dateLine = handDayLine(now);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
