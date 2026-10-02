@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/peer_directory.dart';
 import '../../domain/entities/social_entities.dart';
 import '../../domain/repositories/follow_repository.dart';
 
@@ -220,28 +221,4 @@ class DriftFollowRepository implements FollowRepository {
   }
 }
 
-/// Hand-written peer facts for the mock stage — the same small-town cast
-/// as the Vault personas. Bios live here (not in the DB) until a real
-/// backend owns profiles.
-class PeerDirectory {
-  /// Peers who keep the local user close from the start.
-  static const circleSeedNames = ['Mila', 'Rune'];
 
-  /// All named mock peers, for avatar/bio lookups.
-  static const names = ['Rune', 'Mila', 'Ops', 'Kai', 'Ada', 'Mira'];
-
-  static const _bios = {
-    'Rune': 'Fixes radios. Writes postcards to no one in particular.',
-    'Mila': 'Paints the hour before sunset, over and over.',
-    'Ops': 'Keeps the lights on. Does not talk about it.',
-    'Kai': 'Collects field recordings of quiet places.',
-    'Ada': 'Reads twice: once for the words, once for the margins.',
-    'Mira': 'Bakes bread on rainy days. Sells none of it.',
-  };
-
-  static PeerProfile bio(String name) => PeerProfile(
-        name: name,
-        bio: _bios[name] ?? 'Here, mostly.',
-        avatarSeed: name.hashCode & 0x7FFFFFFF,
-      );
-}

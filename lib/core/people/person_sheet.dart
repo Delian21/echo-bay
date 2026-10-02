@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
+import '../../features/social/domain/entities/peer_directory.dart';
 import '../../features/social/domain/entities/social_entities.dart';
 import '../../features/social/domain/repositories/follow_repository.dart';
 import '../../injection.dart';
@@ -43,8 +44,10 @@ Future<void> openPerson(
   }
   // The route carries the handle (addressable, shareable); `extra`
   // carries the exact author name, so a name the slug cannot round-trip
-  // ("J.P. Aurelio") still reads correctly in the app.
-  final handle = handleForName(name);
+  // ("J.P. Aurelio") still reads correctly in the app. The handle comes
+  // from the directory, so two peers whose names slug alike still get
+  // distinct URLs instead of shadowing each other.
+  final handle = PeerDirectory.handleFor(name);
   await pushDestination(
     context,
     AppRoutes.person(handle),
@@ -71,8 +74,11 @@ class PersonRoutePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The name an in-app tap already handed us wins; otherwise ask the
+    // directory, and fall back to the inverse slug for a handle this
+    // install has never claimed.
     final person = (name == null || name!.isEmpty)
-        ? nameForHandle(handle)
+        ? (PeerDirectory.nameFor(handle) ?? nameForHandle(handle))
         : name!;
     return Scaffold(
       appBar: AppBar(title: Text(person)),

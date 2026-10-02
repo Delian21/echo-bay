@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_bay/core/people/person_sheet.dart';
 import 'package:echo_bay/core/profile/handles.dart';
 import 'package:echo_bay/core/router/app_router.dart';
+import 'package:echo_bay/features/social/domain/entities/peer_directory.dart';
 
 /// Person taps are real navigation now: every surface lands on
 /// `/person/:handle`. These cover the two things that can go wrong —
@@ -29,6 +30,54 @@ void main() {
       expect(isValidHandle('a'), isFalse, reason: 'too short to link');
       expect(isValidHandle('_bo'), isFalse, reason: 'no leading underscore');
       expect(isValidHandle('Bo'), isFalse, reason: 'handles are lowercase');
+    });
+  });
+
+  group('collision-free assignment', () {
+    test('two names that slug alike get distinct handles', () {
+      final directory = HandleDirectory(['Bo Tamm', 'Bo-Tamm']);
+      expect(directory.handleFor('Bo Tamm'), 'bo_tamm');
+      expect(directory.handleFor('Bo-Tamm'), 'bo_tamm_2');
+    });
+
+    test('each handle resolves back to exactly one name', () {
+      final directory = HandleDirectory(['Bo Tamm', 'Bo-Tamm']);
+      expect(directory.nameFor('bo_tamm'), 'Bo Tamm');
+      expect(directory.nameFor('bo_tamm_2'), 'Bo-Tamm');
+    });
+
+    test('a handle never changes once claimed', () {
+      final directory = HandleDirectory(['Bo Tamm']);
+      final first = directory.handleFor('Bo Tamm');
+      // A later arrival must not renumber an already-shared URL.
+      directory.handleFor('Bo-Tamm');
+      expect(directory.handleFor('Bo Tamm'), first);
+    });
+
+    test('a suffixed handle still fits the length cap', () {
+      final long = List.filled(30, 'a').join();
+      final directory = HandleDirectory([long, '$long b']);
+      for (final handle in directory.handles) {
+        expect(handle.length, lessThanOrEqualTo(kMaxHandleLength));
+        expect(isValidHandle(handle), isTrue);
+      }
+      expect(directory.handles.toSet().length, 2);
+    });
+
+    test('an unclaimed handle resolves to null', () {
+      expect(HandleDirectory(['Ada']).nameFor('nobody'), isNull);
+    });
+
+    test('the peer cast assigns every peer a unique handle', () {
+      final handles = PeerDirectory.names.map(PeerDirectory.handleFor);
+      expect(handles.toSet().length, PeerDirectory.names.length);
+      for (final name in PeerDirectory.names) {
+        expect(PeerDirectory.nameFor(PeerDirectory.handleFor(name)), name);
+      }
+    });
+
+    test('a cold link to a cast peer shows their real name', () {
+      expect(PeerDirectory.nameFor('rune'), 'Rune');
     });
   });
 
