@@ -188,7 +188,8 @@ final appRouter = GoRouter(
   ],
 );
 
-/// The local user's editable profile, wired from DI.
+/// The local user's profile (read view; edit is a pushed screen from
+/// its Edit button), wired from DI.
 Widget _profilePage() => ProfilePage(
       profileController: di.sl<ProfileController>(),
       feedRepository: di.sl.isRegistered<FeedRepository>()

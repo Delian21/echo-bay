@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
@@ -12,18 +13,33 @@ import '../../../core/theme/app_theme.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
 import '../../../injection.dart';
+import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../keepsake/ui/keepsake_board_page.dart';
 import '../../social/domain/repositories/follow_repository.dart';
 import '../../social/ui/circle_window_page.dart';
 
 import '../../square/domain/entities/post.dart';
 import '../../square/domain/repositories/feed_repository.dart';
 
-/// Profile — view and edit the local user's identity: display name,
-/// bio, avatar, and the app's accent color, plus the grid of the user's
-/// own Square posts as polaroid thumbnails. Edits apply live (the theme
-/// root cross-fades to the new accent) and persist through the
-/// controller's storage seam.
-class ProfilePage extends StatefulWidget {
+/// Where a profile can be shared from. The web build knows its own
+/// origin at runtime; native builds (and tests) fall back to the
+/// published town.
+const String _kFallbackOrigin = 'https://echo-bay.netlify.app';
+
+/// The full, shareable address for [handle]: origin + `/person/:handle`.
+String profileShareUrl(String handle) {
+  final base = Uri.base;
+  final origin = (base.scheme == 'http' || base.scheme == 'https')
+      ? '${base.scheme}://${base.authority}'
+      : _kFallbackOrigin;
+  return '$origin/person/${Uri.encodeComponent(handle)}';
+}
+
+/// Profile — the local user's identity, read-only: avatar, name, handle,
+/// bio, the My Circle / My Window counts, and the grid of their own
+/// Square posts as polaroid thumbnails. Editing lives on exactly one
+/// screen, [ProfileEditPage], reached from the Edit button here.
+class ProfilePage extends StatelessWidget {
   const ProfilePage({
     super.key,
     required this.profileController,
@@ -37,15 +53,165 @@ class ProfilePage extends StatefulWidget {
   /// the grid section entirely rather than showing a fake empty state.
   final FeedRepository? feedRepository;
 
-  /// First-run mode: no Scaffold/app-bar, no own-posts grid, no padding —
-  /// just the identity editor, embedded in the onboarding flow.
+  /// First-run mode: there is no finished profile to look at yet, so
+  /// setup embeds the editor itself in the onboarding flow.
   final bool embedInOnboarding;
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  Widget build(BuildContext context) {
+    if (embedInOnboarding) {
+      return ProfileEditPage(
+        profileController: profileController,
+        feedRepository: feedRepository,
+        embedInOnboarding: true,
+      );
+    }
+    return AnimatedBuilder(
+      animation: profileController,
+      builder: (context, _) => _ProfileView(
+        profile: profileController.profile,
+        feedRepository: feedRepository,
+        onEdit: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ProfileEditPage(
+              profileController: profileController,
+              feedRepository: feedRepository,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+/// The read-only profile: who you are, who keeps you close, and what
+/// you have pinned. One Edit button — the only way into the form.
+class _ProfileView extends StatelessWidget {
+  const _ProfileView({
+    required this.profile,
+    required this.onEdit,
+    this.feedRepository,
+  });
+
+  final UserProfile profile;
+  final FeedRepository? feedRepository;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final name = profile.displayName.trim().isEmpty
+        ? 'You'
+        : profile.displayName.trim();
+    final bio = profile.bio?.trim() ?? '';
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        centerTitle: false,
+        actions: [
+          TextButton.icon(
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('Edit'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    _Avatar(
+                      initials: profile.initials(),
+                      avatarPath: profile.avatarPath,
+                      accent: profile.accentColor,
+                      radius: 44,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(name, style: theme.textTheme.headlineSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${profile.handle}',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    if (bio.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        bio,
+                        style: kHandwrittenTextStyle.copyWith(
+                          fontSize: 18,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit profile'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const _SectionHeader('People'),
+          const _CircleWindowTiles(),
+          if (feedRepository != null) ...[
+            const _SectionHeader('Pinned squares'),
+            // The wall's second front door, right beside the squares it
+            // holds, with a live count.
+            if (sl.isRegistered<KeepsakeRepository>())
+              const _KeepsakeWallTile(),
+            _OwnPostsGrid(
+              feedRepository: feedRepository!,
+              authorName: name,
+            ),
+          ],
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+/// The profile form — the single edit surface: display name, handle,
+/// bio, avatar and the app's accent color. Edits apply live (the theme
+/// root cross-fades to the new accent) and persist through the
+/// controller's storage seam.
+class ProfileEditPage extends StatefulWidget {
+  const ProfileEditPage({
+    super.key,
+    required this.profileController,
+    this.feedRepository,
+    this.embedInOnboarding = false,
+  });
+
+  final ProfileController profileController;
+
+  /// Kept for callers that pass it; the editor itself shows no grid.
+  final FeedRepository? feedRepository;
+
+  /// First-run mode: no Scaffold/app-bar — just the form, embedded in
+  /// the onboarding flow.
+  final bool embedInOnboarding;
+
+  @override
+  State<ProfileEditPage> createState() => _ProfileEditPageState();
+}
+
+class _ProfileEditPageState extends State<ProfileEditPage> {
   late final TextEditingController _name =
       TextEditingController(text: widget.profileController.profile.displayName);
   late final TextEditingController _handle =
@@ -170,10 +336,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
 
           // -- editable fields -------------------------------------------
-          if (!widget.embedInOnboarding) ...[
-            const _SectionHeader('My Circle'),
-            const _CircleWindowTiles(),
-          ],
           const _SectionHeader('Display name'),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -223,14 +385,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       },
                       onSubmitted: (_) => _commit(),
                     ),
-                    Text(
-                      isValidHandle(handleForName(_handle.text))
-                          ? 'People reach you at /person/'
-                              '${handleForName(_handle.text)}'
-                          : 'Use at least two letters, numbers or underscores.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    _ShareLinkRow(
+                      handle: handleForName(_handle.text),
+                      valid: isValidHandle(handleForName(_handle.text)),
                     ),
                   ],
                 ),
@@ -358,17 +515,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
 
-          // -- own posts grid --------------------------------------------
-          if (!widget.embedInOnboarding && widget.feedRepository != null) ...[
-            const _SectionHeader('Pinned squares'),
-            _OwnPostsGrid(
-              feedRepository: widget.feedRepository!,
-              authorName: _name.text.trim().isEmpty
-                  ? 'You'
-                  : _name.text.trim(),
-            ),
-          ],
-
           const SizedBox(height: 24),
         ],
     );
@@ -376,10 +522,129 @@ class _ProfilePageState extends State<ProfilePage> {
     if (widget.embedInOnboarding) return body;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Edit profile'),
         centerTitle: false,
       ),
       body: body,
+    );
+  }
+}
+
+/// The handle's public face: a friendly line and the full link, with a
+/// button that puts it on the clipboard. A half-typed handle shows the
+/// coaching line instead — there is nothing shareable yet.
+class _ShareLinkRow extends StatelessWidget {
+  const _ShareLinkRow({required this.handle, required this.valid});
+
+  final String handle;
+  final bool valid;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!valid) {
+      return Text(
+        'Use at least two letters, numbers or underscores.',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    final url = profileShareUrl(handle);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Share this link and people can find you.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                url,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await Clipboard.setData(ClipboardData(text: url));
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Link copied.'),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              },
+              icon: const Icon(Icons.link_rounded, size: 18),
+              label: const Text('Copy link'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Entry to the Keepsake wall from the profile, carrying a live count of
+/// everything pinned there (squares and notes alike).
+class _KeepsakeWallTile extends StatefulWidget {
+  const _KeepsakeWallTile();
+
+  @override
+  State<_KeepsakeWallTile> createState() => _KeepsakeWallTileState();
+}
+
+class _KeepsakeWallTileState extends State<_KeepsakeWallTile> {
+  late final KeepsakeRepository _repository = sl<KeepsakeRepository>();
+
+  // Late-final stream discipline: one subscription, created once.
+  late final Stream<int> _count = _repository
+      .watchBoard()
+      .map((either) => either.fold((_) => -1, (items) => items.length));
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          leading: SketchGlyph(
+            kind: SketchIconKind.photoFrame,
+            color: theme.colorScheme.primary,
+          ),
+          title: const Text('Keepsake wall'),
+          subtitle: StreamBuilder<int>(
+            stream: _count,
+            builder: (context, snapshot) {
+              final count = snapshot.data;
+              final label = switch (count) {
+                null => 'Open the wall',
+                <= 0 => 'Nothing pinned yet',
+                1 => '1 thing pinned',
+                _ => '$count things pinned',
+              };
+              return Text(label);
+            },
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => KeepsakeBoardPage.show(
+            context,
+            repository: _repository,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -546,7 +811,7 @@ class _PolaroidThumb extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
+          border: Border.all(color: context.borderPlain), // 1px
         ),
         padding: const EdgeInsets.all(5),
         child: Column(

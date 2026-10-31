@@ -20,7 +20,8 @@ import '../../features/square/domain/repositories/feed_repository.dart';
 enum PersonRefKind { localUser, named }
 
 /// Opens a person from any name/avatar tap. Every surface routes the same
-/// way: the local user lands on their editable profile, a named person on
+/// way: the local user lands on their profile (edit lives behind its
+/// Edit button), a named person on
 /// `/person/:handle` with their recent Square posts.
 Future<void> openPerson(
   BuildContext context, {

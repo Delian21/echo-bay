@@ -105,10 +105,15 @@ void main() {
   );
 
   testWidgets(
-    'editing bio commits through the controller',
+    'Edit opens the one form screen; editing bio commits',
     (tester) async {
       await tester.pumpWidget(page());
       await tester.pump(const Duration(milliseconds: 200));
+
+      // The view shows no form: the only way in is the Edit button.
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
 
       await tester.enterText(
         find.widgetWithText(TextField, 'One line, in ink…'),
@@ -125,12 +130,13 @@ void main() {
     (tester) async {
       await tester.pumpWidget(page(repository: null));
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.scrollUntilVisible(
-        find.text('DISPLAY NAME'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
       expect(find.text('PINNED SQUARES'), findsNothing);
+      expect(find.text('PEOPLE'), findsOneWidget);
+
+      // The editor still exists behind Edit, and carries the form.
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      expect(find.text('DISPLAY NAME'), findsOneWidget);
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
