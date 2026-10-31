@@ -1,10 +1,11 @@
 # Screenshots
 
-Every screen of Echo Bay, light and dark, captured at phone size
-(390×844 CSS px at 2× — the PNGs are 780×1688).
+The shot list for every screen of Echo Bay, light and dark, at phone size
+(390×844 CSS px at 2× — the PNGs come out 780×1688).
 
-Captured from the production build at <https://echo-bay.netlify.app> on
-30 October 2026, driving headless Chrome over the DevTools protocol.
+The captures themselves are **not checked in** — they age faster than the
+code and add megabytes to every clone. Generate them with the driver below
+against the production build at <https://echo-bay.netlify.app>.
 
 | # | File stem | Screen |
 |---|-----------|--------|
@@ -29,7 +30,7 @@ Captured from the production build at <https://echo-bay.netlify.app> on
 | 19 | `person` | Another person's page (`@bo_tamm`) |
 | 20 | `settings` | Settings |
 
-`light/<stem>.png` and `dark/<stem>.png` for each row.
+The driver writes `light/<stem>.png` and `dark/<stem>.png` for each row.
 
 ## Things that are the app, not the capture
 
