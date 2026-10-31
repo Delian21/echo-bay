@@ -19,6 +19,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../../injection.dart';
+import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../keepsake/ui/keepsake_board_page.dart';
+import '../../square/ui/fab_bottom_bar.dart' show FabBottomBar;
 import 'daily_square_settings_card.dart';
 
 /// Settings — read/writes the [ThemeController] registered in get_it.
@@ -78,24 +81,34 @@ class SettingsPage extends StatelessWidget {
         centerTitle: false,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        // Clear the floating bottom nav: its own height plus the compose
+        // button's overhang, on top of the device's safe area.
+        padding: EdgeInsets.only(
+          top: 8,
+          bottom: 8 +
+              MediaQuery.paddingOf(context).bottom +
+              FabBottomBar.barHeight +
+              FabBottomBar.fabOverhang,
+        ),
         children: [
           // -- account -------------------------------------------------------
           if (onOpenProfile != null)
-            _SettingsNavTile(
-              glyph: SketchGlyph(
-                kind: SketchIconKind.personGlyph,
-                color: theme.colorScheme.primary,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: _SettingsNavTile(
+                  glyph: SketchGlyph(
+                    kind: SketchIconKind.personGlyph,
+                    color: theme.colorScheme.primary,
+                  ),
+                  label: 'Profile',
+                  subtitle: 'Name, picture & accent color',
+                  trailing: null,
+                  onTap: onOpenProfile,
+                ),
               ),
-              label: 'Profile',
-              subtitle: 'Name, picture & accent color',
-              trailing: null,
-              onTap: onOpenProfile,
             ),
-
-          // Close the book: signs out without deleting anything.
-          const _SectionHeader('Your book'),
-          const _CloseTheBookCard(),
 
           // -- install (web/Chrome only) ---------------------------------
           // The card only appears when Chrome's installability check has
@@ -236,6 +249,24 @@ class SettingsPage extends StatelessWidget {
             label: 'The Landline',
             subtitle: 'Voice & video · New',
           ),
+          // The wall's old Square-header button is gone; this is its
+          // front door now.
+          _SettingsNavTile(
+            glyph: SketchGlyph(
+              kind: SketchIconKind.photoFrame,
+              color: theme.colorScheme.primary,
+            ),
+            label: 'Keepsake wall',
+            subtitle: 'The squares and notes you\'ve pinned',
+            trailing: null,
+            onTap: () {
+              if (!sl.isRegistered<KeepsakeRepository>()) return;
+              KeepsakeBoardPage.show(
+                context,
+                repository: sl<KeepsakeRepository>(),
+              );
+            },
+          ),
 
           // -- your data ---------------------------------------------------
           const _SectionHeader('Your data'),
@@ -277,7 +308,11 @@ class SettingsPage extends StatelessWidget {
                 'The design is original — drawn for Echo Bay, not borrowed.',
             trailing: null,
           ),
-          const SizedBox(height: 24),
+
+          // -- account, signed off at the very bottom --------------------
+          // Close the book: signs out without deleting anything.
+          const _SectionHeader('Your book'),
+          const _CloseTheBookCard(),
         ],
       ),
     );
@@ -340,9 +375,15 @@ class _CloseTheBookCard extends StatelessWidget {
       child: Card(
         margin: EdgeInsets.zero,
         child: ListTile(
-          leading: SketchGlyph(
-            kind: SketchIconKind.closeX,
+          // Chalk, like the rest of the settings chrome: a door ajar with
+          // the pen arrow leaving through it.
+          leading: SketchIcon(
+            kind: SketchIconKind.signOut,
+            size: 22,
+            seed: 37,
             color: theme.colorScheme.onSurfaceVariant,
+            // The tile's text names the action; the glyph is decoration.
+            excludeFromSemantics: true,
           ),
           title: const Text('Close the book'),
           subtitle: const Text('Sign out. Your pages stay here.'),
@@ -561,7 +602,15 @@ class _BackupCard extends StatelessWidget {
                 'Every page — posts, messages, notes, the whole wall — as '
                 'one file.',
               ),
-              trailing: const Icon(Icons.download_rounded),
+              // Chalk arrows: the row's copy already names the action,
+              // so the glyph is decoration.
+              trailing: SketchIcon(
+                kind: SketchIconKind.download,
+                size: 20,
+                seed: 29,
+                color: theme.colorScheme.onSurfaceVariant,
+                excludeFromSemantics: true,
+              ),
               onTap: () => _export(context),
             ),
             const Divider(height: 1),
@@ -574,7 +623,13 @@ class _BackupCard extends StatelessWidget {
               subtitle: const Text(
                 'Bring a backup file back. Replaces what is here now.',
               ),
-              trailing: const Icon(Icons.upload_rounded),
+              trailing: SketchIcon(
+                kind: SketchIconKind.upload,
+                size: 20,
+                seed: 31,
+                color: theme.colorScheme.onSurfaceVariant,
+                excludeFromSemantics: true,
+              ),
               onTap: () => _import(context),
             ),
           ],
@@ -714,6 +769,9 @@ class _ThemeModeCard extends StatelessWidget {
                 child: Text('Theme', style: theme.textTheme.titleMedium),
               ),
               SegmentedButton<ThemeMode>(
+                // Fill the card: the three modes read as one control, not
+                // a small pill floating in the middle of a row.
+                expandedInsets: EdgeInsets.zero,
                 // Chalk glyphs (sun / crescent / circled-A) matching the
                 // rest of the chrome; Material icons when ink is off.
                 segments: [
