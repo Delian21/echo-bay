@@ -83,6 +83,19 @@ class _NexusModuleViewState extends State<NexusModuleView> {
             const SizedBox(width: 4),
           ],
           bottom: TabBar(
+            // A short accent underline under the selected label only:
+            // no tab-wide highlight block, no full-width divider line.
+            indicatorSize: TabBarIndicatorSize.label,
+            indicator: UnderlineTabIndicator(
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2.5,
+              ),
+              insets: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            dividerColor: Colors.transparent,
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            splashFactory: NoSplash.splashFactory,
             tabs: [
               Tab(
                 icon: SketchGlyph(
@@ -210,6 +223,7 @@ class _ChannelsTab extends StatelessWidget {
                   index: index - 1,
                   child: _ChannelTile(
                     channel: c,
+                    repository: repository,
                     onOpen: () {
                       Navigator.of(context).push(MaterialPageRoute<void>(
                         builder: (_) => NexusChannelPostsPage(
@@ -230,17 +244,21 @@ class _ChannelsTab extends StatelessWidget {
 }
 
 class _ChannelTile extends StatelessWidget {
-  const _ChannelTile({required this.channel, required this.onOpen});
+  const _ChannelTile({
+    required this.channel,
+    required this.repository,
+    required this.onOpen,
+  });
 
   final NexusChannel channel;
+  final NexusRepository repository;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Bulletin-board ink (spec §4): wobbly notebook box around each
-    // channel tile when the analog layer is on.
-    final useInk = GoldenHourExtension.of(context).enabled;
+    // List rows take the plain hairline: the wobbly stroke belongs to feed
+    // post cards only.
     final seed = channel.id.hashCode & 0x7FFFFFFF;
 
     final tileContent = Row(
@@ -248,10 +266,10 @@ class _ChannelTile extends StatelessWidget {
         CircleAvatar(
           radius: 24,
           backgroundColor: theme.colorScheme.tertiaryContainer,
-          // The sketch megaphone, not Material's — the tab above already
-          // carries the hand-drawn one, so the tile must match it.
+          // Per-channel chalk glyph: announcements broadcast, the log is
+          // written — two megaphones read as the same channel twice.
           child: SketchGlyph(
-            kind: SketchIconKind.megaphone,
+            kind: _channelGlyph(channel),
             size: 26,
             color: theme.colorScheme.onTertiaryContainer,
             seed: seed ^ 0x2C1,
@@ -272,7 +290,7 @@ class _ChannelTile extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 channel.description,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -281,12 +299,11 @@ class _ChannelTile extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          _timeLabel(channel.lastPostAt),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        // Measured from the newest real post, not the channel row's
+        // seed-time stamp — that one says "now" forever.
+        _ChannelActivityTime(
+          repository: repository,
+          channelId: channel.id,
         ),
         Icon(
           Icons.chevron_right_rounded,
@@ -301,26 +318,14 @@ class _ChannelTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onOpen,
-        child: useInk
-            ? SketchBox(
-                seed: seed,
-                radius: 8,
-                strokeWidth: 2,
-                color: SketchInk.of(context),
-                padding: const EdgeInsets.all(12),
-                child: tileContent,
-              )
-            : Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.5),
-                  ),
-                ),
-                child: tileContent,
-              ),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.borderPlain), // 1px
+          ),
+          child: tileContent,
+        ),
       ),
     );
 
@@ -330,8 +335,81 @@ class _ChannelTile extends StatelessWidget {
     );
   }
 
-  String _timeLabel(DateTime at) {
+  /// One glyph per channel, matched on the stable id first and the title
+  /// second (custom/named channels still get something sensible).
+  SketchIconKind _channelGlyph(NexusChannel channel) {
+    final id = channel.id.toLowerCase();
+    final title = channel.title.toLowerCase();
+    if (id.contains('ann') || title.contains('announce')) {
+      return SketchIconKind.megaphone;
+    }
+    if (id.contains('eng') ||
+        title.contains('engineering') ||
+        title.contains('log')) {
+      // Written record, not a broadcast.
+      return SketchIconKind.scribbleLine;
+    }
+    if (title.contains('design')) return SketchIconKind.plusCircle;
+    if (title.contains('random') || title.contains('chat')) {
+      return SketchIconKind.jaggedBubble;
+    }
+    return SketchIconKind.scribbleLine;
+  }
+}
+
+/// The row's relative time, read from the channel's newest post. No
+/// posts (or an empty/failed stream) means no label at all — there is
+/// no activity to time. Sub-second freshness stays quiet rather than
+/// printing a hard-coded "now".
+class _ChannelActivityTime extends StatefulWidget {
+  const _ChannelActivityTime({
+    required this.repository,
+    required this.channelId,
+  });
+
+  final NexusRepository repository;
+  final String channelId;
+
+  @override
+  State<_ChannelActivityTime> createState() => _ChannelActivityTimeState();
+}
+
+class _ChannelActivityTimeState extends State<_ChannelActivityTime> {
+  // Late-final stream discipline: watchChannelPosts() hands back a fresh
+  // stream per call, so one subscription per row, created once.
+  late final Stream<List<ChannelPost>> _posts = widget.repository
+      .watchChannelPosts(channelId: widget.channelId)
+      .map((either) => either.fold((_) => const <ChannelPost>[], (p) => p));
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return StreamBuilder<List<ChannelPost>>(
+      stream: _posts,
+      builder: (context, snapshot) {
+        final posts = snapshot.data ?? const <ChannelPost>[];
+        // The query orders newest first.
+        final label = posts.isEmpty ? null : _timeLabel(posts.first.createdAt);
+        if (label == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// A post inside the last minute reads "now" — the label is measured
+  /// from real activity, so that word is now true. A future stamp (clock
+  /// skew) still gets nothing: there is no elapsed time to report.
+  static String? _timeLabel(DateTime at) {
     final delta = DateTime.now().difference(at);
+    if (delta.isNegative) return null;
     if (delta.inMinutes < 1) return 'now';
     if (delta.inMinutes < 60) return '${delta.inMinutes}m';
     if (delta.inHours < 24) return '${delta.inHours}h';
@@ -517,10 +595,8 @@ class _GroupTile extends StatelessWidget {
       MemberRole.admin => 'Admin',
       MemberRole.member => 'Member',
     };
-    // Same bulletin-board ink as the Board tiles — the Nexus's second
-    // slice of the analog voice.
-    final useInk = GoldenHourExtension.of(context).enabled;
-    final seed = group.id.hashCode & 0x7FFFFFFF;
+    // Plain hairline, same as the Board tiles.
+
 
     final tileContent = Row(
               children: [
@@ -556,12 +632,13 @@ class _GroupTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text(
-                  _timeLabel(group.lastActivityAt),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                if (_timeLabel(group.lastActivityAt) case final label?)
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
               ],
             );
 
@@ -571,26 +648,14 @@ class _GroupTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onOpen,
-        child: useInk
-            ? SketchBox(
-                seed: seed,
-                radius: 8,
-                strokeWidth: 2,
-                color: SketchInk.of(context),
-                padding: const EdgeInsets.all(12),
-                child: tileContent,
-              )
-            : Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.5),
-                  ),
-                ),
-                child: tileContent,
-              ),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.borderPlain), // 1px
+          ),
+          child: tileContent,
+        ),
       ),
     );
 
@@ -600,9 +665,11 @@ class _GroupTile extends StatelessWidget {
     );
   }
 
-  String _timeLabel(DateTime at) {
+  /// Null under a minute: a group whose activity is "right now" gets no
+  /// label rather than a hard-coded "now" that never ages.
+  String? _timeLabel(DateTime at) {
     final delta = DateTime.now().difference(at);
-    if (delta.inMinutes < 1) return 'now';
+    if (delta.inMinutes < 1) return null;
     if (delta.inMinutes < 60) return '${delta.inMinutes}m';
     if (delta.inHours < 24) return '${delta.inHours}h';
     return '${delta.inDays}d';
