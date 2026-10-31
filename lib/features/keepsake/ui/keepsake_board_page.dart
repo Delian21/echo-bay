@@ -7,6 +7,7 @@ import 'pinned_reference_card.dart' show PinnedReferenceCard;
 import 'keepsake_stamp.dart' show KeepsakeStamp;
 
 import '../../../../core/atmosphere/atmosphere_controller.dart';
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/design_system/sketch_kit.dart';
 import '../../../../injection.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -14,6 +15,8 @@ import '../../../../core/database/app_database.dart' show KeepsakeKind;
 import '../../../../core/motion/rewind_scope.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/router/route_push.dart';
+import '../../square/domain/entities/post.dart';
+import '../../square/domain/repositories/feed_repository.dart';
 import '../domain/entities/keepsake_item.dart';
 import '../domain/repositories/keepsake_repository.dart';
 
@@ -42,6 +45,12 @@ class KeepsakeBoardPage extends StatefulWidget {
 class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
   Stream<List<KeepsakeItem>>? _stream;
   String? _pendingNoteTarget;
+
+  /// Board grounds. Light keeps the original tan cork; dark steps down to
+  /// a deeper walnut so the wall sits in the app's dark palette instead
+  /// of glaring, while the cream cards keep their contrast.
+  static const _lightWood = Color(0xFFD9B98A);
+  static const _darkWood = Color(0xFF3B2A1C);
 
   // Late-final stream discipline (ARCHITECTURE.md §8).
   Stream<List<KeepsakeItem>> get _boardStream =>
@@ -140,8 +149,17 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
   @override
   Widget build(BuildContext context) {
     final golden = GoldenHourExtension.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final wood = dark ? _darkWood : _lightWood;
     return Scaffold(
       appBar: AppBar(
+        // The wall is always a pushed screen, and its app bar carries no
+        // nav bar underneath — without this there was no way back.
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const SketchGlyph(kind: SketchIconKind.arrowBack),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: const Text('Keepsake wall'),
         actions: [
           IconButton(
@@ -175,12 +193,16 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
               Positioned.fill(
                 child: ColoredBox(
                   color: golden.enabled
-                      ? const Color(0xFFD9B98A)
+                      ? wood
                       : Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
               ),
-              // Hand-inked strings first (under the items).
-              ..._buildStrings(items),
+              // Hand-inked strings first (under the items). A light rope
+              // on dark wood, the original brown on tan.
+              ..._buildStrings(
+                items,
+                color: dark ? const Color(0xFFC9A97C) : const Color(0xFF6B4A2B),
+              ),
               // The pinned items.
               for (final item in items)
                 _KeepsakeCard(
@@ -202,14 +224,45 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
                 ),
               if (items.isEmpty)
                 Center(
-                  child: Text(
-                    'The wall is bare.\nPin a square or scratch a note.',
-                    textAlign: TextAlign.center,
-                    style: kHandwrittenTextStyle.copyWith(
-                      fontSize: 19,
-                      height: 1.4,
-                      color: Colors.brown.shade700,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'The wall is bare.\nPin a square or scratch a note.',
+                        textAlign: TextAlign.center,
+                        style: kHandwrittenTextStyle.copyWith(
+                          fontSize: 19,
+                          height: 1.4,
+                          color: dark
+                              ? const Color(0xFFEAD9BF)
+                              : Colors.brown.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _pinSquare,
+                            icon: const Icon(Icons.photo_outlined, size: 18),
+                            label: const Text('Pin a square'),
+                          ),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.surface,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onSurface,
+                            ),
+                            onPressed: _addNote,
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Scratch a note'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
             ],
@@ -221,9 +274,60 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
     );
   }
 
+  /// Pin one of the user's own squares: pick from a sheet, then use the
+  /// same repository call the Square card's pin action uses.
+  Future<void> _pinSquare() async {
+    final feed =
+        sl.isRegistered<FeedRepository>() ? sl<FeedRepository>() : null;
+    if (feed == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Open the Square to pin one from there.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final picked = await showModalBottomSheet<Post>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _SquarePickerSheet(feedRepository: feed),
+    );
+    if (picked == null || !mounted) return;
+    final result = await widget.repository.pinPost(
+      postId: picked.id,
+      posX: 0.1 + math.Random().nextDouble() * 0.5,
+      posY: 0.1 + math.Random().nextDouble() * 0.5,
+    );
+    if (!mounted) return;
+    if (result.isRight()) {
+      try {
+        unawaited(
+            sl<AtmosphereController>().play(AtmosphereSound.pageTurn));
+      } on Object {
+        // DI unavailable (tests): silence is fine.
+      }
+    }
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ??
+              "Couldn't pin that one — try again?"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) => ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pinned to the keepsake wall.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
   /// One wobbly ink line per strung pair (a -> strungTo), drawn in
   /// board coordinates via the board-size fractions.
-  List<Widget> _buildStrings(List<KeepsakeItem> items) {
+  List<Widget> _buildStrings(List<KeepsakeItem> items,
+      {required Color color}) {
     final byId = {for (final i in items) i.id: i};
     final strings = <Widget>[];
     for (final item in items) {
@@ -232,7 +336,11 @@ class _KeepsakeBoardPageState extends State<KeepsakeBoardPage> {
       strings.add(
         Positioned.fill(
           child: CustomPaint(
-            painter: _WobblyStringPainter(from: item, to: target),
+            painter: _WobblyStringPainter(
+              from: item,
+              to: target,
+              color: color,
+            ),
           ),
         ),
       );
@@ -404,10 +512,15 @@ class _KeepsakeCardState extends State<_KeepsakeCard> {
 /// jittered line in board-fraction coordinates (reusing the sketch ink
 /// vocabulary, per-point seeded so it is stable across rebuilds).
 class _WobblyStringPainter extends CustomPainter {
-  _WobblyStringPainter({required this.from, required this.to});
+  _WobblyStringPainter({
+    required this.from,
+    required this.to,
+    required this.color,
+  });
 
   final KeepsakeItem from;
   final KeepsakeItem to;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -421,7 +534,7 @@ class _WobblyStringPainter extends CustomPainter {
     );
 
     final paint = Paint()
-      ..color = const Color(0xFF6B4A2B)
+      ..color = color
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -440,5 +553,101 @@ class _WobblyStringPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WobblyStringPainter oldDelegate) =>
-      oldDelegate.from != from || oldDelegate.to != to;
+      oldDelegate.from != from ||
+      oldDelegate.to != to ||
+      oldDelegate.color != color;
+}
+
+/// Bottom sheet behind the wall's "Pin a square" action: the local
+/// user's own posts, newest first. Tapping one returns it to the wall,
+/// which pins it through [KeepsakeRepository] — the same call the Square
+/// card's pin affordance makes. Read-only: no post is changed here.
+class _SquarePickerSheet extends StatefulWidget {
+  const _SquarePickerSheet({required this.feedRepository});
+
+  final FeedRepository feedRepository;
+
+  @override
+  State<_SquarePickerSheet> createState() => _SquarePickerSheetState();
+}
+
+class _SquarePickerSheetState extends State<_SquarePickerSheet> {
+  // Late-final stream discipline: one subscription per sheet.
+  late final Stream<List<Post>> _stream = widget.feedRepository
+      .watchFeed()
+      .map((either) => either.fold((_) => const <Post>[], (posts) => posts));
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: SizedBox(
+        height: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Text(
+                'Pin a square',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<Post>>(
+                stream: _stream,
+                builder: (context, snapshot) {
+                  final posts = (snapshot.data ?? const <Post>[])
+                      .where((p) => LocalIdentity.owns(p.authorId))
+                      .toList();
+                  if (posts.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Nothing of yours on the Square yet.\n'
+                          'Post something, then pin it here.',
+                          textAlign: TextAlign.center,
+                          style: kHandwrittenTextStyle.copyWith(
+                            fontSize: 18,
+                            height: 1.4,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount: posts.length,
+                    itemBuilder: (context, index) {
+                      final post = posts[index];
+                      final body = post.body.trim();
+                      return ListTile(
+                        leading: SketchGlyph(
+                          kind: SketchIconKind.photoFrame,
+                          color: theme.colorScheme.primary,
+                        ),
+                        title: Text(
+                          body.isEmpty ? 'A square without words' : body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${post.createdAt.day}/'
+                          '${post.createdAt.month}/'
+                          '${post.createdAt.year}',
+                        ),
+                        onTap: () => Navigator.of(context).pop(post),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
