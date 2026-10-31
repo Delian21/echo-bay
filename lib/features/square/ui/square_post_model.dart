@@ -86,9 +86,13 @@ class SquarePost {
   }
 
   /// "1,204" / "12.4k" formatting for the like counter.
-  String get likesLabel {
-    if (likesCount < 1000) return '$likesCount';
-    final k = likesCount / 1000;
-    return k < 10 ? '${k.toStringAsFixed(1)}k' : '${k.round()}k';
-  }
+  String get likesLabel => formatCount(likesCount);
+}
+
+/// Compact count for the action row ("3", "1.2k") — shared so likes and
+/// comments read at the same scale.
+String formatCount(int count) {
+  if (count < 1000) return '$count';
+  final k = count / 1000;
+  return k < 10 ? '${k.toStringAsFixed(1)}k' : '${k.round()}k';
 }

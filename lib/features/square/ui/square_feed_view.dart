@@ -20,6 +20,7 @@ import '../../../core/error/failures.dart';
 import '../../../injection.dart';
 import '../../social/domain/repositories/follow_repository.dart';
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../social/domain/entities/social_entities.dart';
 import '../../social/domain/repositories/social_repository.dart';
 import '../../social/ui/comments_sheet.dart';
 import '../../../core/theme/app_theme.dart';
@@ -449,37 +450,41 @@ class _SquareFeedViewState extends State<SquareFeedView> {
         final focused = postIndex == _focusedIndex;
         return StaggeredEntrance(
           index: postIndex,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.fromBorderSide(
-                BorderSide(
-                  color: focused
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.transparent,
-                  width: 2,
+          child: _CommentCount(
+            postId: _posts[postIndex].id,
+            builder: (context, commentCount) => DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.fromBorderSide(
+                  BorderSide(
+                    color: focused
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
               ),
-            ),
-            child: SquareFeedCard(
-              post: _toModel(_posts[postIndex]),
-              onLike: () => _toggleLike(_posts[postIndex]),
-              onDelete: LocalIdentity.owns(_posts[postIndex].authorId)
-                  ? () => _deletePost(_posts[postIndex])
-                  : null,
-              onShare: () => sharePost(context, _posts[postIndex]),
-              onComment: () => CommentsSheet.show(
-                context,
-                repository: sl<SocialRepository>(),
-                postId: _posts[postIndex].id,
+              child: SquareFeedCard(
+                post: _toModel(_posts[postIndex]),
+                commentCount: commentCount,
+                onLike: () => _toggleLike(_posts[postIndex]),
+                onDelete: LocalIdentity.owns(_posts[postIndex].authorId)
+                    ? () => _deletePost(_posts[postIndex])
+                    : null,
+                onShare: () => sharePost(context, _posts[postIndex]),
+                onComment: () => CommentsSheet.show(
+                  context,
+                  repository: sl<SocialRepository>(),
+                  postId: _posts[postIndex].id,
+                ),
+                onPinToWall: _posts[postIndex].authorId == _localUserId
+                    ? () => _pinToWall(_posts[postIndex])
+                    : null,
+                onKeep: _posts[postIndex].authorId == _localUserId &&
+                        _posts[postIndex].expiresAt != null
+                    ? () => _keepPost(_posts[postIndex])
+                    : null,
               ),
-              onPinToWall: _posts[postIndex].authorId == _localUserId
-                  ? () => _pinToWall(_posts[postIndex])
-                  : null,
-              onKeep: _posts[postIndex].authorId == _localUserId &&
-                      _posts[postIndex].expiresAt != null
-                  ? () => _keepPost(_posts[postIndex])
-                  : null,
             ),
           ),
         );
@@ -574,22 +579,26 @@ class SquareDayViewPage extends StatelessWidget {
                     itemCount: posts.length,
                     itemBuilder: (context, index) {
                       final p = posts[index];
-                      return SquareFeedCard(
-                        post: SquarePost(
-                          id: p.id,
-                          username: p.authorName,
-                          userAvatarUrl:
-                              'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=faces&q=80',
-                          timestamp: p.createdAt,
-                          caption: p.body,
-                          mediaUrl: p.mediaUrl,
-                          blurhash: p.blurhash,
-                          likesCount: p.likesCount,
-                          isLiked: p.isLiked,
-                          expiresAt: p.expiresAt,
+                      return _CommentCount(
+                        postId: p.id,
+                        builder: (context, commentCount) => SquareFeedCard(
+                          post: SquarePost(
+                            id: p.id,
+                            username: p.authorName,
+                            userAvatarUrl:
+                                'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop&crop=faces&q=80',
+                            timestamp: p.createdAt,
+                            caption: p.body,
+                            mediaUrl: p.mediaUrl,
+                            blurhash: p.blurhash,
+                            likesCount: p.likesCount,
+                            isLiked: p.isLiked,
+                            expiresAt: p.expiresAt,
+                          ),
+                          commentCount: commentCount,
+                          onLike: () {},
+                          onShare: () => sharePost(context, p),
                         ),
-                        onLike: () {},
-                        onShare: () => sharePost(context, p),
                       );
                     },
                   ),
@@ -714,6 +723,30 @@ class _FeedErrorState extends StatelessWidget {
           FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
+    );
+  }
+}
+
+/// Live comment count for one post, so the action row agrees with the
+/// comments sheet. Returns 0 when the social layer is not registered
+/// (tests, stripped builds) — the count is decoration, never a reason to
+/// fail the feed.
+class _CommentCount extends StatelessWidget {
+  const _CommentCount({required this.postId, required this.builder});
+
+  final String postId;
+  final Widget Function(BuildContext context, int count) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!sl.isRegistered<SocialRepository>()) return builder(context, 0);
+    return StreamBuilder<Either<Failure, List<PostComment>>>(
+      stream: sl<SocialRepository>().watchComments(postId),
+      builder: (context, snapshot) {
+        final count =
+            snapshot.data?.fold((_) => 0, (comments) => comments.length) ?? 0;
+        return builder(context, count);
+      },
     );
   }
 }

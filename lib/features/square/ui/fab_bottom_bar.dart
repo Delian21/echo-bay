@@ -48,7 +48,13 @@ class FabBottomBar extends StatelessWidget {
   /// True: classic M3 notch cutout. False: flat-docked FAB (subtler).
   final bool showNotch;
 
-  static const _barHeight = 64.0;
+  /// Height of the bar itself (excluding safe-area inset).
+  static const double barHeight = 64.0;
+
+  /// How far the docked compose button rises above the bar's top edge.
+  static const double fabOverhang = 28.0;
+
+  static const _barHeight = barHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -251,8 +257,19 @@ class ComposeFab extends StatelessWidget {
         child: FloatingActionButton(
           onPressed: onPressed,
           elevation: 2,
-          child: const SketchIcon(
-              kind: SketchIconKind.plusCircle, size: 26, seed: 67),
+          // Solid accent + its derived foreground: the M3 default container
+          // was a pale peach in light mode that all but vanished against
+          // the paper. Same orange the dark theme already shows.
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          // SketchIcon paints its own stroke; it must be told the derived
+          // foreground or the chalk glyph lands on orange at ~2:1.
+          child: SketchIcon(
+            kind: SketchIconKind.plusCircle,
+            size: 26,
+            seed: 67,
+            color: Theme.of(context).colorScheme.onPrimary,
+          ),
         ),
       ),
     );

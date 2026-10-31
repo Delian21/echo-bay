@@ -33,12 +33,17 @@ class SquareFeedCard extends StatelessWidget {
     this.onDelete,
     this.onKeep,
     this.onPinToWall,
+    this.commentCount = 0,
   });
 
   final SquarePost post;
   final VoidCallback onLike;
   final VoidCallback? onComment;
   final VoidCallback? onShare;
+
+  /// Live comment count shown beside the bubble; the feed feeds this from
+  /// [SocialRepository.watchComments]. Zero when the social layer is off.
+  final int commentCount;
 
   /// Delete own post; null hides the affordance. Played through the
   /// rewind effect — removing a post is the purest "undo a moment".
@@ -63,12 +68,11 @@ class SquareFeedCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Theme.of(context)
-                .colorScheme
-                .outlineVariant
-                .withValues(alpha: 0.6),
-          ),
+          // One border per card. Ink mode draws the wobbly frame outside;
+          // the stock theme has no frame, so it keeps the plain hairline.
+          border: golden.enabled
+              ? null
+              : Border.all(color: context.borderPlain),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
@@ -90,6 +94,7 @@ class SquareFeedCard extends StatelessWidget {
                 onShare: onShare,
                 onKeep: onKeep,
                 onPinToWall: onPinToWall,
+                commentCount: commentCount,
               ),
             ],
           ),
@@ -150,7 +155,7 @@ class SquareFeedCard extends StatelessWidget {
             seed: post.id.hashCode & 0x7FFFFFFF,
             radius: 6,
             strokeWidth: 2,
-            color: SketchInk.of(context),
+            // The wobbly stroke is the theme token (cream @ 40% in dark).
             fill: golden.polaroidPaper,
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
             child: Opacity(
@@ -754,12 +759,14 @@ class _CardFooter extends StatefulWidget {
     this.onShare,
     this.onKeep,
     this.onPinToWall,
+    this.commentCount = 0,
   });
 
   final SquarePost post;
   final VoidCallback onLike;
   final VoidCallback? onComment;
   final VoidCallback? onShare;
+  final int commentCount;
 
   /// "Keep it" — makes an ephemeral post permanent. Null hides it.
   final VoidCallback? onKeep;
@@ -908,6 +915,12 @@ class _CardFooterState extends State<_CardFooter> {
                   tooltip: 'Comment',
                   onTap: widget.onComment ?? () {},
                 ),
+              const SizedBox(width: 6),
+              Text(
+                formatCount(widget.commentCount),
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
               if (widget.onPinToWall != null) ...[
                 const SizedBox(width: 4),
                 if (useInk)
@@ -924,18 +937,14 @@ class _CardFooterState extends State<_CardFooter> {
                   ),
               ],
               const Spacer(),
-              if (useInk)
-                sketchAction(
-                  kind: SketchIconKind.paperPlane,
-                  tooltip: 'Share',
-                  onTap: widget.onShare ?? () {},
-                )
-              else
-                _ActionIcon(
-                  icon: Icons.ios_share_rounded,
-                  tooltip: 'Share',
-                  onTap: widget.onShare ?? () {},
-                ),
+              // A paper plane promised "send a message"; this opens the
+              // share sheet, so it wears the platform share mark.
+              _ActionIcon(
+                icon: Icons.ios_share_rounded,
+                tooltip: 'Share post',
+                semanticsLabel: 'Share this post',
+                onTap: widget.onShare ?? () {},
+              ),
             ],
           ),
           if (post.expiresAt != null) ...[
@@ -1051,6 +1060,7 @@ class _ActionIcon extends StatelessWidget {
     required this.onTap,
     this.color,
     this.tooltip,
+    this.semanticsLabel,
     this.scaleFrom = 1.0,
   });
 
@@ -1058,6 +1068,9 @@ class _ActionIcon extends StatelessWidget {
   final VoidCallback onTap;
   final Color? color;
   final String? tooltip;
+
+  /// Screen-reader name; replaces the raw icon's semantics when set.
+  final String? semanticsLabel;
   final double scaleFrom;
 
   @override
@@ -1075,6 +1088,14 @@ class _ActionIcon extends StatelessWidget {
     );
     if (tooltip != null) {
       button = Tooltip(message: tooltip!, child: button);
+    }
+    if (semanticsLabel != null) {
+      button = Semantics(
+        button: true,
+        label: semanticsLabel,
+        excludeSemantics: true,
+        child: button,
+      );
     }
     return button;
   }

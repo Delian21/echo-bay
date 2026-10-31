@@ -16,7 +16,6 @@ import '../../calls/ui/calls_module_view.dart';
 import '../../nexus/domain/repositories/nexus_repository.dart';
 import '../../nexus/ui/nexus_module_view.dart';
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
-import '../../keepsake/ui/keepsake_board_page.dart';
 import '../../square/data/datasources/square_local_datasource.dart';
 import '../../profile/ui/profile_page.dart';
 import '../../social/domain/repositories/follow_repository.dart';
@@ -411,15 +410,20 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
         title: const Text('The Square'),
         centerTitle: false,
         actions: [
-          IconButton(
-            tooltip: 'Search',
-            icon: const SketchGlyph(kind: SketchIconKind.searchGlass),
-            onPressed: () => pushDestination(
-              context,
-              AppRoutes.search,
-              fallback: () => SearchPage(
-                searchRepository: sl<SearchRepository>(),
-                settingsStore: sl<AppSettingsStore>(),
+          Semantics(
+            button: true,
+            label: 'Search posts and people',
+            excludeSemantics: true,
+            child: IconButton(
+              tooltip: 'Search posts and people',
+              icon: const SketchGlyph(kind: SketchIconKind.searchGlass),
+              onPressed: () => pushDestination(
+                context,
+                AppRoutes.search,
+                fallback: () => SearchPage(
+                  searchRepository: sl<SearchRepository>(),
+                  settingsStore: sl<AppSettingsStore>(),
+                ),
               ),
             ),
           ),
@@ -428,123 +432,95 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           // headers carry the actual call buttons. Profile took the
           // Landline's bottom-bar slot on mobile; the desktop rail is
           // unchanged (Landline remains a rail destination there).
-          IconButton(
-            tooltip: 'The Landline',
-            icon: const SketchGlyph(kind: SketchIconKind.handset),
-            onPressed: () => pushDestination(
-              context,
-              AppRoutes.calls,
-              fallback: () =>
-                  CallsModuleView(repository: _callsRepository),
+          Semantics(
+            button: true,
+            label: 'Open the Landline call log',
+            excludeSemantics: true,
+            child: IconButton(
+              tooltip: 'Landline calls',
+              icon: const SketchGlyph(kind: SketchIconKind.handset),
+              onPressed: () => pushDestination(
+                context,
+                AppRoutes.calls,
+                fallback: () =>
+                    CallsModuleView(repository: _callsRepository),
+              ),
             ),
           ),
           // Notices bell: unread comments/reactions from the Square's
           // regulars. Badge via live count; hidden when DI has no
           // social source (tests).
           if (_hasSocialSource)
-            IconButton(
-              tooltip: 'Notices',
-              onPressed: _openNotifications,
-              icon: StreamBuilder<int>(
-                stream: _socialUnreadStream(),
-                builder: (context, snapshot) {
-                  final unread = snapshot.data ?? 0;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const SketchGlyph(
-                          kind: SketchIconKind.jaggedBubble),
-                      if (unread > 0)
-                        const Positioned(
-                          right: -3,
-                          top: -3,
-                          child: CustomPaint(
-                            size: Size(7, 7),
-                            painter: UnreadScribbleDot(),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          // Keepsake wall: pinned squares + handwritten notes. The
-          // scribble count on the glyph is the live pin count — an
-          // empty wall is never a surprise.
-          IconButton(
-            tooltip: 'Keepsake wall',
-            onPressed: () => KeepsakeBoardPage.show(
-              context,
-              repository: sl<KeepsakeRepository>(),
-            ),
-            icon: !sl.isRegistered<KeepsakeRepository>()
-                ? const SketchGlyph(kind: SketchIconKind.spiralHub)
-                : StreamBuilder<int>(
-              stream: sl<KeepsakeRepository>()
-                  .watchBoard()
-                  .map((either) => either.fold((_) => 0, (l) => l.length)),
-              builder: (context, snapshot) {
-                final pins = snapshot.data ?? 0;
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const SketchGlyph(kind: SketchIconKind.spiralHub),
-                    if (pins > 0)
-                      Positioned(
-                        right: -5,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 3, vertical: 0.5),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          constraints: const BoxConstraints(minWidth: 13),
-                          child: Text(
-                            pins > 99 ? '99+' : '$pins',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                              color: AccentDerivation.of(
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context).brightness,
-                              ).onPrimary,
+            Semantics(
+              button: true,
+              label: 'Open notices',
+              excludeSemantics: true,
+              child: IconButton(
+                tooltip: 'Notices',
+                onPressed: _openNotifications,
+                icon: StreamBuilder<int>(
+                  stream: _socialUnreadStream(),
+                  builder: (context, snapshot) {
+                    final unread = snapshot.data ?? 0;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const SketchGlyph(
+                            kind: SketchIconKind.jaggedBubble),
+                        if (unread > 0)
+                          const Positioned(
+                            right: -3,
+                            top: -3,
+                            child: CustomPaint(
+                              size: Size(7, 7),
+                              painter: UnreadScribbleDot(),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
-                );
-              },
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
+          // The spiralHub "Keepsake wall" button used to sit here. Its
+          // glyph duplicated the Hallway tab in the bottom navigation, so
+          // the header is down to four actions; the wall itself remains
+          // reachable at AppRoutes.keepsake.
           // Wide: the rail foot already carries Settings, so the
           // header's last slot goes to Time travel — the rewind
           // spiral, the app's undo mark. Tap toggles: into yesterday,
           // or back out through the rewind animation. Narrow keeps the
           // gear instead: the mobile bar has no Settings destination.
           if (mobile)
-            IconButton(
-              tooltip: 'Settings',
-              icon: const SketchGlyph(kind: SketchIconKind.cog),
-              onPressed: _selectSettings,
+            Semantics(
+              button: true,
+              label: 'Open settings',
+              excludeSemantics: true,
+              child: IconButton(
+                tooltip: 'Open settings',
+                icon: const SketchGlyph(kind: SketchIconKind.cog),
+                onPressed: _selectSettings,
+              ),
             )
           else
-            IconButton(
-              tooltip: 'Time travel',
-              icon: const SketchGlyph(kind: SketchIconKind.rewindSpiral),
-              onPressed: () {
-                final travel = TimeTravelScope.maybeOf(context);
-                if (travel == null) return; // bare test harness
-                if (travel.isActive) {
-                  RewindScope.rewind(context, travel.exit);
-                } else {
-                  travel.enter(DateTime.now().subtract(const Duration(days: 1)));
-                }
-              },
+            Semantics(
+              button: true,
+              label: 'Time travel to yesterday',
+              excludeSemantics: true,
+              child: IconButton(
+                tooltip: 'Time travel',
+                icon: const SketchGlyph(kind: SketchIconKind.rewindSpiral),
+                onPressed: () {
+                  final travel = TimeTravelScope.maybeOf(context);
+                  if (travel == null) return; // bare test harness
+                  if (travel.isActive) {
+                    RewindScope.rewind(context, travel.exit);
+                  } else {
+                    travel.enter(
+                        DateTime.now().subtract(const Duration(days: 1)));
+                  }
+                },
+              ),
             ),
           // No New post button here: the compose FAB owns that action
           // (the duplicate button doubled the entry points for no
@@ -555,7 +531,36 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           const SizedBox(width: 4),
         ],
       ),
-      body: SquareFeedView(repository: sl<FeedRepository>()),
+      body: Stack(
+        children: [
+          SquareFeedView(repository: sl<FeedRepository>()),
+          // 24px fade into the background just above the bottom bar, so a
+          // post never appears sliced off by the navigation chrome.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 24,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context)
+                          .colorScheme
+                          .surface
+                          .withValues(alpha: 0),
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -343,7 +343,6 @@ class _PostComposerState extends State<_PostComposer> {
                   ? SketchBox(
                       seed: _media!.path.hashCode & 0x7FFFFFFF,
                       radius: 8,
-                      color: SketchInk.of(context),
                       child: _MediaPreview(
                         media: _media!,
                         isVideo: _mediaIsVideo,
@@ -359,7 +358,8 @@ class _PostComposerState extends State<_PostComposer> {
           ],
           const SizedBox(height: 8),
           // "Fades in 24h": hand-drawn toggle row. The post prints like a
-          // polaroid left in the sun — gone by tomorrow unless kept.
+          // polaroid left in the sun — gone by tomorrow unless kept. The
+          // label states the current choice, not just the switch's name.
           Row(
             children: [
               const SketchIcon(
@@ -368,7 +368,11 @@ class _PostComposerState extends State<_PostComposer> {
                 seed: 71,
               ),
               const SizedBox(width: 8),
-              const Expanded(child: Text('Fades in 24h')),
+              Expanded(
+                child: Text(
+                  _ephemeral ? 'Fades in 24h' : 'Stays on your Square',
+                ),
+              ),
               Switch.adaptive(
                 value: _ephemeral,
                 onChanged: _sending ? null : (v) => setState(() => _ephemeral = v),
@@ -381,15 +385,25 @@ class _PostComposerState extends State<_PostComposer> {
               // Media attachment: photo + video pickers, desktop-friendly
               // (file dialogs on Windows). Attach without text — the
               // publish gate accepts caption-or-media.
-              IconButton.filledTonal(
+              // Attachment buttons wear the app's accent (primary), not
+              // the tonal yellow container: accent == the thing you press.
+              IconButton.filled(
                 tooltip: 'Attach photo',
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
                 onPressed: _sending ? null : _pickImage,
                 icon: const SketchIcon(
                     kind: SketchIconKind.photoFrame, size: 22, seed: 47),
               ),
               const SizedBox(width: 8),
-              IconButton.filledTonal(
+              IconButton.filled(
                 tooltip: 'Attach video',
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
                 onPressed: _sending ? null : _pickVideo,
                 icon: const SketchIcon(
                     kind: SketchIconKind.videoCam, size: 22, seed: 53),
