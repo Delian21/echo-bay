@@ -3,24 +3,22 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'sketch_kit.dart';
 
-/// The app's hand-inked segmented control: wobbly cells on paper, the
-/// selected one cross-hatched like a few pencil passes that never quite
-/// fill the space. Hatch carries the selection, so the label stays
-/// ink-on-paper and readable whatever the accent.
+/// The app's segmented control: ink-lined cells on paper, the selected one
+/// filled solid with the accent. The label rides `onPrimary`, which the
+/// theme derives for WCAG contrast — a hatch behind text was unreadable at
+/// small sizes and washed out on pale accents.
 class InkedSegmentedControl extends StatelessWidget {
   const InkedSegmentedControl({
     super.key,
     required this.segments,
     required this.selectedIndex,
     required this.onSelected,
-    this.seed = 7,
   });
 
   /// One cell: its label and an optional chalk glyph.
   final List<({String label, SketchIconKind? icon})> segments;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
-  final int seed;
 
   @override
   Widget build(BuildContext context) {
@@ -57,27 +55,11 @@ class InkedSegmentedControl extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // The hatch sits behind the label: the selected
-                        // cell reads as shaded paper, not a solid block.
+                        // Solid accent fill: the selected cell is a marker
+                        // highlight, not a hatch. No texture — the label has
+                        // to stay crisp.
                         if (i == selectedIndex)
-                          LayoutBuilder(
-                            builder: (context, constraints) => ScribbleFill(
-                              sketchPath: Path()
-                                ..addRRect(RRect.fromRectAndRadius(
-                                  Offset.zero &
-                                      Size(constraints.maxWidth,
-                                          constraints.maxHeight),
-                                  const Radius.circular(10),
-                                )),
-                              seed: seed + i,
-                              color: theme.colorScheme.primary,
-                              opacity: 0.55,
-                              density: ScribbleFill.adaptiveDensity(
-                                Size(constraints.maxWidth,
-                                    constraints.maxHeight),
-                              ),
-                            ),
-                          ),
+                          ColoredBox(color: theme.colorScheme.primary),
                         if (i > 0)
                           Align(
                             alignment: Alignment.centerLeft,
@@ -94,7 +76,12 @@ class InkedSegmentedControl extends StatelessWidget {
                                 SketchGlyph(
                                   kind: segment.icon!,
                                   size: 18,
-                                  color: theme.colorScheme.onSurface,
+                                  color: i == selectedIndex
+                                      ? theme.colorScheme.onPrimary
+                                      : (useInk
+                                          ? theme.colorScheme.onSurface
+                                          : theme
+                                              .colorScheme.onSurfaceVariant),
                                 ),
                                 const SizedBox(width: 6),
                               ],
@@ -103,7 +90,9 @@ class InkedSegmentedControl extends StatelessWidget {
                                 style: useInk
                                     ? kHandwrittenTextStyle.copyWith(
                                         fontSize: 18,
-                                        color: theme.colorScheme.onSurface,
+                                        color: i == selectedIndex
+                                            ? theme.colorScheme.onPrimary
+                                            : theme.colorScheme.onSurface,
                                       )
                                     : theme.textTheme.labelLarge
                                         ?.copyWith(
@@ -111,7 +100,7 @@ class InkedSegmentedControl extends StatelessWidget {
                                             ? FontWeight.w800
                                             : FontWeight.w600,
                                         color: i == selectedIndex
-                                            ? theme.colorScheme.onSurface
+                                            ? theme.colorScheme.onPrimary
                                             : theme
                                                 .colorScheme.onSurfaceVariant,
                                       ),
