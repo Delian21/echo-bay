@@ -16,10 +16,15 @@ class StatusTick extends StatelessWidget {
     super.key,
     required this.status,
     this.size = 16,
+    this.onAccent = false,
   });
 
   final ChatStatus status;
   final double size;
+
+  /// The tick is drawn on an accent-filled bubble (my own messages), so its
+  /// colors come from `onPrimary` instead of the neutral-bubble tokens.
+  final bool onAccent;
 
   @override
   Widget build(BuildContext context) {
@@ -27,15 +32,19 @@ class StatusTick extends StatelessWidget {
     final tokens = AppThemeExtension.of(context);
     final useInk = GoldenHourExtension.of(context).enabled;
 
+    final idle = onAccent ? scheme.onPrimary : scheme.onSurfaceVariant;
+    final read = onAccent ? scheme.onPrimary : tokens.readAccent;
+    final failed = onAccent ? scheme.onPrimary : scheme.error;
+
     if (!useInk) {
       final (icon, color) = switch (status) {
         ChatStatus.pending || ChatStatus.sent => (
             Icons.schedule_outlined,
-            scheme.onSurfaceVariant
+            idle
           ),
-        ChatStatus.delivered => (Icons.done_all, scheme.onSurfaceVariant),
-        ChatStatus.read => (Icons.done_all, tokens.readAccent),
-        ChatStatus.failed => (Icons.error_outline, scheme.error),
+        ChatStatus.delivered => (Icons.done_all, idle),
+        ChatStatus.read => (Icons.done_all, read),
+        ChatStatus.failed => (Icons.error_outline, failed),
       };
       return Icon(icon, size: size, color: color);
     }
@@ -44,9 +53,9 @@ class StatusTick extends StatelessWidget {
       ChatStatus.pending ||
       ChatStatus.sent ||
       ChatStatus.delivered =>
-        scheme.onSurfaceVariant,
-      ChatStatus.read => tokens.readAccent,
-      ChatStatus.failed => scheme.error,
+        idle,
+      ChatStatus.read => read,
+      ChatStatus.failed => failed,
     };
     final kind = switch (status) {
       ChatStatus.pending => SketchIconKind.clockTick,

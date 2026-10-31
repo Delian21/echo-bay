@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/local_identity.dart';
+import '../../../../core/design_system/chat_bubble_layout.dart';
 import '../../../../core/design_system/sketch_kit.dart';
 
 import '../../../../core/design_system/status_tick.dart';
@@ -45,25 +46,12 @@ class ChatBubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final isMine = LocalIdentity.owns(message.senderId);
+    final bodyColor = chatBubbleForeground(context, isMine: isMine);
+    final metaColor = chatBubbleMetaForeground(context, isMine: isMine);
 
-    final bubbleColor = isMine
-        ? scheme.primary.withValues(alpha: 0.16)
-        : scheme.surfaceContainerHighest;
-
-    final bubble = Container(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.widthOf(context) * 0.78,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: bubbleColor,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isMine ? 16 : 4),
-          bottomRight: Radius.circular(isMine ? 4 : 16),
-        ),
-      ),
+    final bubble = ChatBubbleFrame(
+      isMine: isMine,
+      closesRun: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -74,14 +62,18 @@ class ChatBubble extends StatelessWidget {
               child: Text(
                 message.senderId, // peer display name once contacts exist
                 style: text.labelSmall!.copyWith(
-                  color: scheme.secondary,
+                  color: AccentDerivation.higherContrast(
+                    scheme.surfaceContainerHighest,
+                    scheme.secondary,
+                    scheme.onSurface,
+                  ),
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           Text(
             message.body,
-            style: text.bodyMedium,
+            style: text.bodyMedium?.copyWith(color: bodyColor),
           ),
           const SizedBox(height: 3),
           Row(
@@ -91,18 +83,23 @@ class ChatBubble extends StatelessWidget {
                 SketchIcon(
                   kind: SketchIconKind.padlock,
                   size: 11,
-                  color: AppThemeExtension.of(context).encrypted,
+                  color: isMine
+                      ? scheme.onPrimary
+                      : AppThemeExtension.of(context).encrypted,
                   seed: 71,
                 ),
                 const SizedBox(width: 4),
               ],
               Text(
                 _hhmm(message.createdAt),
-                style: text.labelSmall,
+                style: text.labelSmall?.copyWith(color: metaColor),
               ),
               if (isMine) ...[
                 const SizedBox(width: 4),
-                StatusTick(status: chatStatusFrom(message)),
+                StatusTick(
+                  status: chatStatusFrom(message),
+                  onAccent: true,
+                ),
               ],
             ],
           ),

@@ -5,6 +5,7 @@ import 'package:fpdart/fpdart.dart' hide State;
 
 import '../../../core/attachments/attachment.dart';
 import '../../../core/attachments/attachment_media_view.dart';
+import '../../../core/design_system/chat_bubble_layout.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
@@ -803,13 +804,40 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
                       itemCount: messages.length,
                       itemBuilder: (context, index) {
                         final m = messages[index];
+                        final prev = index > 0 ? messages[index - 1] : null;
+                        final next = index + 1 < messages.length
+                            ? messages[index + 1]
+                            : null;
                         // Same sender-run rule as the Vault: a message
                         // opens a run when the sender changes (or it's
-                        // the oldest), which drives both the spacing
-                        // and the sender-name line.
-                        final opensRun = index == 0 ||
-                            messages[index - 1].senderId != m.senderId;
-                        return _GroupBubble(message: m, opensRun: opensRun);
+                        // the oldest), which drives the spacing and the
+                        // sender-name line; the run's last message carries
+                        // the clock. A day change drops a separator.
+                        final opensRun = startsChatRun(
+                          senderId: m.senderId,
+                          createdAt: m.createdAt,
+                          previousSenderId: prev?.senderId,
+                          previousCreatedAt: prev?.createdAt,
+                        );
+                        final closesRun = next == null ||
+                            next.senderId != m.senderId ||
+                            next.createdAt.difference(m.createdAt) >=
+                                kChatRunWindow;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (prev == null ||
+                                !isSameChatDay(prev.createdAt, m.createdAt))
+                              ChatDaySeparator(
+                                  label: chatDayLabel(m.createdAt)),
+                            _GroupBubble(
+                              message: m,
+                              opensRun: opensRun,
+                              closesRun: closesRun,
+                            ),
+                          ],
+                        );
                       },
                     );
                   },
@@ -820,7 +848,6 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
           InkChatComposer(
             controller: _composer,
             enabled: !_sending,
-            seed: widget.group.id.hashCode & 0x7FFFFFFF,
             hintText: 'Message the dorm',
             onSendWithAttachment: _sendWithAttachment,
             onSendText: _send,
@@ -832,7 +859,11 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
 }
 
 class _GroupBubble extends StatelessWidget {
-  const _GroupBubble({required this.message, required this.opensRun});
+  const _GroupBubble({
+    required this.message,
+    required this.opensRun,
+    required this.closesRun,
+  });
 
   final GroupMessage message;
 
@@ -841,13 +872,16 @@ class _GroupBubble extends StatelessWidget {
   /// the run stacks tight underneath it.
   final bool opensRun;
 
+  /// True for the run's last message — it carries the clock and the
+  /// tail corner.
+  final bool closesRun;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mine = LocalIdentity.owns(message.senderId);
-    // Same notebook restraint as the Vault: wobbly ink stroke when the
-    // analog layer is on, Material card otherwise.
-    final useInk = GoldenHourExtension.of(context).enabled;
+    final bodyColor = chatBubbleForeground(context, isMine: mine);
+    final metaColor = chatBubbleMetaForeground(context, isMine: mine);
     final seed = message.id.hashCode & 0x7FFFFFFF;
 
     final content = Column(
@@ -861,7 +895,13 @@ class _GroupBubble extends StatelessWidget {
               message.senderId,
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: theme.colorScheme.primary,
+                // Accent identity where it reads, ink where it does not —
+                // a pale accent must not turn the name into decoration.
+                color: AccentDerivation.higherContrast(
+                  theme.colorScheme.surfaceContainerHighest,
+                  theme.colorScheme.primary,
+                  theme.colorScheme.onSurface,
+                ),
               ),
             ),
           ),
@@ -878,68 +918,46 @@ class _GroupBubble extends StatelessWidget {
           Text(
             message.body,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: mine
-                  ? theme.colorScheme.onPrimaryContainer
-                  : theme.colorScheme.onSurface,
+              color: bodyColor,
               height: 1.3,
             ),
           ),
-        const SizedBox(height: 3),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${message.createdAt.hour.toString().padLeft(2, '0')}:'
-              '${message.createdAt.minute.toString().padLeft(2, '0')}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: (mine
-                        ? theme.colorScheme.onPrimaryContainer
-                        : theme.colorScheme.onSurfaceVariant)
-                    .withValues(alpha: 0.7),
+        // Only the run's last message carries the clock.
+        if (closesRun) ...[
+          const SizedBox(height: 3),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${message.createdAt.hour.toString().padLeft(2, '0')}:'
+                '${message.createdAt.minute.toString().padLeft(2, '0')}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: metaColor,
+                ),
               ),
-            ),
-            if (mine) ...[
-              const SizedBox(width: 4),
-              _OutboxTick(status: message.status),
+              if (mine) ...[
+                const SizedBox(width: 4),
+                _OutboxTick(status: message.status, onAccent: true),
+              ],
             ],
-          ],
-        ),
+          ),
+        ],
       ],
     );
 
-    final bubble = useInk
-        ? SketchBox(
-            seed: seed,
-            radius: 6,
-            strokeWidth: 2,
-            color: SketchInk.of(context),
-            fill: mine
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: content,
-          )
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: mine
-                  ? theme.colorScheme.primaryContainer
-                  : theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: content,
-          );
+    final bubble = ChatBubbleFrame(
+      isMine: mine,
+      closesRun: closesRun,
+      child: content,
+    );
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        // Same rhythm as the Vault: 12px when a speaker changes, 2px
+      child: Padding(
+        // Same rhythm as the Vault: 10px when a speaker changes, 2px
         // inside a burst — a run reads as one block.
-        margin: EdgeInsets.only(
-          top: opensRun ? 12 : 2,
-          bottom: 2,
-          left: mine ? 56 : 0,
-          right: mine ? 0 : 56,
+        padding: EdgeInsets.only(
+          top: opensRun ? kChatRunGap : kChatRunTightGap,
         ),
         child: bubble,
       ),
@@ -950,36 +968,37 @@ class _GroupBubble extends StatelessWidget {
 /// Outbox status tick for group messages. Same visual language as the
 /// Vault's StatusTick, but Nexus-owned (no cross-feature import).
 class _OutboxTick extends StatelessWidget {
-  const _OutboxTick({required this.status});
+  const _OutboxTick({required this.status, this.onAccent = false});
 
   final OutboxStatus status;
+
+  /// True on the filled accent bubble: the tick must use onPrimary to
+  /// stay visible.
+  final bool onAccent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final useInk = GoldenHourExtension.of(context).enabled;
+    // The tick only sits on my own bubble, which is accent-filled now.
+    final idle = onAccent ? scheme.onPrimary : scheme.onPrimaryContainer;
+    final failed = onAccent ? scheme.onPrimary : scheme.error;
     if (!useInk) {
       switch (status) {
         case OutboxStatus.pending:
-          return Icon(Icons.schedule_rounded,
-              size: 15,
-              color:
-                  theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7));
+          return Icon(Icons.schedule_rounded, size: 15, color: idle);
         case OutboxStatus.sent:
-          return Icon(Icons.done_all_rounded,
-              size: 16,
-              color:
-                  theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
+          return Icon(Icons.done_all_rounded, size: 16, color: idle);
         case OutboxStatus.failed:
-          return Icon(Icons.error_outline_rounded,
-              size: 16, color: theme.colorScheme.error);
+          return Icon(Icons.error_outline_rounded, size: 16, color: failed);
       }
     }
     final color = switch (status) {
       OutboxStatus.pending ||
       OutboxStatus.sent =>
-        theme.colorScheme.onPrimaryContainer,
-      OutboxStatus.failed => theme.colorScheme.error,
+        idle,
+      OutboxStatus.failed => failed,
     };
     final kind = switch (status) {
       OutboxStatus.pending => SketchIconKind.clockTick,

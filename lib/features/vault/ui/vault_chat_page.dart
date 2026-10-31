@@ -8,6 +8,7 @@ import 'package:fpdart/fpdart.dart' hide State;
 import '../../../core/attachments/attachment_media_view.dart';
 import '../../../core/auth/local_identity.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
+import '../../../core/design_system/chat_bubble_layout.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
@@ -404,19 +405,47 @@ class _VaultChatPageState extends State<VaultChatPage> {
                       itemBuilder: (context, index) {
                         final m = messages[index];
                         final mine = LocalIdentity.owns(m.senderId);
-                        return _MessageBubble(
-                          message: m,
-                          mine: mine,
-                          showTail: index == 0 ||
-                              messages[index - 1].senderId != m.senderId,
-                          onEdit: mine && !m.isDeleted
-                              ? (id) => _beginEdit(id, m.body)
-                              : null,
-                          onDelete: mine && !m.isDeleted
-                              ? () => _rewindDelete(m.id)
-                              : null,
-                          onReact: () => _react(m.id),
-                          onPinToWall: m.isDeleted ? null : () => _pinToWall(m),
+                        final prev = index > 0 ? messages[index - 1] : null;
+                        final next = index + 1 < messages.length
+                            ? messages[index + 1]
+                            : null;
+                        // Run boundaries drive the spacing, the timestamp and
+                        // the bubble's tail corner; a day change drops a
+                        // separator above the first message of the day.
+                        final opensRun = startsChatRun(
+                          senderId: m.senderId,
+                          createdAt: m.createdAt,
+                          previousSenderId: prev?.senderId,
+                          previousCreatedAt: prev?.createdAt,
+                        );
+                        final closesRun = next == null ||
+                            next.senderId != m.senderId ||
+                            next.createdAt.difference(m.createdAt) >=
+                                kChatRunWindow;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (prev == null ||
+                                !isSameChatDay(prev.createdAt, m.createdAt))
+                              ChatDaySeparator(
+                                  label: chatDayLabel(m.createdAt)),
+                            _MessageBubble(
+                              message: m,
+                              mine: mine,
+                              opensRun: opensRun,
+                              closesRun: closesRun,
+                              onEdit: mine && !m.isDeleted
+                                  ? (id) => _beginEdit(id, m.body)
+                                  : null,
+                              onDelete: mine && !m.isDeleted
+                                  ? () => _rewindDelete(m.id)
+                                  : null,
+                              onReact: () => _react(m.id),
+                              onPinToWall:
+                                  m.isDeleted ? null : () => _pinToWall(m),
+                            ),
+                          ],
                         );
                       },
                     );
@@ -450,7 +479,6 @@ class _VaultChatPageState extends State<VaultChatPage> {
           InkChatComposer(
             controller: _composer,
             enabled: !_sending,
-            seed: widget.conversation.id.hashCode & 0x7FFFFFFF,
             onSendWithAttachment: _editingMessageId == null
                 ? _sendWithAttachment
                 : null,
@@ -473,7 +501,8 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.mine,
-    required this.showTail,
+    required this.opensRun,
+    required this.closesRun,
     this.onEdit,
     this.onDelete,
     this.onReact,
@@ -482,7 +511,12 @@ class _MessageBubble extends StatelessWidget {
 
   final Message message;
   final bool mine;
-  final bool showTail;
+
+  /// First message of this sender's run: opens with a breath of space.
+  final bool opensRun;
+
+  /// Last message of the run: carries the timestamp and the tail corner.
+  final bool closesRun;
   final ValueChanged<String>? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onReact;
@@ -494,12 +528,11 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mine = this.mine;
-    // Restrained ink (spec §4): the Vault gets the wobbly border stroke
-    // but no scribble fills, no paper — a notebook that takes secrets
-    // seriously. Gate on the analog layer.
-    final useInk = GoldenHourExtension.of(context).enabled;
+    final bodyColor = chatBubbleForeground(context, isMine: mine);
+    final metaColor = chatBubbleMetaForeground(context, isMine: mine);
 
     final bubbleContent = Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (message.attachment != null) ...[
@@ -515,106 +548,69 @@ class _MessageBubble extends StatelessWidget {
             Text(
               message.body,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: mine
-                    ? theme.colorScheme.onPrimaryContainer
-                    : theme.colorScheme.onSurface,
+                color: bodyColor,
                 height: 1.3,
               ),
             ),
-          const SizedBox(height: 3),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _clock(message.createdAt),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: (mine
-                          ? theme.colorScheme.onPrimaryContainer
-                          : theme.colorScheme.onSurfaceVariant)
-                      .withValues(alpha: 0.7),
-                ),
-              ),
-              if (mine) ...[
-                const SizedBox(width: 4),
-                _StatusTick(status: message.status),
-              ],
-              if (message.isEdited) ...[
-                const SizedBox(width: 4),
+          // Only the last message of a run carries the meta line, so a
+          // burst does not repeat the same clock under every bubble.
+          if (closesRun) ...[
+            const SizedBox(height: 3),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  'edited',
+                  _clock(message.createdAt),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: (mine
-                            ? theme.colorScheme.onPrimaryContainer
-                            : theme.colorScheme.onSurfaceVariant)
-                        .withValues(alpha: 0.7),
+                    color: metaColor,
                   ),
                 ),
+                if (mine) ...[
+                  const SizedBox(width: 4),
+                  _StatusTick(status: message.status, onAccent: true),
+                ],
+                if (message.isEdited) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    'edited',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: metaColor,
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
+            ),
+          ],
         ],
       );
 
-    // Ink mode: wobbly notebook box instead of the smooth container.
-    // Spacing rule: a message that opens a sender's run sits 12px below
-    // whoever spoke before it; messages inside the run stack at 2px so a
-    // burst reads as one block and a speaker change reads as a breath.
-    final vMargin = EdgeInsets.only(
-      top: showTail ? 12 : 2,
-      bottom: 2,
-      left: mine ? 56 : 0,
-      right: mine ? 0 : 56,
+    final Widget bubble = ChatBubbleFrame(
+      isMine: mine,
+      closesRun: closesRun,
+      child: bubbleContent,
     );
-
-    final Widget bubble = useInk
-        ? Container(
-            margin: vMargin,
-            child: SketchBox(
-              seed: message.id.hashCode & 0x7FFFFFFF,
-              radius: 6,
-              strokeWidth: 2,
-              color: SketchInk.of(context),
-              fill: mine
-                  ? theme.colorScheme.primaryContainer
-                  : theme.colorScheme.surfaceContainerHighest,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              child: bubbleContent,
-            ),
-          )
-        : Container(
-            margin: vMargin,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: mine
-                  ? theme.colorScheme.primaryContainer
-                  : theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(mine || !showTail ? 16 : 4),
-                topRight: Radius.circular(mine && showTail ? 4 : 16),
-                bottomLeft: const Radius.circular(16),
-                bottomRight: const Radius.circular(16),
-              ),
-            ),
-            child: bubbleContent,
-          );
 
     // Tombstone: delete-for-everyone renders the placeholder, never the
     // body (which the store blanks anyway). The copy is the app's own
     // — this is a rewind, not a WhatsApp delete — and the mark is the
     // rewind spiral rather than a block sign.
-    if (message.isDeleted) {
-      return Align(
-        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: vMargin,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest
-                .withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(16),
+    // Spacing rule: a message that opens a sender's run sits 10px below
+    // whoever spoke before it; messages inside the run stack at 2px so a
+    // burst reads as one block and a speaker change reads as a breath.
+    Widget withRunGap(Widget child) => Padding(
+          padding: EdgeInsets.only(
+            top: opensRun ? kChatRunGap : kChatRunTightGap,
           ),
+          child: child,
+        );
+
+    if (message.isDeleted) {
+      return withRunGap(Align(
+        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        child: ChatBubbleFrame(
+          isMine: false,
+          closesRun: true,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -635,12 +631,12 @@ class _MessageBubble extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ));
     }
 
     final actionable =
         (mine && onEdit != null || onPinToWall != null) && !message.isDeleted;
-    return Align(
+    return withRunGap(Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: actionable ? () => _showActions(context) : null,
@@ -652,7 +648,7 @@ class _MessageBubble extends StatelessWidget {
           child: bubble,
         ),
       ),
-    );
+    ));
   }
 
   Future<void> _showActions(BuildContext context) async {
@@ -698,9 +694,13 @@ class _MessageBubble extends StatelessWidget {
 }
 
 class _StatusTick extends StatefulWidget {
-  const _StatusTick({required this.status});
+  const _StatusTick({required this.status, this.onAccent = false});
 
   final DeliveryStatus status;
+
+  /// True when the tick sits on the filled accent bubble — the status
+  /// colors have to come from `onPrimary` there or they vanish.
+  final bool onAccent;
 
   @override
   State<_StatusTick> createState() => _StatusTickState();
@@ -723,39 +723,35 @@ class _StatusTickState extends State<_StatusTick> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final useInk = GoldenHourExtension.of(context).enabled;
+    // Ticks only ever sit on my own bubble, which is now filled with the
+    // accent — so their colors come from onPrimary when that is the case.
+    final idle =
+        widget.onAccent ? scheme.onPrimary : scheme.onPrimaryContainer;
+    final read = widget.onAccent ? scheme.onPrimary : scheme.primary;
+    final failed = widget.onAccent ? scheme.onPrimary : scheme.error;
     if (!useInk) {
       switch (widget.status) {
         case DeliveryStatus.pending:
-          return Icon(Icons.schedule_rounded,
-              size: 15,
-              color:
-                  theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7));
+          return Icon(Icons.schedule_rounded, size: 15, color: idle);
         case DeliveryStatus.sent:
-          return Icon(Icons.done_rounded,
-              size: 16,
-              color:
-                  theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
+          return Icon(Icons.done_rounded, size: 16, color: idle);
         case DeliveryStatus.delivered:
-          return Icon(Icons.done_all_rounded,
-              size: 16,
-              color:
-                  theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.9));
+          return Icon(Icons.done_all_rounded, size: 16, color: idle);
         case DeliveryStatus.read:
-          return Icon(Icons.done_all_rounded,
-              size: 16, color: theme.colorScheme.primary);
+          return Icon(Icons.done_all_rounded, size: 16, color: read);
         case DeliveryStatus.failed:
-          return Icon(Icons.error_outline_rounded,
-              size: 16, color: theme.colorScheme.error);
+          return Icon(Icons.error_outline_rounded, size: 16, color: failed);
       }
     }
     final color = switch (widget.status) {
       DeliveryStatus.pending ||
       DeliveryStatus.sent ||
       DeliveryStatus.delivered =>
-        theme.colorScheme.onPrimaryContainer,
-      DeliveryStatus.read => theme.colorScheme.primary,
-      DeliveryStatus.failed => theme.colorScheme.error,
+        idle,
+      DeliveryStatus.read => read,
+      DeliveryStatus.failed => failed,
     };
     final kind = switch (widget.status) {
       DeliveryStatus.pending => SketchIconKind.clockTick,

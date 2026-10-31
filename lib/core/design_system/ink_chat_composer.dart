@@ -5,15 +5,18 @@ import '../attachments/attachment_picker.dart';
 import '../theme/app_theme.dart';
 import 'sketch_kit.dart';
 
-/// The inked chat composer: attach row (photo / video / voice), pending
-/// chip, voice-recording bar and the amber paper-plane send. Lives in
-/// core so the Vault and the Hallway's Dorms share one composer —
-/// features may not import features.
+/// The chat composer: a single "+" attach button, a field that grows to
+/// five lines, and a trailing mic that becomes the send plane as soon as
+/// there is something to send. Lives in core so the Vault and the
+/// Hallway's Dorms share one composer — features may not import features.
 ///
-/// In ink mode the field sits inside a small [SketchBox] (stroke only,
-/// no scribbles — chat restraint); otherwise plain Material rows. Send
-/// fires [onSendWithAttachment] when an attachment is pending (text
-/// optional — a photo alone is a message), else [onSendText].
+/// Attach actions (photo / video / voice note) live behind the "+" sheet so
+/// the row stays one control wide; the voice-note handler is reachable from
+/// both the sheet and the trailing mic. In ink mode the send disc is amber;
+/// the bar itself is a plain rounded container with a hairline border (no
+/// sketch stroke — a text field should read as a field). Send fires
+/// [onSendWithAttachment] when an attachment is pending (text optional — a
+/// photo alone is a message), else [onSendText].
 class InkChatComposer extends StatefulWidget {
   const InkChatComposer({
     super.key,
@@ -24,7 +27,6 @@ class InkChatComposer extends StatefulWidget {
     this.editing = false,
     this.onCancelEdit,
     this.hintText = 'Write a message',
-    this.seed,
   });
 
   final TextEditingController controller;
@@ -36,11 +38,6 @@ class InkChatComposer extends StatefulWidget {
   final bool editing;
   final VoidCallback? onCancelEdit;
   final String hintText;
-
-  /// Deterministic wobble seed for the inked border. Defaults to a
-  /// stable hash of the hint text; pass the conversation id's hash so
-  /// each chat's box is its own drawing.
-  final int? seed;
 
   @override
   State<InkChatComposer> createState() => _InkChatComposerState();
@@ -106,6 +103,64 @@ class _InkChatComposerState extends State<InkChatComposer> {
     setState(() => _pending = a);
   }
 
+  /// One entry point for every attachment so the bar only needs one
+  /// button. Each row hands back to the existing handlers below — the
+  /// pick/send paths are untouched.
+  Future<void> _openAttachSheet() async {
+    if (!widget.enabled) return;
+    final action = await showModalBottomSheet<_AttachAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const SketchIcon(
+                kind: SketchIconKind.photoFrame,
+                size: 22,
+              ),
+              title: const Text('Photo'),
+              onTap: () => Navigator.pop(sheetContext, _AttachAction.photo),
+            ),
+            ListTile(
+              leading: const SketchIcon(
+                kind: SketchIconKind.videoCam,
+                size: 22,
+              ),
+              title: const Text('Video'),
+              onTap: () => Navigator.pop(sheetContext, _AttachAction.video),
+            ),
+            ListTile(
+              leading: const SketchIcon(
+                kind: SketchIconKind.scribbleMic,
+                size: 22,
+              ),
+              title: const Text('Voice note'),
+              onTap: () => Navigator.pop(sheetContext, _AttachAction.voice),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case _AttachAction.photo:
+        await _attachPhoto();
+        break;
+      case _AttachAction.video:
+        await _attachVideo();
+        break;
+      case _AttachAction.voice:
+        await _recordVoice();
+        break;
+      case null:
+        break;
+    }
+  }
+
+
+
   void _send() {
     final attachment = _pending;
     if (attachment != null) {
@@ -128,71 +183,64 @@ class _InkChatComposerState extends State<InkChatComposer> {
     if (recording != null) {
       return _VoiceRecordingBar(
         elapsed: recording.elapsed,
-        ink: useInk,
         onSend: () => _stopRecording(keep: true),
         onCancel: () => _stopRecording(keep: false),
       );
     }
 
+    // Attachments are only offered where they can be sent: a fresh
+    // message, not an edit.
+    final canAttach =
+        widget.onSendWithAttachment != null && !widget.editing;
+    final hasContent =
+        _pending != null || widget.controller.text.trim().isNotEmpty;
+
     final field = TextField(
       controller: widget.controller,
       enabled: widget.enabled,
+      // Grows from one line to five, then scrolls internally.
       minLines: 1,
-      maxLines: 4,
+      maxLines: 5,
       textInputAction: TextInputAction.send,
       onChanged: (_) => setState(() {}),
       onSubmitted: (_) => _send(),
       style: useInk ? theme.textTheme.bodyLarge?.copyWith(height: 1.3) : null,
+      // The bar owns the fill and the outline now, so the field is
+      // transparent: one surface instead of a box inside a box.
       decoration: InputDecoration(
         hintText: widget.hintText,
-        filled: true,
-        fillColor: theme.colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.5),
+        // The placeholder must never wrap, whatever the bar's width.
+        hintMaxLines: 1,
+        isDense: true,
+        border: InputBorder.none,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(useInk ? 6 : 24),
-          borderSide: BorderSide.none,
-        ),
+            const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       ),
     );
 
-    final sendButton = widget.editing
-        ? _InkIconButton(
-            tooltip: 'Cancel edit',
-            onPressed: widget.onCancelEdit,
-            child: const SketchIcon(kind: SketchIconKind.closeX, size: 22),
-          )
-        : _InkIconButton(
-            tooltip: 'Send',
-            onPressed: _canSend ? _send : null,
-            filled: true,
-            child: const SketchIcon(kind: SketchIconKind.paperPlane, size: 22),
-          );
-
-    final attachRow = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _InkIconButton(
-          tooltip: 'Attach photo',
-          onPressed: widget.enabled ? _attachPhoto : null,
-          child: const SketchIcon(
-              kind: SketchIconKind.photoFrame, size: 22),
-        ),
-        _InkIconButton(
-          tooltip: 'Attach video',
-          onPressed: widget.enabled ? _attachVideo : null,
-          child: const SketchIcon(
-              kind: SketchIconKind.videoCam, size: 22),
-        ),
-        _InkIconButton(
-          tooltip: 'Record voice message',
-          onPressed: widget.enabled ? _recordVoice : null,
-          child: const SketchIcon(
-              kind: SketchIconKind.scribbleMic, size: 22),
-        ),
-      ],
-    );
+    // One trailing action: cancel while editing, the plane once there is
+    // something to send, the mic while the field is empty.
+    final Widget trailing;
+    if (widget.editing) {
+      trailing = _InkIconButton(
+        tooltip: 'Cancel edit',
+        onPressed: widget.onCancelEdit,
+        child: const SketchIcon(kind: SketchIconKind.closeX, size: 22),
+      );
+    } else if (hasContent) {
+      trailing = _InkIconButton(
+        tooltip: 'Send',
+        onPressed: _canSend ? _send : null,
+        filled: true,
+        child: const SketchIcon(kind: SketchIconKind.paperPlane, size: 22),
+      );
+    } else {
+      trailing = _InkIconButton(
+        tooltip: 'Record voice message',
+        onPressed: widget.enabled ? _recordVoice : null,
+        child: const SketchIcon(kind: SketchIconKind.scribbleMic, size: 22),
+      );
+    }
 
     final pendingChip = _pending == null
         ? null
@@ -215,37 +263,44 @@ class _InkChatComposerState extends State<InkChatComposer> {
                   child: pendingChip,
                 ),
               ),
-            useInk
-                ? SketchBox(
-                    seed: widget.seed ??
-                        widget.hintText.hashCode & 0x7FFFFFFF,
-                    radius: 6,
-                    strokeWidth: 2,
-                    color: SketchInk.of(context),
-                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
-                    child: Row(
-                      children: [
-                        attachRow,
-                        Expanded(child: field),
-                        const SizedBox(width: 4),
-                        sendButton,
-                      ],
+            Container(
+              decoration: _composerBarDecoration(theme),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              child: Row(
+                // Buttons ride the last line as the field grows.
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (canAttach)
+                    _InkIconButton(
+                      tooltip: 'Add attachment',
+                      onPressed: widget.enabled ? _openAttachSheet : null,
+                      child: const SketchIcon(
+                          kind: SketchIconKind.plusCircle, size: 22),
                     ),
-                  )
-                : Row(
-                    children: [
-                      attachRow,
-                      Expanded(child: field),
-                      const SizedBox(width: 8),
-                      sendButton,
-                    ],
-                  ),
+                  Expanded(child: field),
+                  trailing,
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+/// What the "+" sheet asked for. Each case maps to an existing handler.
+enum _AttachAction { photo, video, voice }
+
+/// The composer bar's plain geometry: rounded, hairline outline, no sketch
+/// stroke — the field should read as a field, not a notebook box.
+BoxDecoration _composerBarDecoration(ThemeData theme) => BoxDecoration(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(26),
+      border: Border.all(
+        color: theme.colorScheme.outline.withValues(alpha: 0.35),
+      ),
+    );
 
 /// The chip shown above the composer while an attachment is queued.
 class _PendingAttachmentChip extends StatelessWidget {
@@ -318,13 +373,11 @@ class _PendingAttachmentChip extends StatelessWidget {
 class _VoiceRecordingBar extends StatefulWidget {
   const _VoiceRecordingBar({
     required this.elapsed,
-    required this.ink,
     required this.onSend,
     required this.onCancel,
   });
 
   final Duration elapsed;
-  final bool ink;
   final VoidCallback onSend;
   final VoidCallback onCancel;
 
@@ -355,65 +408,41 @@ class _VoiceRecordingBarState extends State<_VoiceRecordingBar> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-        child: widget.ink
-            ? SketchBox(
-                seed: 424242,
-                radius: 6,
-                strokeWidth: 2,
-                color: SketchInk.graffitiRed,
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                child: Row(
-                  children: [
-                    const SketchIcon(
-                      kind: SketchIconKind.scribbleMic,
-                      size: 20,
-                      color: SketchInk.graffitiRed,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: SketchInk.of(context),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Discard',
-                      onPressed: widget.onCancel,
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                    _InkIconButton(
-                      tooltip: 'Attach voice note',
-                      onPressed: widget.onSend,
-                      filled: true,
-                      child: const Icon(Icons.check_rounded),
-                    ),
-                  ],
-                ),
-              )
-            : Row(
-                children: [
-                  SketchIcon(
-                    kind: SketchIconKind.scribbleMic,
-                    size: 20,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(label)),
-                  IconButton(
-                    tooltip: 'Discard',
-                    onPressed: widget.onCancel,
-                    icon: const Icon(Icons.delete_outline_rounded),
-                  ),
-                  IconButton.filled(
-                    tooltip: 'Attach voice note',
-                    onPressed: widget.onSend,
-                    icon: const Icon(Icons.check_rounded),
-                  ),
-                ],
+        // Same bar geometry as the idle composer: recording swaps the
+        // field for the timer, never the chrome.
+        child: Container(
+          decoration: _composerBarDecoration(theme),
+          padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+          child: Row(
+            children: [
+              SketchIcon(
+                kind: SketchIconKind.scribbleMic,
+                size: 20,
+                color: theme.colorScheme.error,
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Discard',
+                onPressed: widget.onCancel,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+              _InkIconButton(
+                tooltip: 'Attach voice note',
+                onPressed: widget.onSend,
+                filled: true,
+                child: const Icon(Icons.check_rounded),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -442,6 +471,8 @@ class _InkIconButton extends StatelessWidget {
       return IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
+        // 48dp, comfortably past the 44dp touch-target floor.
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
         icon: child,
       );
     }
@@ -450,6 +481,7 @@ class _InkIconButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
         backgroundColor: filled ? golden.amberAccent : Colors.transparent,
         highlightColor: golden.amberAccent.withValues(alpha: 0.12),
         foregroundColor:
