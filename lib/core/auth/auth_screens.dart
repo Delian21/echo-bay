@@ -18,6 +18,11 @@ import 'auth_repository.dart';
 /// No widget here touches drift: the screens talk to AuthRepository and
 /// ProfileController only.
 
+/// Social sign-in is wired to nothing yet — the provider rows are real
+/// buttons with no backend, so they stay hidden rather than lying. Flip
+/// this to true once AuthRepository can take a provider token.
+const bool kShowSocialSignIn = false;
+
 /// Which auth screen a gate should open with. A device whose cover was
 /// ever signed (surviving sign-out) opens an existing sketchbook; a
 /// fresh device signs the cover.
@@ -99,8 +104,8 @@ class _InkCard extends StatelessWidget {
 }
 
 /// The two provider buttons, in their official wording — themed around
-/// (paper/ink) but never renamed. They cannot work without a backend,
-/// so they are honestly disabled with a small note. Nothing here fakes
+/// (paper/ink) but never renamed. They cannot work without a backend, so
+/// they are rendered only behind [kShowSocialSignIn]; nothing here fakes
 /// a provider.
 class _ProviderButtons extends StatelessWidget {
   const _ProviderButtons();
@@ -133,20 +138,12 @@ class _ProviderButtons extends StatelessWidget {
         themed(Icons.g_mobiledata_rounded, 'Continue with Google'),
         const SizedBox(height: 8),
         themed(Icons.apple_rounded, 'Sign in with Apple'),
-        const SizedBox(height: 6),
-        Text(
-          'They\u2019ll come when sign-in goes online.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
       ],
     );
   }
 }
 
-/// Shared form scaffold: handwritten heading, inked card, email field.
+/// Shared form scaffold: handwritten heading, inked card.
 class _AuthScaffold extends StatelessWidget {
   const _AuthScaffold({required this.title, required this.children});
 
@@ -198,6 +195,7 @@ class _RuledField extends StatelessWidget {
   const _RuledField({
     required this.controller,
     required this.label,
+    this.hint,
     this.helper,
     this.keyboardType,
     this.onChanged,
@@ -205,6 +203,9 @@ class _RuledField extends StatelessWidget {
 
   final TextEditingController controller;
   final String label;
+
+  /// Placeholder shown while the field is empty — a prompt, not a value.
+  final String? hint;
   final String? helper;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
@@ -236,6 +237,16 @@ class _RuledField extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               )
             : null,
+        hintText: hint,
+        hintStyle: useInk
+            ? kHandwrittenTextStyle.copyWith(
+                fontSize: 19,
+                color: theme.colorScheme.onSurfaceVariant
+                    .withValues(alpha: 0.75),
+              )
+            : theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
         helperText: helper,
         helperStyle: useInk
             ? kHandwrittenTextStyle.copyWith(
@@ -274,9 +285,7 @@ class _TapedPolaroid extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.4),
-            ),
+            border: Border.all(color: context.borderPlain), // 1px
             boxShadow: [
               BoxShadow(
                 color: theme.colorScheme.shadow.withValues(alpha: 0.12),
@@ -287,7 +296,9 @@ class _TapedPolaroid extends StatelessWidget {
           ),
           child: child,
         ),
-        // Paper tape, laid slightly askew.
+        // Paper tape, laid slightly askew. In dark mode the container
+        // tone sits too close to the surface to see, so lift it with a
+        // touch of the chalk foreground.
         Positioned(
           top: -8,
           left: 18,
@@ -296,8 +307,13 @@ class _TapedPolaroid extends StatelessWidget {
             child: Container(
               width: 44,
               height: 16,
-              color: theme.colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.9),
+              color: theme.brightness == Brightness.dark
+                  ? Color.alphaBlend(
+                      theme.colorScheme.onSurface.withValues(alpha: 0.18),
+                      theme.colorScheme.surfaceContainerHighest,
+                    )
+                  : theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -306,9 +322,10 @@ class _TapedPolaroid extends StatelessWidget {
   }
 }
 
-/// Sign the cover — creates the local profile. When reached from the
-/// first-run flow, name/avatar were already chosen in the setup step;
-/// they're shown pre-filled to confirm, and only the email label is new.
+/// Sign the cover — creates the local profile. The name field is empty
+/// with "You" as its placeholder; a name actually chosen in onboarding is
+/// carried in, and an empty answer still saves as "You". The email is an
+/// optional label for the local sign-in.
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key, required this.comesFromOnboarding});
 
@@ -322,9 +339,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   late final ProfileController? _profile =
       sl.isRegistered<ProfileController>() ? sl<ProfileController>() : null;
 
-  late final TextEditingController _name = TextEditingController(
-    text: _profile?.profile.displayName ?? '',
-  );
+  late final TextEditingController _name = TextEditingController();
   late final TextEditingController _email = TextEditingController();
   String? _error;
   bool _busy = false;
@@ -339,6 +354,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void initState() {
     super.initState();
     _avatarPath = _profile?.profile.avatarPath;
+    // "You" is the placeholder, not a value: never prefill the field with
+    // it. A real name chosen during onboarding is carried in, so that
+    // step's work is not thrown away on submit.
+    final stored = _profile?.profile.displayName ?? '';
+    if (widget.comesFromOnboarding && stored.isNotEmpty && stored != 'You') {
+      _name.text = stored;
+    }
   }
 
   Future<void> _pickAvatar() async {
@@ -373,11 +395,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _submit() async {
-    final name = _name.text.trim();
-    if (name.isEmpty) {
-      setState(() => _error = 'Every sketchbook has a name on the cover.');
-      return;
-    }
+    // An empty cover still gets a name: the placeholder stands in.
+    final typed = _name.text.trim();
+    final name = typed.isEmpty ? 'You' : typed;
     final auth = sl.isRegistered<AuthRepository>() ? sl<AuthRepository>() : null;
     if (auth == null) return;
     setState(() {
@@ -446,13 +466,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _RuledField(
           controller: _name,
           label: 'This sketchbook belongs to',
+          hint: 'You',
           onChanged: (_) => setState(() {}), // initials keep up
         ),
         const SizedBox(height: 12),
         _RuledField(
           controller: _email,
-          label: 'Email (a label, for later)',
-          helper: 'Nothing is sent anywhere yet.',
+          label: 'Email',
+          helper: 'Optional',
           keyboardType: TextInputType.emailAddress,
         ),
         if (_error != null) ...[
@@ -475,14 +496,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: Text(_busy ? 'Signing…' : 'Sign the cover'),
         ),
         const SizedBox(height: 16),
-        TextButton(
-          onPressed: () => Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(builder: (_) => const SignInScreen()),
+        // Question plain, answer the only tappable thing — one link,
+        // centered, no wrapping sentence.
+        Text(
+          'Already have a sketchbook?',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          child: const Text('Already have a sketchbook? Open your sketchbook'),
         ),
-        const Divider(height: 24),
-        const _ProviderButtons(),
+        Center(
+          child: TextButton(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(builder: (_) => const SignInScreen()),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+            child: const Text('Open your sketchbook'),
+          ),
+        ),
+        if (kShowSocialSignIn) ...[
+          const Divider(height: 24),
+          const _ProviderButtons(),
+        ],
       ],
     );
   }
@@ -624,8 +661,10 @@ class _SignInScreenState extends State<SignInScreen> {
         ),
         const SizedBox(height: 8),
         const _LostYourKeyLink(),
-        const Divider(height: 24),
-        const _ProviderButtons(),
+        if (kShowSocialSignIn) ...[
+          const Divider(height: 24),
+          const _ProviderButtons(),
+        ],
       ],
     );
   }
