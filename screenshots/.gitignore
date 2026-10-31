@@ -1,0 +1,4 @@
+# Throwaway headless-Chrome profiles and capture logs.
+.profile/
+.profile-onboarding/
+tools/*.log
