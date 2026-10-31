@@ -355,7 +355,7 @@ class _ConversationTile extends StatelessWidget {
                 doubleStroke: selected,
                 color: selected
                     ? theme.colorScheme.primary
-                    : SketchInk.of(context),
+                    : context.borderHandDrawn,
                 padding: const EdgeInsets.all(12),
                 child: tileContent,
               )

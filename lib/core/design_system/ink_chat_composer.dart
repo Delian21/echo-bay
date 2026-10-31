@@ -264,7 +264,7 @@ class _InkChatComposerState extends State<InkChatComposer> {
                 ),
               ),
             Container(
-              decoration: _composerBarDecoration(theme),
+              decoration: _composerBarDecoration(theme, context.borderPlain),
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
               child: Row(
                 // Buttons ride the last line as the field grows.
@@ -294,12 +294,11 @@ enum _AttachAction { photo, video, voice }
 
 /// The composer bar's plain geometry: rounded, hairline outline, no sketch
 /// stroke — the field should read as a field, not a notebook box.
-BoxDecoration _composerBarDecoration(ThemeData theme) => BoxDecoration(
+BoxDecoration _composerBarDecoration(ThemeData theme, Color borderPlain) =>
+    BoxDecoration(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(26),
-      border: Border.all(
-        color: theme.colorScheme.outline.withValues(alpha: 0.35),
-      ),
+      border: Border.all(color: borderPlain), // 1px
     );
 
 /// The chip shown above the composer while an attachment is queued.
@@ -411,7 +410,7 @@ class _VoiceRecordingBarState extends State<_VoiceRecordingBar> {
         // Same bar geometry as the idle composer: recording swaps the
         // field for the timer, never the chrome.
         child: Container(
-          decoration: _composerBarDecoration(theme),
+          decoration: _composerBarDecoration(theme, context.borderPlain),
           padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
           child: Row(
             children: [

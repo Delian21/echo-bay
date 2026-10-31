@@ -13,11 +13,25 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
     required this.encrypted,
     required this.pending,
     required this.readAccent,
+    required this.borderHandDrawn,
+    required this.borderPlain,
   });
 
   final Color encrypted;
   final Color pending;
   final Color readAccent;
+
+  /// The ink stroke of [SketchBox] — the wobbly, hand-drawn border. Reserved
+  /// for feed post cards; nothing else should reach for it.
+  ///
+  /// Light keeps the charcoal pen at full strength; dark drops the cream to
+  /// ~40% so a page of cards stops humming against near-black.
+  final Color borderHandDrawn;
+
+  /// The quiet border for everything that is not a post card: cards, form
+  /// fields, list rows, sheets. Always drawn 1px; the color carries the low
+  /// opacity.
+  final Color borderPlain;
 
   /// Resolve the themed tokens for [context]. Falls back to the light
   /// tokens when the ambient theme was built without extensions (bare
@@ -36,11 +50,15 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
     Color? encrypted,
     Color? pending,
     Color? readAccent,
+    Color? borderHandDrawn,
+    Color? borderPlain,
   }) =>
       AppThemeExtension(
         encrypted: encrypted ?? this.encrypted,
         pending: pending ?? this.pending,
         readAccent: readAccent ?? this.readAccent,
+        borderHandDrawn: borderHandDrawn ?? this.borderHandDrawn,
+        borderPlain: borderPlain ?? this.borderPlain,
       );
 
   @override
@@ -50,8 +68,24 @@ class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
       encrypted: Color.lerp(encrypted, other.encrypted, t)!,
       pending: Color.lerp(pending, other.pending, t)!,
       readAccent: Color.lerp(readAccent, other.readAccent, t)!,
+      borderHandDrawn:
+          Color.lerp(borderHandDrawn, other.borderHandDrawn, t)!,
+      borderPlain: Color.lerp(borderPlain, other.borderPlain, t)!,
     );
   }
+}
+
+/// Convenience reads for the border hierarchy, so features never reach for a
+/// raw [ColorScheme.outline] with a hand-tuned alpha.
+extension AppBorders on BuildContext {
+  /// The wobbly ink stroke. Post cards only.
+  Color get borderHandDrawn => AppThemeExtension.of(this).borderHandDrawn;
+
+  /// The 1px hairline for every other surface.
+  Color get borderPlain => AppThemeExtension.of(this).borderPlain;
+
+  /// A ready-to-use plain border: 1px, no layout shift.
+  BorderSide get plainBorderSide => BorderSide(color: borderPlain);
 }
 
 /// "Golden Hour" decorative tokens — the LiS-inspired analog layer from
@@ -150,12 +184,20 @@ class AppColors {
     encrypted: Color(0xFF78D9A0),
     pending: Color(0xFFA8B3C4),
     readAccent: Color(0xFF8AB4F8),
+    // Chalk at 40%: the same cream, no longer shouting off near-black.
+    borderHandDrawn: Color(0x66E8E4D8),
+    borderPlain: Color(0x593A4557),
   );
 
   static const _tokensLight = AppThemeExtension(
     encrypted: Color(0xFF1E7D4F),
     pending: Color(0xFF5A6474),
     readAccent: Color(0xFF2C5FDB),
+    // Light borders are unchanged: full-strength charcoal pen
+    // (SketchInk.charcoal — spelled out here so the theme does not import
+    // the sketch kit that imports it).
+    borderHandDrawn: Color(0xFF2B2A26),
+    borderPlain: Color(0x59C4CBD6),
   );
 
   // -- Golden Hour variants (docs/ART_DIRECTION.md) -------------------------
@@ -196,12 +238,16 @@ class AppColors {
     encrypted: Color(0xFF2E6D64),
     pending: Color(0xFF6E6A5E),
     readAccent: Color(0xFF2E6D64),
+    borderHandDrawn: Color(0xFF2B2A26),
+    borderPlain: Color(0x59D8D0BE),
   );
 
   static const _tokensGoldenDark = AppThemeExtension(
     encrypted: Color(0xFF8FC7BC),
     pending: Color(0xFFA6A294),
     readAccent: Color(0xFF8FC7BC),
+    borderHandDrawn: Color(0x66E8E4D8),
+    borderPlain: Color(0x5937404F),
   );
 
   static const _goldenLight = GoldenHourExtension(
@@ -461,13 +507,15 @@ ThemeData _theme(
     ),
 
     // Cards: flat, hairline border instead of elevation — cheaper to render
-    // in scrolling lists than elevation shadows.
+    // in scrolling lists than elevation shadows. The side comes from the
+    // plain-border token, so settings/profile cards inherit the hierarchy
+    // without touching a screen.
     cardTheme: CardThemeData(
       elevation: 0,
       color: scheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: scheme.outline.withValues(alpha: 0.35)),
+        side: BorderSide(color: tokens.borderPlain), // 1px
       ),
       margin: EdgeInsets.zero,
     ),
@@ -502,17 +550,28 @@ ThemeData _theme(
     ),
 
     dividerTheme: DividerThemeData(
-      color: scheme.outline.withValues(alpha: 0.3),
+      color: tokens.borderPlain,
       thickness: 0.6,
       space: 0.6,
     ),
 
+    // Form fields: the plain hairline, so text fields stop alternating
+    // between borderless fills and ad-hoc outlines. Focus is the one place
+    // a border is allowed to speak up.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerHighest,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: tokens.borderPlain), // 1px
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: tokens.borderPlain), // 1px
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.primary), // 1px
       ),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

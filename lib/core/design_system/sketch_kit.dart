@@ -106,6 +106,9 @@ class SketchInk {
 /// second stroke at low alpha when [doubleStroke] — the pen went over
 /// the line twice (large containers only).
 ///
+/// The stroke is the theme's `borderHandDrawn` token: reserved for feed post
+/// cards. Everything else uses a plain 1px border (`borderPlain`).
+///
 /// The child's layout is untouched: only the painted border wobbles.
 class SketchBox extends StatelessWidget {
   const SketchBox({
@@ -149,7 +152,7 @@ class SketchBox extends StatelessWidget {
         radius: radius,
         strokeWidth: strokeWidth,
         doubleStroke: doubleStroke,
-        color: color ?? SketchInk.of(context),
+        color: color ?? AppThemeExtension.of(context).borderHandDrawn,
       ),
       child: Padding(padding: padding, child: child),
     );
@@ -492,6 +495,9 @@ enum SketchIconKind {
   windowFrame,
   bookStack,
   scribbleLine,
+  signOut,
+  download,
+  upload,
 }
 
 /// Screen-reader names for every hand-drawn glyph — a CustomPaint is
@@ -540,6 +546,9 @@ const Map<SketchIconKind, String> kSketchIconLabel = {
   SketchIconKind.moonCrescent: 'night',
   SketchIconKind.autoA: 'automatic',
   SketchIconKind.scribbleLine: 'sentence',
+  SketchIconKind.signOut: 'sign out',
+  SketchIconKind.download: 'export',
+  SketchIconKind.upload: 'import',
 };
 
 /// The five icon set (docs/ART_DIRECTION.md §2), drawn as raw paths with
@@ -1125,6 +1134,44 @@ Path _iconPath(SketchIconKind kind, int seed) {
       lineTo(j(11, 6, 1.0));
       moveTo(j(5, 12, 0.9));
       lineTo(j(11, 18, 1.0));
+    case SketchIconKind.signOut:
+      // Sign out: a doorway ajar on the left, the pen arrow stepping
+      // through it and pointing out. The jamb is one broken stroke (it
+      // never quite closes at the top and bottom corners).
+      moveTo(j(10.5, 4, 0.9));
+      lineTo(j(4, 4.5, 1.0));
+      lineTo(j(4.5, 20, 1.0));
+      lineTo(j(10.5, 19.5, 0.9));
+      moveTo(j(9, 12, 0.9));
+      lineTo(j(20, 12, 1.0));
+      moveTo(j(20, 12, 0.9));
+      lineTo(j(15.5, 7.5, 1.0));
+      moveTo(j(20, 12, 0.9));
+      lineTo(j(15.5, 16.5, 1.0));
+    case SketchIconKind.download:
+      // Export: the pen arrow dropping into an open tray.
+      moveTo(j(12, 4, 0.9));
+      lineTo(j(12, 13.5, 1.0));
+      moveTo(j(12, 13.5, 0.9));
+      lineTo(j(7.5, 9, 1.0));
+      moveTo(j(12, 13.5, 0.9));
+      lineTo(j(16.5, 9, 1.0));
+      moveTo(j(5, 17.5, 0.9));
+      lineTo(j(5, 20, 1.0));
+      lineTo(j(19, 20, 1.0));
+      lineTo(j(19, 17.5, 0.9));
+    case SketchIconKind.upload:
+      // Import: the pen arrow lifting out of that same tray.
+      moveTo(j(12, 18.5, 0.9));
+      lineTo(j(12, 9, 1.0));
+      moveTo(j(12, 9, 0.9));
+      lineTo(j(7.5, 13.5, 1.0));
+      moveTo(j(12, 9, 0.9));
+      lineTo(j(16.5, 13.5, 1.0));
+      moveTo(j(5, 17.5, 0.9));
+      lineTo(j(5, 20, 1.0));
+      lineTo(j(19, 20, 1.0));
+      lineTo(j(19, 17.5, 0.9));
     case SketchIconKind.closeX:
       // Close: the pen X, scratched slightly past its corners.
       moveTo(j(5.5, 5.5, 1.0));

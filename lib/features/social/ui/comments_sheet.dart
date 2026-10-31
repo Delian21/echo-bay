@@ -169,7 +169,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 child: SketchBox(
                   seed: 61,
                   radius: 10,
-                  color: SketchInk.of(context),
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Row(
                     children: [
@@ -241,7 +240,6 @@ class _CommentBubble extends StatelessWidget {
         child: SketchBox(
           seed: comment.id.hashCode & 0x7FFFFFFF,
           radius: 10,
-          color: SketchInk.of(context),
           fill: _mine
               ? theme.colorScheme.primary.withValues(alpha: 0.06)
               : null,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Chat-layout primitives shared by every conversation surface (the Vault's
 /// DMs and the Nexus dorm chats), so a bubble looks and stacks the same
 /// wherever it is drawn.
@@ -136,10 +138,7 @@ class ChatBubbleFrame extends StatelessWidget {
           color: isMine ? scheme.primary : scheme.surfaceContainerHighest,
           border: isMine
               ? null
-              : Border.all(
-                  color: scheme.outline.withValues(alpha: 0.35),
-                  width: 1,
-                ),
+              : Border.all(color: context.borderPlain, width: 1),
           borderRadius:
               chatBubbleRadius(isMine: isMine, closesRun: closesRun),
         ),

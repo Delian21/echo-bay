@@ -177,7 +177,6 @@ class _SharedPostCardState extends State<SharedPostCard> {
           seed: widget.postId.hashCode & 0x7FFFFFFF,
           radius: 6,
           strokeWidth: 2,
-          color: SketchInk.of(context),
           padding: const EdgeInsets.all(2),
           child: card,
         );

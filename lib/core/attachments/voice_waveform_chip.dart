@@ -213,7 +213,6 @@ class _VoiceWaveformChipState extends State<VoiceWaveformChip> {
       seed: widget.seed + 13,
       radius: 6,
       strokeWidth: 2,
-      color: SketchInk.of(context),
       fill: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: row,
@@ -269,9 +268,7 @@ class _PlayButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: useInk
               ? null
-              : Border.all(
-                  color: theme.colorScheme.outlineVariant,
-                ),
+              : Border.all(color: context.borderPlain), // 1px
         ),
         child: child,
       ),

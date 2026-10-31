@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../motion/motion_scope.dart';
 
 /// Shared loading skeletons — shape-matched placeholders that pulse
@@ -119,9 +121,7 @@ class _FeedCardSkeleton extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: context.borderPlain), // 1px
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -63,7 +63,6 @@ class AttachmentMediaView extends StatelessWidget {
           seed: seed,
           radius: 4,
           strokeWidth: 2,
-          color: SketchInk.of(context),
           padding: const EdgeInsets.all(4),
           child: image,
         );
@@ -177,7 +176,6 @@ class _MediaChip extends StatelessWidget {
       seed: seed + 13,
       radius: 6,
       strokeWidth: 2,
-      color: SketchInk.of(context),
       fill: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: row,
