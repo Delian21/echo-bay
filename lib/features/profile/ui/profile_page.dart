@@ -802,14 +802,15 @@ class _PolaroidThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final local = post.mediaUrl != null &&
         !post.mediaUrl!.startsWith('http');
     return InkWell(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLowest,
+          // Same paper as the feed's prints: a wall of small prints should
+          // read as paper, not as UI cards.
+          color: const Color(0xFFFBF4E4),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: context.borderPlain), // 1px
         ),
@@ -843,7 +844,7 @@ class _PolaroidThumb extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: kHandwrittenTextStyle.copyWith(
                 fontSize: 11,
-                color: theme.colorScheme.onSurfaceVariant,
+                color: const Color(0xFF2B2A26), // print ink
               ),
             ),
           ],

@@ -4,6 +4,7 @@ import 'package:blurhash_dart/blurhash_dart.dart';
 import 'package:blurhash_dart/blurhash_extensions.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/design_system/polaroid_frame.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_scope.dart';
@@ -80,12 +81,32 @@ class SquareFeedCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _CardHeader(post: post),
-              if (post.hasMedia)
+              if (post.hasMedia && _isVideoPath(post.mediaUrl!))
+                // Video keeps its poster tile: a moving picture is not a
+                // print, and playback has its own affordance.
                 _CardMedia(
                   mediaUrl: post.mediaUrl!,
                   blurhash: post.blurhash,
                   onLike: onLike,
                   isLiked: post.isLiked,
+                )
+              else if (post.hasMedia)
+                // Photo posts become a print inside the card: inset from
+                // the card edge so the two frames never read as a double
+                // border, with the caption moved onto the paper below.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                  child: Center(
+                    child: PolaroidFrame(
+                      image: _mediaImageProvider(post.mediaUrl!),
+                      caption: post.caption,
+                      date: post.timestamp,
+                      author: post.username,
+                      aspectRatio: 4 / 5,
+                      seed: post.id.hashCode,
+                      onDoubleTap: onLike,
+                    ),
+                  ),
                 ),
               _CardFooter(
                 post: post,
@@ -95,6 +116,9 @@ class SquareFeedCard extends StatelessWidget {
                 onKeep: onKeep,
                 onPinToWall: onPinToWall,
                 commentCount: commentCount,
+                // A photo's caption lives on its print now.
+                showCaption: !(post.hasMedia &&
+                    !_isVideoPath(post.mediaUrl!)),
               ),
             ],
           ),
@@ -422,6 +446,11 @@ bool _isLocalPath(String url) {
   return url.startsWith('/') ||
       RegExp(r'^[a-z]:[\\/]').hasMatch(lower);
 }
+
+/// The provider for a post's media: a composer attachment reads from
+/// disk, everything else is the mock transport's remote URL.
+ImageProvider _mediaImageProvider(String url) =>
+    _isLocalPath(url) ? platformImageProvider(url) : NetworkImage(url);
 
 /// Video extension check for the badge — attachment or future remote
 /// media both land here.
@@ -760,6 +789,7 @@ class _CardFooter extends StatefulWidget {
     this.onKeep,
     this.onPinToWall,
     this.commentCount = 0,
+    this.showCaption = true,
   });
 
   final SquarePost post;
@@ -767,6 +797,9 @@ class _CardFooter extends StatefulWidget {
   final VoidCallback? onComment;
   final VoidCallback? onShare;
   final int commentCount;
+
+  /// False for photo posts, whose caption now sits on the polaroid.
+  final bool showCaption;
 
   /// "Keep it" — makes an ephemeral post permanent. Null hides it.
   final VoidCallback? onKeep;
@@ -992,19 +1025,21 @@ class _CardFooterState extends State<_CardFooter> {
               ],
             ),
           ],
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: RichText(
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.35, color: theme.colorScheme.onSurface),
-                children: _buildCaptionSpans(theme, post),
+          if (widget.showCaption) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: RichText(
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.35, color: theme.colorScheme.onSurface),
+                  children: _buildCaptionSpans(theme, post),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
