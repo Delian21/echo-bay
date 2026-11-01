@@ -8,7 +8,10 @@ publish_to: "none"
 version: 0.1.0
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  # Matches the pinned SDK in netlify_build.sh (Flutter 3.47.0 / Dart 3.13.0)
+  # and pubspec.lock, so an older toolchain fails here instead of somewhere
+  # confusing inside `pub get`.
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:

@@ -2,22 +2,21 @@
 #
 # Netlify runs the Flutter web build itself; the repo no longer carries
 # build output (build/ is gitignored). Every push to the linked branch
-# deploys a fresh build. The base image ships a stable Flutter SDK with
-# Flutter on PATH; the web assets (sqlite3.wasm, drift_worker.js) are
+# deploys a fresh build. The web assets (sqlite3.wasm, drift_worker.js) are
 # committed in web/ so no extra download step is needed.
+#
+# The build image does NOT ship Flutter, so the command is a script that
+# installs one pinned, checksum-verified SDK first (see netlify_build.sh).
+# Building directly with `flutter build web` fails there with exit code 2.
 
 [build]
   publish = "build/web"
-  # --no-wasm-dry-run: the WASM dry run compiles a second target
-  # (dart2wasm) alongside dart2js and OOMs Netlify's build instances
-  # (exit code 2). This app targets dart2js only; the dry run buys
-  # nothing here. Local CI repro confirmed the same crash without it.
-  # --build-number: this is what makes version.json differ between deploys.
-  # VersionChecker compares the value and only offers the "a new page was
-  # inked" refresh banner when it changes; pubspec's version is constant,
-  # so without this stamp the banner can never fire. Strip it and the
-  # feature silently dies — keep it.
-  command = "flutter build web --release --no-wasm-dry-run --build-number=\"$(date +%s)\""
+  command = "bash netlify_build.sh"
+
+# Keep in step with FLUTTER_VERSION in netlify_build.sh and with the local
+# SDK. Changing it here alone does nothing: the script owns the pin.
+[build.environment]
+  FLUTTER_VERSION = "3.47.0"
 
 # Flutter web is a single-page app: any deep link (e.g. /vault/conversation/1)
 # must fall back to index.html so the router can take over after boot.
