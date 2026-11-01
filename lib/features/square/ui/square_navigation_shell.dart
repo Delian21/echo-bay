@@ -23,6 +23,7 @@ import '../../social/domain/repositories/social_repository.dart';
 import '../../social/ui/notifications_page.dart';
 import '../../settings/ui/settings_page.dart';
 import '../../square/domain/repositories/feed_repository.dart';
+import 'guest_banner.dart';
 import 'post_composer.dart';
 import '../../vault/data/datasources/vault_local_datasource.dart';
 import '../../vault/data/repositories/mock_chat_repository.dart';
@@ -531,36 +532,46 @@ class _SquareNavigationShellState extends State<SquareNavigationShell>
           const SizedBox(width: 4),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          SquareFeedView(repository: sl<FeedRepository>()),
-          // 24px fade into the background just above the bottom bar, so a
-          // post never appears sliced off by the navigation chrome.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 24,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(context)
-                          .colorScheme
-                          .surface
-                          .withValues(alpha: 0),
-                      Theme.of(context).colorScheme.surface,
-                    ],
+          // Guests only: a slim line explaining the mode and its exit.
+          // Renders nothing for a member (and once dismissed).
+          const GuestBanner(),
+          Expanded(
+            child: Stack(
+                children: [
+                  SquareFeedView(repository: sl<FeedRepository>()),
+                  // 24px fade into the background just above the bottom
+                  // bar, so a post never appears sliced off by the
+                  // navigation chrome.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 24,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Theme.of(context)
+                                  .colorScheme
+                                  .surface
+                                  .withValues(alpha: 0),
+                              Theme.of(context).colorScheme.surface,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
     );
   }
 

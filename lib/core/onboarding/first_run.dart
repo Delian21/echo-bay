@@ -14,6 +14,7 @@ import '../router/app_router.dart';
 import '../auth/auth_repository.dart' show AuthRepository;
 import '../auth/auth_screens.dart'
     show showAuthGate, showSignUpAfterOnboarding;
+import 'guest_mode.dart' show GuestMode;
 
 /// First-run onboarding: a three-page handwritten intro (the Square, the
 /// Vault, the rewind) plus name/avatar setup, shown once. Tracked in the
@@ -45,6 +46,17 @@ class FirstRun {
   static Future<void> runIfNeeded(BuildContext context) async {
     if (!sl.isRegistered<AppSettingsStore>()) return;
     final store = sl<AppSettingsStore>();
+    final hasCover = sl.isRegistered<AuthRepository>()
+        ? await sl<AuthRepository>().hasCoverBeenSigned()
+        : false;
+    final guest = await GuestMode.isActive(store);
+    // First open with no sketchbook: the landing page (LaunchGate) is on
+    // screen and owns this moment. The intro would sit on top of it, and
+    // the sign-up gate would fight its two entry buttons.
+    if (!hasCover && !guest) return;
+    // A guest is already reading the town: no intro, no sign-up gate. The
+    // Square's own banner is the way to make it permanent.
+    if (guest) return;
     final completed = await isCompleted(store);
     if (!completed) {
       final navigator = rootNavigatorKey.currentState;

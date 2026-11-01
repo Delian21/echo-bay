@@ -15,6 +15,7 @@ import '../../features/square/ui/square_feed_view.dart' show SquareDayViewPage;
 import '../../features/square/ui/square_navigation_shell.dart';
 import '../../features/vault/domain/repositories/chat_repository.dart';
 import '../../features/vault/ui/vault_conversation_list.dart';
+import '../../core/onboarding/launch_gate.dart';
 import '../../core/people/person_sheet.dart';
 import '../../core/profile/profile_controller.dart';
 import '../../core/search/search_page.dart';
@@ -73,9 +74,13 @@ final appRouter = GoRouter(
   // in-app pushes are rare (see the FAB fix) and the transition
   // vocabulary is vertical, which does not invite horizontal swipes.
   routes: [
+    // "/" is the front door, not the Square: the gate shows the landing
+    // page to a device that has never signed a cover (and is not
+    // browsing as a guest), and the Square to everyone else. Deep links
+    // (/square, /vault, …) bypass it, as they should.
     GoRoute(
       path: AppRoutes.home,
-      builder: (context, state) => const SquareNavigationShell(),
+      builder: (context, state) => const LaunchGate(),
     ),
     GoRoute(
       path: AppRoutes.square,

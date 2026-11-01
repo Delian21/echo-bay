@@ -198,9 +198,14 @@ class LocalAuthRepository implements AuthRepository {
         // Never signed the cover: adopt the email as the label.
         _cached = session.copyWith(email: credentials.email.trim());
         await _saveEmail(credentials.email.trim());
+        // A sketchbook opened here has a cover on it now — otherwise the
+        // launch gate would keep offering the landing page to someone who
+        // just walked in.
+        await _store.writeRaw(_hasCoverKey, 'true');
         _changes.add(null);
         return right(_cached!);
       }
+      await _store.writeRaw(_hasCoverKey, 'true');
       _changes.add(null);
       return right(session);
     } on Failure catch (f) {

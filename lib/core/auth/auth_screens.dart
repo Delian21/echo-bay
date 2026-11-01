@@ -4,8 +4,12 @@ import 'package:image_picker/image_picker.dart';
 import '../../injection.dart';
 import '../error/failures.dart';
 import '../io/platform_io.dart';
+import '../onboarding/first_run.dart' show FirstRun;
+import '../onboarding/guest_mode.dart' show GuestMode;
+import '../profile/handles.dart' show handleForName;
 import '../profile/profile_controller.dart';
 import '../profile/user_profile.dart';
+import '../settings/app_settings_store.dart' show AppSettingsStore;
 import '../design_system/sketch_kit.dart';
 import '../theme/app_theme.dart';
 import 'auth_repository.dart';
@@ -58,6 +62,26 @@ Future<void> showAuthGate(BuildContext context) async {
     builder: (_) =>
         hasCover ? const SignInScreen() : const SignUpScreen(comesFromOnboarding: false),
   ));
+}
+
+/// Opens Sign the cover from the landing page and reports whether the
+/// cover was actually signed (true) or the visitor backed out (false).
+Future<bool> showSignUpScreen(BuildContext context) async {
+  final signed = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+    fullscreenDialog: true,
+    builder: (_) => const SignUpScreen(comesFromOnboarding: false),
+  ));
+  return signed ?? false;
+}
+
+/// Opens Open your sketchbook from the landing page; true when the book
+/// was opened.
+Future<bool> showSignInScreen(BuildContext context) async {
+  final signed = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+    fullscreenDialog: true,
+    builder: (_) => const SignInScreen(),
+  ));
+  return signed ?? false;
 }
 
 /// Hand-off for the first-run flow: the user just personalized, so
@@ -413,8 +437,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _busy = false);
     result.fold(
       (Failure f) => setState(() => _error = f.message ?? 'Try again?'),
-      (_) => Navigator.of(context).pop(),
+      (_) => _finishSignUp(name),
     );
+  }
+
+  /// Leaves the flow as a signed-in member. A guest's sketchbook becomes
+  /// theirs here: the content already belongs to the same device identity,
+  /// so only the guest profile's placeholder handle and the guest flags
+  /// need replacing.
+  Future<void> _finishSignUp(String name) async {
+    final profile = _profile;
+    if (profile != null && profile.profile.handle == 'guest') {
+      profile.update(profile.profile.copyWith(handle: handleForName(name)));
+    }
+    if (sl.isRegistered<AppSettingsStore>()) {
+      final store = sl<AppSettingsStore>();
+      await GuestMode.finish(store);
+      // Signing the cover replaces the intro: never walk a member through
+      // it on the next launch.
+      await FirstRun.markCompleted(store);
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   @override
@@ -592,7 +636,7 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _busy = false);
     result.fold(
       (Failure f) => setState(() => _error = f.message ?? 'Try again?'),
-      (_) => Navigator.of(context).pop(),
+      (_) => Navigator.of(context).pop(true),
     );
   }
 
@@ -610,7 +654,7 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _busy = false);
     result.fold(
       (Failure f) => setState(() => _error = f.message ?? 'Try again?'),
-      (_) => Navigator.of(context).pop(),
+      (_) => Navigator.of(context).pop(true),
     );
   }
 
