@@ -26,6 +26,7 @@ class Message extends Equatable {
     this.editedAt,
     this.deletedAt,
     this.attachment,
+    this.replyToMessageId,
   });
 
   final String id;
@@ -44,6 +45,11 @@ class Message extends Equatable {
   /// Null for plain text messages.
   final MessageAttachment? attachment;
 
+  /// Id of the message this one quotes, if any. Deliberately a loose id,
+  /// not a nested entity: the quoted message may be gone (tombstoned or
+  /// unloaded), and a reply must still render without it.
+  final String? replyToMessageId;
+
   /// Authorship check. Delegates to [LocalIdentity] — the composition
   /// root's resolved session id, with the legacy pre-auth constant still
   /// counting as mine so seed rows keep their owner. UI should prefer
@@ -60,6 +66,7 @@ class Message extends Equatable {
     DateTime? deletedAt,
     bool clearDeleted = false,
     MessageAttachment? attachment,
+    String? replyToMessageId,
   }) =>
       Message(
         id: id,
@@ -71,11 +78,21 @@ class Message extends Equatable {
         editedAt: editedAt ?? this.editedAt,
         deletedAt: clearDeleted ? null : (deletedAt ?? this.deletedAt),
         attachment: attachment ?? this.attachment,
+        replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       );
 
   @override
   List<Object?> get props => [
-        id, conversationId, senderId, body, createdAt, status, editedAt, deletedAt, attachment,
+        id,
+        conversationId,
+        senderId,
+        body,
+        createdAt,
+        status,
+        editedAt,
+        deletedAt,
+        attachment,
+        replyToMessageId,
       ];
 }
 

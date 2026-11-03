@@ -24,6 +24,11 @@ class DraftStore {
   /// Square composer — one draft for the whole feed.
   static const squareKey = '${_prefix}square_post';
 
+  /// Editing an existing post — one draft per post, kept apart from the
+  /// new-post draft so opening the composer for a fresh page never
+  /// overwrites an edit in progress (or vice versa).
+  static String squareEdit(String postId) => '${_prefix}square_edit:$postId';
+
   /// Vault chat composer, per conversation.
   static String vault(String conversationId) => '${_prefix}vault:$conversationId';
 

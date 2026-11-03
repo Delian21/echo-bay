@@ -38,6 +38,15 @@ abstract class FeedRepository {
   /// Toggle like on a post; persists to the local like table.
   Future<Either<Failure, Unit>> toggleLike({required String postId});
 
+  /// Rewrite one of the local user's own posts. Posts can be edited at
+  /// any time — no window, unlike chat messages. Media is immutable: only
+  /// the body changes and [Post.editedAt] is stamped. Returns the updated
+  /// post, or a failure when the post is missing or not the caller's.
+  Future<Either<Failure, Post>> editPost({
+    required String postId,
+    required String body,
+  });
+
   /// Soft-delete one of the local user's own posts (author match). The
   /// post leaves the feed immediately but stays restorable for a short
   /// window; a real backend swaps in an outbox write without changing

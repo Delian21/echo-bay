@@ -48,6 +48,12 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
       'created_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _editedAtMeta =
+      const VerificationMeta('editedAt');
+  @override
+  late final GeneratedColumn<DateTime> editedAt = GeneratedColumn<DateTime>(
+      'edited_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   static const VerificationMeta _deletedAtMeta =
       const VerificationMeta('deletedAt');
   @override
@@ -69,6 +75,7 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
         mediaUrl,
         blurhash,
         createdAt,
+        editedAt,
         deletedAt,
         expiresAt
       ];
@@ -121,6 +128,10 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('edited_at')) {
+      context.handle(_editedAtMeta,
+          editedAt.isAcceptableOrUnknown(data['edited_at']!, _editedAtMeta));
+    }
     if (data.containsKey('deleted_at')) {
       context.handle(_deletedAtMeta,
           deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
@@ -152,6 +163,8 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostRow> {
           .read(DriftSqlType.string, data['${effectivePrefix}blurhash']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      editedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}edited_at']),
       deletedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
       expiresAt: attachedDatabase.typeMapping
@@ -178,6 +191,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
   final String? blurhash;
   final DateTime createdAt;
 
+  /// Schema v18: last body edit, or null when never edited.
+  final DateTime? editedAt;
+
   /// Soft-delete tombstone (undo window): non-null means the post is
   /// hidden from the feed but still restorable. Purged by the repository
   /// after the window closes.
@@ -196,6 +212,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       this.mediaUrl,
       this.blurhash,
       required this.createdAt,
+      this.editedAt,
       this.deletedAt,
       this.expiresAt});
   @override
@@ -212,6 +229,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       map['blurhash'] = Variable<String>(blurhash);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || editedAt != null) {
+      map['edited_at'] = Variable<DateTime>(editedAt);
+    }
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
@@ -234,6 +254,9 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           ? const Value.absent()
           : Value(blurhash),
       createdAt: Value(createdAt),
+      editedAt: editedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(editedAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
@@ -254,6 +277,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       mediaUrl: serializer.fromJson<String?>(json['mediaUrl']),
       blurhash: serializer.fromJson<String?>(json['blurhash']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      editedAt: serializer.fromJson<DateTime?>(json['editedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
     );
@@ -269,6 +293,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       'mediaUrl': serializer.toJson<String?>(mediaUrl),
       'blurhash': serializer.toJson<String?>(blurhash),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'editedAt': serializer.toJson<DateTime?>(editedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'expiresAt': serializer.toJson<DateTime?>(expiresAt),
     };
@@ -282,6 +307,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           Value<String?> mediaUrl = const Value.absent(),
           Value<String?> blurhash = const Value.absent(),
           DateTime? createdAt,
+          Value<DateTime?> editedAt = const Value.absent(),
           Value<DateTime?> deletedAt = const Value.absent(),
           Value<DateTime?> expiresAt = const Value.absent()}) =>
       PostRow(
@@ -292,6 +318,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
         mediaUrl: mediaUrl.present ? mediaUrl.value : this.mediaUrl,
         blurhash: blurhash.present ? blurhash.value : this.blurhash,
         createdAt: createdAt ?? this.createdAt,
+        editedAt: editedAt.present ? editedAt.value : this.editedAt,
         deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
         expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
       );
@@ -305,6 +332,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
       mediaUrl: data.mediaUrl.present ? data.mediaUrl.value : this.mediaUrl,
       blurhash: data.blurhash.present ? data.blurhash.value : this.blurhash,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      editedAt: data.editedAt.present ? data.editedAt.value : this.editedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
     );
@@ -320,6 +348,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           ..write('mediaUrl: $mediaUrl, ')
           ..write('blurhash: $blurhash, ')
           ..write('createdAt: $createdAt, ')
+          ..write('editedAt: $editedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('expiresAt: $expiresAt')
           ..write(')'))
@@ -328,7 +357,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
 
   @override
   int get hashCode => Object.hash(id, authorId, authorName, body, mediaUrl,
-      blurhash, createdAt, deletedAt, expiresAt);
+      blurhash, createdAt, editedAt, deletedAt, expiresAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -340,6 +369,7 @@ class PostRow extends DataClass implements Insertable<PostRow> {
           other.mediaUrl == this.mediaUrl &&
           other.blurhash == this.blurhash &&
           other.createdAt == this.createdAt &&
+          other.editedAt == this.editedAt &&
           other.deletedAt == this.deletedAt &&
           other.expiresAt == this.expiresAt);
 }
@@ -352,6 +382,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
   final Value<String?> mediaUrl;
   final Value<String?> blurhash;
   final Value<DateTime> createdAt;
+  final Value<DateTime?> editedAt;
   final Value<DateTime?> deletedAt;
   final Value<DateTime?> expiresAt;
   final Value<int> rowid;
@@ -363,6 +394,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.mediaUrl = const Value.absent(),
     this.blurhash = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.editedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -375,6 +407,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     this.mediaUrl = const Value.absent(),
     this.blurhash = const Value.absent(),
     required DateTime createdAt,
+    this.editedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -391,6 +424,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     Expression<String>? mediaUrl,
     Expression<String>? blurhash,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? editedAt,
     Expression<DateTime>? deletedAt,
     Expression<DateTime>? expiresAt,
     Expression<int>? rowid,
@@ -403,6 +437,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       if (mediaUrl != null) 'media_url': mediaUrl,
       if (blurhash != null) 'blurhash': blurhash,
       if (createdAt != null) 'created_at': createdAt,
+      if (editedAt != null) 'edited_at': editedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (expiresAt != null) 'expires_at': expiresAt,
       if (rowid != null) 'rowid': rowid,
@@ -417,6 +452,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       Value<String?>? mediaUrl,
       Value<String?>? blurhash,
       Value<DateTime>? createdAt,
+      Value<DateTime?>? editedAt,
       Value<DateTime?>? deletedAt,
       Value<DateTime?>? expiresAt,
       Value<int>? rowid}) {
@@ -428,6 +464,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
       mediaUrl: mediaUrl ?? this.mediaUrl,
       blurhash: blurhash ?? this.blurhash,
       createdAt: createdAt ?? this.createdAt,
+      editedAt: editedAt ?? this.editedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       expiresAt: expiresAt ?? this.expiresAt,
       rowid: rowid ?? this.rowid,
@@ -458,6 +495,9 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (editedAt.present) {
+      map['edited_at'] = Variable<DateTime>(editedAt.value);
+    }
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
@@ -480,6 +520,7 @@ class PostsCompanion extends UpdateCompanion<PostRow> {
           ..write('mediaUrl: $mediaUrl, ')
           ..write('blurhash: $blurhash, ')
           ..write('createdAt: $createdAt, ')
+          ..write('editedAt: $editedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('expiresAt: $expiresAt, ')
           ..write('rowid: $rowid')
@@ -1119,6 +1160,12 @@ class $MessagesTable extends Messages
   late final GeneratedColumn<int> attachmentDurationMs = GeneratedColumn<int>(
       'attachment_duration_ms', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _replyToMessageIdMeta =
+      const VerificationMeta('replyToMessageId');
+  @override
+  late final GeneratedColumn<String> replyToMessageId = GeneratedColumn<String>(
+      'reply_to_message_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1132,7 +1179,8 @@ class $MessagesTable extends Messages
         deletedAt,
         attachmentKind,
         attachmentPath,
-        attachmentDurationMs
+        attachmentDurationMs,
+        replyToMessageId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1207,6 +1255,12 @@ class $MessagesTable extends Messages
           attachmentDurationMs.isAcceptableOrUnknown(
               data['attachment_duration_ms']!, _attachmentDurationMsMeta));
     }
+    if (data.containsKey('reply_to_message_id')) {
+      context.handle(
+          _replyToMessageIdMeta,
+          replyToMessageId.isAcceptableOrUnknown(
+              data['reply_to_message_id']!, _replyToMessageIdMeta));
+    }
     return context;
   }
 
@@ -1241,6 +1295,8 @@ class $MessagesTable extends Messages
           .read(DriftSqlType.string, data['${effectivePrefix}attachment_path']),
       attachmentDurationMs: attachedDatabase.typeMapping.read(
           DriftSqlType.int, data['${effectivePrefix}attachment_duration_ms']),
+      replyToMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reply_to_message_id']),
     );
   }
 
@@ -1288,6 +1344,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   final String? attachmentKind;
   final String? attachmentPath;
   final int? attachmentDurationMs;
+
+  /// Schema v17: the quoted message id, if this is a reply.
+  final String? replyToMessageId;
   const MessageRow(
       {required this.id,
       required this.conversationId,
@@ -1300,7 +1359,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       this.deletedAt,
       this.attachmentKind,
       this.attachmentPath,
-      this.attachmentDurationMs});
+      this.attachmentDurationMs,
+      this.replyToMessageId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1331,6 +1391,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     if (!nullToAbsent || attachmentDurationMs != null) {
       map['attachment_duration_ms'] = Variable<int>(attachmentDurationMs);
     }
+    if (!nullToAbsent || replyToMessageId != null) {
+      map['reply_to_message_id'] = Variable<String>(replyToMessageId);
+    }
     return map;
   }
 
@@ -1360,6 +1423,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       attachmentDurationMs: attachmentDurationMs == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentDurationMs),
+      replyToMessageId: replyToMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyToMessageId),
     );
   }
 
@@ -1381,6 +1447,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       attachmentPath: serializer.fromJson<String?>(json['attachmentPath']),
       attachmentDurationMs:
           serializer.fromJson<int?>(json['attachmentDurationMs']),
+      replyToMessageId:
+          serializer.fromJson<String?>(json['replyToMessageId']),
     );
   }
   @override
@@ -1400,6 +1468,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'attachmentKind': serializer.toJson<String?>(attachmentKind),
       'attachmentPath': serializer.toJson<String?>(attachmentPath),
       'attachmentDurationMs': serializer.toJson<int?>(attachmentDurationMs),
+      'replyToMessageId': serializer.toJson<String?>(replyToMessageId),
     };
   }
 
@@ -1415,7 +1484,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           Value<DateTime?> deletedAt = const Value.absent(),
           Value<String?> attachmentKind = const Value.absent(),
           Value<String?> attachmentPath = const Value.absent(),
-          Value<int?> attachmentDurationMs = const Value.absent()}) =>
+          Value<int?> attachmentDurationMs = const Value.absent(),
+          Value<String?> replyToMessageId = const Value.absent()}) =>
       MessageRow(
         id: id ?? this.id,
         conversationId: conversationId ?? this.conversationId,
@@ -1433,6 +1503,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
         attachmentDurationMs: attachmentDurationMs.present
             ? attachmentDurationMs.value
             : this.attachmentDurationMs,
+        replyToMessageId: replyToMessageId.present
+            ? replyToMessageId.value
+            : this.replyToMessageId,
       );
   MessageRow copyWithCompanion(MessagesCompanion data) {
     return MessageRow(
@@ -1458,6 +1531,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       attachmentDurationMs: data.attachmentDurationMs.present
           ? data.attachmentDurationMs.value
           : this.attachmentDurationMs,
+      replyToMessageId: data.replyToMessageId.present
+          ? data.replyToMessageId.value
+          : this.replyToMessageId,
     );
   }
 
@@ -1475,7 +1551,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('deletedAt: $deletedAt, ')
           ..write('attachmentKind: $attachmentKind, ')
           ..write('attachmentPath: $attachmentPath, ')
-          ..write('attachmentDurationMs: $attachmentDurationMs')
+          ..write('attachmentDurationMs: $attachmentDurationMs, ')
+          ..write('replyToMessageId: $replyToMessageId')
           ..write(')'))
         .toString();
   }
@@ -1493,7 +1570,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       deletedAt,
       attachmentKind,
       attachmentPath,
-      attachmentDurationMs);
+      attachmentDurationMs,
+      replyToMessageId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1509,7 +1587,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.deletedAt == this.deletedAt &&
           other.attachmentKind == this.attachmentKind &&
           other.attachmentPath == this.attachmentPath &&
-          other.attachmentDurationMs == this.attachmentDurationMs);
+          other.attachmentDurationMs == this.attachmentDurationMs &&
+          other.replyToMessageId == this.replyToMessageId);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessageRow> {
@@ -1525,6 +1604,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
   final Value<String?> attachmentKind;
   final Value<String?> attachmentPath;
   final Value<int?> attachmentDurationMs;
+  final Value<String?> replyToMessageId;
   final Value<int> rowid;
   const MessagesCompanion({
     this.id = const Value.absent(),
@@ -1539,6 +1619,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.attachmentKind = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.attachmentDurationMs = const Value.absent(),
+    this.replyToMessageId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MessagesCompanion.insert({
@@ -1554,6 +1635,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.attachmentKind = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.attachmentDurationMs = const Value.absent(),
+    this.replyToMessageId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         conversationId = Value(conversationId),
@@ -1574,6 +1656,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Expression<String>? attachmentKind,
     Expression<String>? attachmentPath,
     Expression<int>? attachmentDurationMs,
+    Expression<String>? replyToMessageId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1590,6 +1673,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       if (attachmentPath != null) 'attachment_path': attachmentPath,
       if (attachmentDurationMs != null)
         'attachment_duration_ms': attachmentDurationMs,
+      if (replyToMessageId != null)
+        'reply_to_message_id': replyToMessageId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1607,6 +1692,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       Value<String?>? attachmentKind,
       Value<String?>? attachmentPath,
       Value<int?>? attachmentDurationMs,
+      Value<String?>? replyToMessageId,
       Value<int>? rowid}) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -1621,6 +1707,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       attachmentKind: attachmentKind ?? this.attachmentKind,
       attachmentPath: attachmentPath ?? this.attachmentPath,
       attachmentDurationMs: attachmentDurationMs ?? this.attachmentDurationMs,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1665,6 +1752,9 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     if (attachmentDurationMs.present) {
       map['attachment_duration_ms'] = Variable<int>(attachmentDurationMs.value);
     }
+    if (replyToMessageId.present) {
+      map['reply_to_message_id'] = Variable<String>(replyToMessageId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1686,6 +1776,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
           ..write('attachmentKind: $attachmentKind, ')
           ..write('attachmentPath: $attachmentPath, ')
           ..write('attachmentDurationMs: $attachmentDurationMs, ')
+          ..write('replyToMessageId: $replyToMessageId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2706,6 +2797,12 @@ class $GroupMessagesTable extends GroupMessages
   late final GeneratedColumn<int> attachmentDurationMs = GeneratedColumn<int>(
       'attachment_duration_ms', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _replyToMessageIdMeta =
+      const VerificationMeta('replyToMessageId');
+  @override
+  late final GeneratedColumn<String> replyToMessageId = GeneratedColumn<String>(
+      'reply_to_message_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2719,7 +2816,8 @@ class $GroupMessagesTable extends GroupMessages
         blurhash,
         attachmentKind,
         attachmentPath,
-        attachmentDurationMs
+        attachmentDurationMs,
+        replyToMessageId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2790,6 +2888,12 @@ class $GroupMessagesTable extends GroupMessages
           attachmentDurationMs.isAcceptableOrUnknown(
               data['attachment_duration_ms']!, _attachmentDurationMsMeta));
     }
+    if (data.containsKey('reply_to_message_id')) {
+      context.handle(
+          _replyToMessageIdMeta,
+          replyToMessageId.isAcceptableOrUnknown(
+              data['reply_to_message_id']!, _replyToMessageIdMeta));
+    }
     return context;
   }
 
@@ -2824,6 +2928,8 @@ class $GroupMessagesTable extends GroupMessages
           .read(DriftSqlType.string, data['${effectivePrefix}attachment_path']),
       attachmentDurationMs: attachedDatabase.typeMapping.read(
           DriftSqlType.int, data['${effectivePrefix}attachment_duration_ms']),
+      replyToMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reply_to_message_id']),
     );
   }
 
@@ -2852,6 +2958,9 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
   final String? attachmentKind;
   final String? attachmentPath;
   final int? attachmentDurationMs;
+
+  /// Schema v17: the quoted message id, if this is a reply.
+  final String? replyToMessageId;
   const GroupMessageRow(
       {required this.id,
       required this.groupId,
@@ -2864,7 +2973,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       this.blurhash,
       this.attachmentKind,
       this.attachmentPath,
-      this.attachmentDurationMs});
+      this.attachmentDurationMs,
+      this.replyToMessageId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2895,6 +3005,9 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
     if (!nullToAbsent || attachmentDurationMs != null) {
       map['attachment_duration_ms'] = Variable<int>(attachmentDurationMs);
     }
+    if (!nullToAbsent || replyToMessageId != null) {
+      map['reply_to_message_id'] = Variable<String>(replyToMessageId);
+    }
     return map;
   }
 
@@ -2924,6 +3037,9 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       attachmentDurationMs: attachmentDurationMs == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentDurationMs),
+      replyToMessageId: replyToMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyToMessageId),
     );
   }
 
@@ -2945,6 +3061,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       attachmentPath: serializer.fromJson<String?>(json['attachmentPath']),
       attachmentDurationMs:
           serializer.fromJson<int?>(json['attachmentDurationMs']),
+      replyToMessageId:
+          serializer.fromJson<String?>(json['replyToMessageId']),
     );
   }
   @override
@@ -2964,6 +3082,7 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       'attachmentKind': serializer.toJson<String?>(attachmentKind),
       'attachmentPath': serializer.toJson<String?>(attachmentPath),
       'attachmentDurationMs': serializer.toJson<int?>(attachmentDurationMs),
+      'replyToMessageId': serializer.toJson<String?>(replyToMessageId),
     };
   }
 
@@ -2979,7 +3098,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
           Value<String?> blurhash = const Value.absent(),
           Value<String?> attachmentKind = const Value.absent(),
           Value<String?> attachmentPath = const Value.absent(),
-          Value<int?> attachmentDurationMs = const Value.absent()}) =>
+          Value<int?> attachmentDurationMs = const Value.absent(),
+          Value<String?> replyToMessageId = const Value.absent()}) =>
       GroupMessageRow(
         id: id ?? this.id,
         groupId: groupId ?? this.groupId,
@@ -2997,6 +3117,9 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
         attachmentDurationMs: attachmentDurationMs.present
             ? attachmentDurationMs.value
             : this.attachmentDurationMs,
+        replyToMessageId: replyToMessageId.present
+            ? replyToMessageId.value
+            : this.replyToMessageId,
       );
   GroupMessageRow copyWithCompanion(GroupMessagesCompanion data) {
     return GroupMessageRow(
@@ -3019,6 +3142,9 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       attachmentDurationMs: data.attachmentDurationMs.present
           ? data.attachmentDurationMs.value
           : this.attachmentDurationMs,
+      replyToMessageId: data.replyToMessageId.present
+          ? data.replyToMessageId.value
+          : this.replyToMessageId,
     );
   }
 
@@ -3036,7 +3162,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
           ..write('blurhash: $blurhash, ')
           ..write('attachmentKind: $attachmentKind, ')
           ..write('attachmentPath: $attachmentPath, ')
-          ..write('attachmentDurationMs: $attachmentDurationMs')
+          ..write('attachmentDurationMs: $attachmentDurationMs, ')
+          ..write('replyToMessageId: $replyToMessageId')
           ..write(')'))
         .toString();
   }
@@ -3054,7 +3181,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
       blurhash,
       attachmentKind,
       attachmentPath,
-      attachmentDurationMs);
+      attachmentDurationMs,
+      replyToMessageId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3070,7 +3198,8 @@ class GroupMessageRow extends DataClass implements Insertable<GroupMessageRow> {
           other.blurhash == this.blurhash &&
           other.attachmentKind == this.attachmentKind &&
           other.attachmentPath == this.attachmentPath &&
-          other.attachmentDurationMs == this.attachmentDurationMs);
+          other.attachmentDurationMs == this.attachmentDurationMs &&
+          other.replyToMessageId == this.replyToMessageId);
 }
 
 class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
@@ -3086,6 +3215,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
   final Value<String?> attachmentKind;
   final Value<String?> attachmentPath;
   final Value<int?> attachmentDurationMs;
+  final Value<String?> replyToMessageId;
   final Value<int> rowid;
   const GroupMessagesCompanion({
     this.id = const Value.absent(),
@@ -3100,6 +3230,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
     this.attachmentKind = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.attachmentDurationMs = const Value.absent(),
+    this.replyToMessageId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   GroupMessagesCompanion.insert({
@@ -3115,6 +3246,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
     this.attachmentKind = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.attachmentDurationMs = const Value.absent(),
+    this.replyToMessageId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         groupId = Value(groupId),
@@ -3135,6 +3267,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
     Expression<String>? attachmentKind,
     Expression<String>? attachmentPath,
     Expression<int>? attachmentDurationMs,
+    Expression<String>? replyToMessageId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3151,6 +3284,8 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
       if (attachmentPath != null) 'attachment_path': attachmentPath,
       if (attachmentDurationMs != null)
         'attachment_duration_ms': attachmentDurationMs,
+      if (replyToMessageId != null)
+        'reply_to_message_id': replyToMessageId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3168,6 +3303,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
       Value<String?>? attachmentKind,
       Value<String?>? attachmentPath,
       Value<int?>? attachmentDurationMs,
+      Value<String?>? replyToMessageId,
       Value<int>? rowid}) {
     return GroupMessagesCompanion(
       id: id ?? this.id,
@@ -3182,6 +3318,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
       attachmentKind: attachmentKind ?? this.attachmentKind,
       attachmentPath: attachmentPath ?? this.attachmentPath,
       attachmentDurationMs: attachmentDurationMs ?? this.attachmentDurationMs,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3226,6 +3363,9 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
     if (attachmentDurationMs.present) {
       map['attachment_duration_ms'] = Variable<int>(attachmentDurationMs.value);
     }
+    if (replyToMessageId.present) {
+      map['reply_to_message_id'] = Variable<String>(replyToMessageId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3247,6 +3387,7 @@ class GroupMessagesCompanion extends UpdateCompanion<GroupMessageRow> {
           ..write('attachmentKind: $attachmentKind, ')
           ..write('attachmentPath: $attachmentPath, ')
           ..write('attachmentDurationMs: $attachmentDurationMs, ')
+          ..write('replyToMessageId: $replyToMessageId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();

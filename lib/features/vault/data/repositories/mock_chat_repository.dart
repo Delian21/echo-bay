@@ -8,6 +8,8 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/io/platform_io.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/auth/local_identity.dart';
+import '../../../../core/chat/message_edit.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/message.dart';
@@ -235,6 +237,7 @@ class MockChatRepository implements ChatRepository {
     required String conversationId,
     required String body,
     MessageAttachment? attachment,
+    String? replyToMessageId,
   }) async {
     try {
       final conversation = await _local.findConversation(conversationId);
@@ -255,6 +258,7 @@ class MockChatRepository implements ChatRepository {
         createdAt: DateTime.now(),
         status: DeliveryStatus.pending,
         attachment: stored,
+        replyToMessageId: replyToMessageId,
       );
 
       // LOCAL-FIRST: persist before any transport attempt.
@@ -269,6 +273,7 @@ class MockChatRepository implements ChatRepository {
         attachmentKind: Value(stored?.kind.name),
         attachmentPath: Value(stored?.path),
         attachmentDurationMs: Value(stored?.durationMs),
+        replyToMessageId: Value(replyToMessageId),
       ));
       await _touchConversation(conversationId, message.createdAt);
 
@@ -288,6 +293,12 @@ class MockChatRepository implements ChatRepository {
     }
   }
 
+  /// Ownership for every write path: the session id **or** the legacy
+  /// `local-user` stamp. Comparing against [localUserId] alone made rows
+  /// written before the auth seam visible as yours but undeletable.
+  bool _isMine(String senderId) =>
+      senderId == localUserId || LocalIdentity.owns(senderId);
+
   @override
   Future<Either<Failure, Message>> editMessage({
     required String messageId,
@@ -298,13 +309,18 @@ class MockChatRepository implements ChatRepository {
       if (message == null) {
         return left(const NotFoundFailure(message: 'message not found'));
       }
-      if (message.senderId != localUserId) {
+      if (!_isMine(message.senderId)) {
         return left(const UnauthorizedFailure(
             message: 'only your own messages can be edited'));
       }
       if (message.isDeleted) {
         return left(const ConflictFailure(
             message: 'cannot edit a deleted message'));
+      }
+      if (!withinMessageEditWindow(message.createdAt)) {
+        return left(const ConflictFailure(
+            message: 'the ink is dry — messages can only be edited for '
+                '15 minutes'));
       }
 
       // LOCAL-FIRST tombstone write: body updated, editedAt stamped, then
@@ -330,7 +346,7 @@ class MockChatRepository implements ChatRepository {
       if (message == null) {
         return left(const NotFoundFailure(message: 'message not found'));
       }
-      if (message.senderId != localUserId) {
+      if (!_isMine(message.senderId)) {
         return left(const UnauthorizedFailure(
             message: 'only your own messages can be deleted'));
       }
@@ -373,6 +389,26 @@ class MockChatRepository implements ChatRepository {
       }
       await Future<void>.delayed(const Duration(milliseconds: 400));
     }
+  }
+
+  @override
+  Stream<Either<Failure, List<Reaction>>> watchConversationReactions({
+    required String conversationId,
+  }) {
+    // One drift query over the whole conversation, so a page of bubbles
+    // shares a single subscription.
+    return _local
+        .watchConversationReactions(conversationId: conversationId)
+        .map((rows) => Right<Failure, List<Reaction>>(
+              rows
+                  .map((r) => Reaction(
+                        id: r.id,
+                        messageId: r.messageId,
+                        userId: r.userId,
+                        reaction: r.reaction,
+                      ))
+                  .toList(),
+            ));
   }
 
   @override

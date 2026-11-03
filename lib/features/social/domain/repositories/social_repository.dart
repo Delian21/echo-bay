@@ -22,6 +22,11 @@ abstract class SocialRepository {
     required String body,
   });
 
+  /// Remove one of the local user's own comments. Foreign comments are
+  /// refused — the UI never offers the action, and the repository does
+  /// not trust the UI.
+  Future<Either<Failure, Unit>> deleteComment({required String commentId});
+
   /// Live notification feed, newest first.
   Stream<Either<Failure, List<SocialNotification>>> watchNotifications();
 

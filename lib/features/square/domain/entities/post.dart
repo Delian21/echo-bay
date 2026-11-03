@@ -14,6 +14,7 @@ class Post extends Equatable {
     this.likesCount = 0,
     this.deletedAt,
     this.expiresAt,
+    this.editedAt,
   });
 
   final String id;
@@ -27,6 +28,10 @@ class Post extends Equatable {
   /// meaningful placeholder offline, behind the loading image.
   final String? blurhash;
   final DateTime createdAt;
+
+  /// When the author last rewrote the body; null when never edited. Posts
+  /// can be edited at any time (unlike messages, which have a window).
+  final DateTime? editedAt;
 
   /// Soft-delete tombstone (undo window). Non-null = hidden from the
   /// feed, still restorable until the repository purges it.
@@ -58,6 +63,7 @@ class Post extends Equatable {
     bool clearDeleted = false,
     DateTime? expiresAt,
     bool clearExpiry = false,
+    DateTime? editedAt,
   }) {
     return Post(
       id: id ?? this.id,
@@ -71,6 +77,7 @@ class Post extends Equatable {
       deletedAt: clearDeleted ? null : (deletedAt ?? this.deletedAt),
       // Keep-forever conversion clears the expiry.
       expiresAt: clearExpiry ? null : (expiresAt ?? this.expiresAt),
+      editedAt: editedAt ?? this.editedAt,
     );
   }
 
@@ -83,6 +90,7 @@ class Post extends Equatable {
         mediaUrl,
         blurhash,
         createdAt,
+        editedAt,
         deletedAt,
         expiresAt,
         isLiked,

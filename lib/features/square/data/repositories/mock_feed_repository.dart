@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/post.dart';
@@ -171,7 +172,7 @@ class MockFeedRepository implements FeedRepository {
       if (existing == null) {
         return left(const NotFoundFailure(message: 'post not found'));
       }
-      if (existing.authorId != localUserId) {
+      if (!_isMine(existing.authorId)) {
         return left(const NotFoundFailure(message: 'not your post'));
       }
       await _local.keepPost(postId);
@@ -210,6 +211,43 @@ class MockFeedRepository implements FeedRepository {
   /// posts fade at 24h too) and keeps growth bounded.
   static const retentionWindow = Duration(hours: 24);
 
+  /// Who counts as "me". [LocalIdentity.owns] accepts both the session id
+  /// and the legacy `local-user` stamp, which is the point: rows written
+  /// before the auth seam are still the local user's rows and must stay
+  /// deletable. Comparing against [localUserId] alone made every older
+  /// post and message undeletable while the UI still offered it — the
+  /// delete path failed with "not your post" on content the app called
+  /// yours everywhere else.
+  bool _isMine(String authorId) =>
+      authorId == localUserId || LocalIdentity.owns(authorId);
+
+  @override
+  Future<Either<Failure, Post>> editPost({
+    required String postId,
+    required String body,
+  }) async {
+    try {
+      final existing = await _local.findPost(postId);
+      if (existing == null) {
+        return left(const NotFoundFailure(message: 'post not found'));
+      }
+      if (!_isMine(existing.authorId)) {
+        return left(const UnauthorizedFailure(
+            message: 'only your own posts can be edited'));
+      }
+      final text = body.trim();
+      final editedAt = DateTime.now();
+      await _local.updatePostBody(
+        postId: postId,
+        body: text,
+        editedAt: editedAt,
+      );
+      return right(existing.copyWith(body: text, editedAt: editedAt));
+    } catch (e) {
+      return left(CacheFailure(message: 'editPost failed', cause: e));
+    }
+  }
+
   @override
   Future<Either<Failure, Unit>> deletePost({required String postId}) async {
     try {
@@ -219,10 +257,21 @@ class MockFeedRepository implements FeedRepository {
       }
       // Only the author can delete their own post. Seeded/remote posts
       // (the simulated community) are not the local user's to remove.
-      if (existing.authorId != localUserId) {
+      if (!_isMine(existing.authorId)) {
         return left(const NotFoundFailure(message: 'not your post'));
       }
       await _local.deletePost(postId); // tombstone — restorable
+
+      // A torn-out page takes its notes with it: comments have no life
+      // of their own under a post that is gone. Keepsake pins are soft
+      // unpinned instead of deleted so time travel can still show the
+      // past board with the print hanging on it.
+      await (_db.delete(_db.postComments)
+            ..where((t) => t.postId.equals(postId)))
+          .go();
+      await (_db.update(_db.keepsakeItems)
+            ..where((t) => t.postId.equals(postId) & t.unpinnedAt.isNull()))
+          .write(KeepsakeItemsCompanion(unpinnedAt: Value(DateTime.now())));
       // Hard-delete once retention closes (was: at the undo window's
       // close, which destroyed recoverable past for time travel). One
       // timer per delete: restorePost cancels the purge by clearing the

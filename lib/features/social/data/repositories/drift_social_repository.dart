@@ -5,6 +5,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:stream_transform/stream_transform.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/auth/local_identity.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/social_entities.dart';
@@ -113,6 +114,31 @@ class DriftSocialRepository implements SocialRepository {
       return right(comment);
     } on Object catch (e) {
       return left(CacheFailure(message: 'addComment failed', cause: e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> deleteComment({
+    required String commentId,
+  }) async {
+    try {
+      _assertWritable();
+      final row = await (_db.select(_db.postComments)
+            ..where((t) => t.id.equals(commentId)))
+          .getSingleOrNull();
+      if (row == null) return right(unit); // already gone
+      // Same ownership rule as every other write path: the session id and
+      // the legacy `local-user` stamp both belong to this device's user.
+      if (row.authorId != localUserId && !LocalIdentity.owns(row.authorId)) {
+        return left(const UnauthorizedFailure(
+            message: "that note isn't yours to remove"));
+      }
+      await (_db.delete(_db.postComments)
+            ..where((t) => t.id.equals(commentId)))
+          .go();
+      return right(unit);
+    } on Object catch (e) {
+      return left(CacheFailure(message: 'deleteComment failed', cause: e));
     }
   }
 

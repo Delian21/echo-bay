@@ -45,6 +45,38 @@ abstract class NexusRepository {
     required String groupId,
     required String body,
     MessageAttachment? attachment,
+
+    /// Quoted message, if this send is a reply. Stored as an id so a
+    /// later tombstone shows as "unavailable" rather than a stale copy.
+    String? replyToMessageId,
+  });
+
+  /// Rewrite an own group message. Only text: attachments are immutable.
+  /// Allowed for 15 minutes after sending, like the Vault.
+  Future<Either<Failure, GroupMessage>> editGroupMessage({
+    required String messageId,
+    required String newBody,
+  });
+
+  /// Tombstone an own group message. The row stays (flow and replies
+  /// keep working); the UI shows a muted "Message deleted" line.
+  Future<Either<Failure, Unit>> deleteGroupMessage({
+    required String messageId,
+  });
+
+  // -- reactions -------------------------------------------------------------
+
+  /// Every reaction on every message in one group, live. One subscription
+  /// per chat page, not per bubble.
+  Stream<Either<Failure, List<GroupReaction>>> watchGroupReactions({
+    required String groupId,
+  });
+
+  /// Toggle the local user's reaction. Local-first: one reaction per
+  /// person per message — the same emoji removes it, another replaces it.
+  Future<Either<Failure, bool>> toggleGroupReaction({
+    required String messageId,
+    required String reaction,
   });
 
   /// Flush pending/failed group messages — the background worker entry.

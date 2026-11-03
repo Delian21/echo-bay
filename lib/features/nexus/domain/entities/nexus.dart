@@ -65,6 +65,30 @@ class ChannelPost extends Equatable {
       [id, channelId, authorName, body, createdAt, expiresAt];
 }
 
+/// One reaction on one group message. The Nexus keeps its own type for
+/// the same reason it keeps its own message type: features may not
+/// import each other, and the Nexus will sync differently from the
+/// Vault once there is a transport. Storage is the shared
+/// `message_reactions` outbox table, tagged `nexus_group`.
+class GroupReaction extends Equatable {
+  const GroupReaction({
+    required this.id,
+    required this.messageId,
+    required this.userId,
+    required this.reaction,
+  });
+
+  final String id;
+  final String messageId;
+  final String userId;
+
+  /// Emoji glyph (see `kMessageReactions` in the design system).
+  final String reaction;
+
+  @override
+  List<Object?> get props => [id, messageId, userId, reaction];
+}
+
 /// A group chat. Many→many, write-heavy — the Vault's outbox model
 /// without E2EE. [myRole] is the local user's role in this group.
 class NexusGroup extends Equatable {
@@ -144,6 +168,7 @@ class GroupMessage extends Equatable {
     this.editedAt,
     this.deletedAt,
     this.attachment,
+    this.replyToMessageId,
   });
 
   final String id;
@@ -160,11 +185,16 @@ class GroupMessage extends Equatable {
   /// forbidden by the dependency rule, so this mirrors its shape).
   final MessageAttachment? attachment;
 
+  /// Id of the quoted message, if this one is a reply. Same loose-id
+  /// contract as the Vault's message: the target may be unavailable.
+  final String? replyToMessageId;
+
   bool get isMine => LocalIdentity.owns(senderId);
   bool get isDeleted => deletedAt != null;
   bool get isEdited => editedAt != null;
 
-  GroupMessage copyWith({OutboxStatus? status}) => GroupMessage(
+  GroupMessage copyWith({OutboxStatus? status, String? replyToMessageId}) =>
+      GroupMessage(
         id: id,
         groupId: groupId,
         senderId: senderId,
@@ -173,9 +203,21 @@ class GroupMessage extends Equatable {
         status: status ?? this.status,
         editedAt: editedAt,
         deletedAt: deletedAt,
+        attachment: attachment,
+        replyToMessageId: replyToMessageId ?? this.replyToMessageId,
       );
 
   @override
-  List<Object?> get props =>
-      [id, groupId, senderId, body, createdAt, status, editedAt, deletedAt];
+  List<Object?> get props => [
+        id,
+        groupId,
+        senderId,
+        body,
+        createdAt,
+        status,
+        editedAt,
+        deletedAt,
+        attachment,
+        replyToMessageId,
+      ];
 }

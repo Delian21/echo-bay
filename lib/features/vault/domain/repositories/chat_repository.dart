@@ -29,6 +29,11 @@ abstract class ChatRepository {
     /// app's attachments directory before persisting (local-first: the
     /// message must outlive the picker session).
     MessageAttachment? attachment,
+
+    /// Message being quoted, if this send is a reply. Stored as an id;
+    /// the quoted row is never copied, so a later tombstone shows
+    /// through as "unavailable" instead of a stale duplicate.
+    String? replyToMessageId,
   });
 
   /// Edit a message written by the local user. Local-first: the row is
@@ -48,6 +53,12 @@ abstract class ChatRepository {
   /// Reactions on one message, all users. Re-emits on toggle.
   Stream<Either<Failure, List<Reaction>>> watchReactions({
     required String messageId,
+  });
+
+  /// Every reaction on every message in one conversation, live — what a
+  /// chat page subscribes to once instead of one watcher per bubble.
+  Stream<Either<Failure, List<Reaction>>> watchConversationReactions({
+    required String conversationId,
   });
 
   /// Toggle the local user's [reaction] on a message. Local-first: the

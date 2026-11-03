@@ -25,6 +25,11 @@ class Posts extends Table {
   TextColumn get blurhash => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 
+  /// Schema v18: when the author last rewrote the body. Null = never
+  /// edited. A post can be edited any time; the card reads this for the
+  /// small "edited" mark next to the timestamp.
+  DateTimeColumn get editedAt => dateTime().nullable()();
+
   /// Soft-delete tombstone (undo window): non-null means the post is
   /// hidden from the feed but still restorable. Purged by the repository
   /// after the window closes.
@@ -114,6 +119,13 @@ class Messages extends Table {
   TextColumn get attachmentPath => text().nullable()();
   IntColumn get attachmentDurationMs =>
       integer().nullable()();
+
+  /// Schema v17: the message this one quotes. Null = no reply, which is
+  /// every message written before the column existed. A plain id, not a
+  /// row reference: the quoted message may have been tombstoned since,
+  /// and the UI must degrade to "Original message unavailable" rather
+  /// than lose the reply or fail a constraint.
+  TextColumn get replyToMessageId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -448,6 +460,11 @@ class GroupMessages extends Table {
   IntColumn get attachmentDurationMs =>
       integer().nullable()();
 
+  /// Schema v17: quoted message id, same contract as
+  /// [Messages.replyToMessageId] — permissive by design, because the
+  /// quoted row can be tombstoned or pruned after the reply is written.
+  TextColumn get replyToMessageId => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -528,7 +545,7 @@ class AppDatabase extends _$AppDatabase {
   DateTime clock() => _clock();
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 18;
 
   /// Backfills an FTS5 index from its content table. Used by the v5
   /// migration so existing rows become searchable immediately.
@@ -786,6 +803,24 @@ class AppDatabase extends _$AppDatabase {
           // moves. Soft-removal tombstone lives in the table itself.
           if (from < 16) {
             await m.createTable(follows);
+          }
+          // v16 -> v17: message replies. A nullable quoted-message id on
+          // both chat stores; existing rows simply have none, so nothing
+          // moves and no data is lost. Reactions needed no migration —
+          // they have had their own outbox table since v6.
+          if (from < 17) {
+            await addColumnIfMissing(
+              'messages', 'reply_to_message_id', 'TEXT NULL',
+            );
+            await addColumnIfMissing(
+              'group_messages', 'reply_to_message_id', 'TEXT NULL',
+            );
+          }
+          // v17 -> v18: post edits. One nullable timestamp; nothing moves
+          // and every existing post reads as never edited. Messages and
+          // Dorm messages have carried edited_at since v7.
+          if (from < 18) {
+            await addColumnIfMissing('posts', 'edited_at', 'INTEGER NULL');
           }
         },
       );

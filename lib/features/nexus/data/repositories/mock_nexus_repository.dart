@@ -6,6 +6,8 @@ import 'package:fpdart/fpdart.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/attachments/attachment.dart';
+import '../../../../core/auth/local_identity.dart';
+import '../../../../core/chat/message_edit.dart';
 import '../../../../core/io/platform_io.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/error/failures.dart';
@@ -112,6 +114,7 @@ class MockNexusRepository implements NexusRepository {
     required String groupId,
     required String body,
     MessageAttachment? attachment,
+    String? replyToMessageId,
   }) async {
     try {
       final group = await _local.findGroup(groupId);
@@ -129,6 +132,7 @@ class MockNexusRepository implements NexusRepository {
         createdAt: DateTime.now(),
         status: OutboxStatus.pending,
         attachment: stored,
+        replyToMessageId: replyToMessageId,
       );
 
       // LOCAL-FIRST: persist before any transport attempt.
@@ -142,6 +146,7 @@ class MockNexusRepository implements NexusRepository {
         attachmentKind: Value(stored?.kind.name),
         attachmentPath: Value(stored?.path),
         attachmentDurationMs: Value(stored?.durationMs),
+        replyToMessageId: Value(replyToMessageId),
       ));
       await _touchGroup(groupId, message.createdAt);
 
@@ -151,6 +156,108 @@ class MockNexusRepository implements NexusRepository {
       return right(message);
     } catch (e) {
       return left(CacheFailure(message: 'sendGroupMessage failed', cause: e));
+    }
+  }
+
+  /// Ownership for every write path: the session id **or** the legacy
+  /// `local-user` stamp, matching what the UI calls "mine".
+  bool _isMine(String senderId) =>
+      senderId == localUserId || LocalIdentity.owns(senderId);
+
+  @override
+  Future<Either<Failure, GroupMessage>> editGroupMessage({
+    required String messageId,
+    required String newBody,
+  }) async {
+    try {
+      final message = await _local.findGroupMessage(messageId);
+      if (message == null) {
+        return left(const NotFoundFailure(message: 'message not found'));
+      }
+      if (!_isMine(message.senderId)) {
+        return left(const UnauthorizedFailure(
+            message: 'only your own messages can be edited'));
+      }
+      if (message.isDeleted) {
+        return left(const ConflictFailure(
+            message: 'cannot edit a deleted message'));
+      }
+      if (!withinMessageEditWindow(message.createdAt)) {
+        return left(const ConflictFailure(
+            message: 'messages can only be edited for 15 minutes'));
+      }
+      final editedAt = DateTime.now();
+      await _local.updateGroupMessageBody(
+        messageId: messageId,
+        body: newBody,
+        editedAt: editedAt,
+      );
+      return right(message.copyWith(
+        body: newBody,
+        editedAt: editedAt,
+        status: message.status,
+      ));
+    } catch (e) {
+      return left(CacheFailure(message: 'editGroupMessage failed', cause: e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> deleteGroupMessage({
+    required String messageId,
+  }) async {
+    try {
+      final message = await _local.findGroupMessage(messageId);
+      if (message == null) {
+        return left(const NotFoundFailure(message: 'message not found'));
+      }
+      if (!_isMine(message.senderId)) {
+        return left(const UnauthorizedFailure(
+            message: 'only your own messages can be deleted'));
+      }
+      if (message.isDeleted) return right(unit);
+      await _local.markGroupMessageDeleted(
+        messageId: messageId,
+        deletedAt: DateTime.now(),
+      );
+      return right(unit);
+    } catch (e) {
+      return left(CacheFailure(message: 'deleteGroupMessage failed', cause: e));
+    }
+  }
+
+  @override
+  Stream<Either<Failure, List<GroupReaction>>> watchGroupReactions({
+    required String groupId,
+  }) {
+    return _local.watchGroupReactions(groupId: groupId).map(
+          (rows) => Right<Failure, List<GroupReaction>>(
+            rows
+                .map((r) => GroupReaction(
+                      id: r.id,
+                      messageId: r.messageId,
+                      userId: r.userId,
+                      reaction: r.reaction,
+                    ))
+                .toList(),
+          ),
+        );
+  }
+
+  @override
+  Future<Either<Failure, bool>> toggleGroupReaction({
+    required String messageId,
+    required String reaction,
+  }) async {
+    try {
+      final active = await _local.toggleGroupReaction(
+        messageId: messageId,
+        userId: localUserId,
+        reaction: reaction,
+      );
+      return right(active);
+    } catch (e) {
+      return left(CacheFailure(message: 'toggleGroupReaction failed', cause: e));
     }
   }
 

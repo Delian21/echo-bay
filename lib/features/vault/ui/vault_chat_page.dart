@@ -7,9 +7,16 @@ import 'package:fpdart/fpdart.dart' hide State;
 
 import '../../../core/attachments/attachment_media_view.dart';
 import '../../../core/auth/local_identity.dart';
+import '../../../core/chat/message_edit.dart';
+import '../../../core/design_system/tear_out_confirm.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/design_system/chat_bubble_layout.dart';
+import '../../../core/design_system/chat_reply_widgets.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
+import '../../../core/design_system/message_menu.dart';
+import '../../../core/design_system/message_reactions.dart';
+import '../../../core/design_system/reaction_pills.dart';
+import '../../../core/design_system/swipe_to_reply.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/error/failures.dart';
@@ -25,6 +32,7 @@ import '../../calls/ui/calls_module_view.dart' show placeCallToPeer;
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
 import '../data/repositories/mock_chat_repository.dart';
 import '../domain/entities/message.dart';
+import '../domain/entities/reaction.dart';
 import '../domain/repositories/chat_repository.dart';
 
 /// The Vault — chat page. Renders the live [ChatRepository.watchMessages]
@@ -50,6 +58,17 @@ class _VaultChatPageState extends State<VaultChatPage> {
   bool _sending = false;
   String? _editingMessageId;
 
+  /// The message being quoted by the draft in the composer, if any.
+  Message? _replyTo;
+
+  /// Briefly tints the bubble a jump-to-original landed on.
+  String? _highlightedId;
+  Timer? _highlightTimer;
+
+  /// One key per rendered row, so a quoted block can ask the list to
+  /// bring its original into view. Created lazily and never rebuilt.
+  final Map<String, GlobalKey> _rowKeys = {};
+
   /// "Rune is writing…" — driven by the repository's typing stream when
   /// it provides one (the mock does; a real transport would push typing
   /// receipts over the wire).
@@ -62,6 +81,15 @@ class _VaultChatPageState extends State<VaultChatPage> {
   /// to waiting and flashes the whole chat to a skeleton.
   late final Stream<Either<Failure, List<Message>>> _messages =
       widget.repository.watchMessages(conversationId: widget.conversation.id);
+
+  /// Same contract as [_messages]: one subscription for the page, fed by
+  /// a single join over the conversation, not one watcher per bubble.
+  late final Stream<Either<Failure, List<Reaction>>> _reactions = widget
+      .repository
+      .watchConversationReactions(conversationId: widget.conversation.id);
+
+  GlobalKey _rowKey(String id) =>
+      _rowKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg-$id'));
 
   @override
   void initState() {
@@ -125,6 +153,7 @@ class _VaultChatPageState extends State<VaultChatPage> {
       }
     }
     _typingSub?.cancel();
+    _highlightTimer?.cancel();
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
@@ -144,9 +173,12 @@ class _VaultChatPageState extends State<VaultChatPage> {
     } on Object {
       // DI unavailable (tests): silence is fine.
     }
+    final replyToId = _replyTo?.id;
+    if (replyToId != null) setState(() => _replyTo = null);
     final result = await widget.repository.sendMessage(
       conversationId: widget.conversation.id,
       body: body,
+      replyToMessageId: replyToId,
     );
     _finishSend(result);
   }
@@ -160,10 +192,13 @@ class _VaultChatPageState extends State<VaultChatPage> {
     final body = _composer.text.trim();
     _composer.clear();
     unawaited(_clearDraft());
+    final replyToId = _replyTo?.id;
+    if (replyToId != null) setState(() => _replyTo = null);
     final result = await widget.repository.sendMessage(
       conversationId: widget.conversation.id,
       body: body,
       attachment: attachment,
+      replyToMessageId: replyToId,
     );
     _finishSend(result);
   }
@@ -183,6 +218,8 @@ class _VaultChatPageState extends State<VaultChatPage> {
 
   void _beginEdit(String messageId, String currentBody) {
     setState(() {
+      // One intent at a time: rewriting a message is not also a reply.
+      _replyTo = null;
       _editingMessageId = messageId;
       _composer.text = currentBody;
     });
@@ -205,16 +242,58 @@ class _VaultChatPageState extends State<VaultChatPage> {
 
   /// Unsend via the signature rewind effect — deleting for everyone is
   /// the Vault's own "take it back" moment. The tombstone write fires
-  /// at the rewind's midpoint; reduced motion undoes instantly.
-  void _rewindDelete(String messageId) {
-    RewindScope.rewind(context, () => _delete(messageId));
+  /// at the rewind's midpoint; reduced motion undoes instantly. Nobody
+  /// loses a message to a mis-tap: the confirmation comes first.
+  Future<void> _confirmDelete(Message message) async {
+    final confirmed = await confirmTearOut(
+      context,
+      title: 'Tear out this message?',
+      message: 'It stays in the conversation as a deleted line, but the '
+          'words are gone for good.',
+    );
+    if (!confirmed || !mounted) return;
+    RewindScope.rewind(context, () => _delete(message.id));
   }
 
-  Future<void> _react(String messageId) async {
+  Future<void> _react(String messageId, [String reaction = 'heart']) async {
     await widget.repository.toggleReaction(
       messageId: messageId,
-      reaction: 'heart',
+      reaction: reaction,
     );
+  }
+
+  void _startReply(Message m) {
+    setState(() {
+      _editingMessageId = null;
+      _replyTo = m;
+    });
+  }
+
+  /// Bring the quoted message into view and flash it. The row may not be
+  /// rendered (far-off history), in which case the tap is simply inert
+  /// rather than scrolling somewhere wrong.
+  void _jumpToOriginal(String messageId) {
+    final ctx = _rowKeys[messageId]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+      alignment: 0.4,
+    );
+    _highlightTimer?.cancel();
+    setState(() => _highlightedId = messageId);
+    _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _highlightedId = null);
+    });
+  }
+
+  static Message? _findMessage(List<Message> messages, String? id) {
+    if (id == null) return null;
+    for (final m in messages) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   /// Pin a message to the keepsake wall. The wall stores the reference;
@@ -397,7 +476,21 @@ class _VaultChatPageState extends State<VaultChatPage> {
                     if (messages.isEmpty) {
                       return const _ChatEmptyState();
                     }
-                    return ListView.builder(
+                    return StreamBuilder<Either<Failure, List<Reaction>>>(
+                      stream: _reactions,
+                      builder: (context, reactionSnapshot) {
+                        final reactions = reactionSnapshot.data?.fold(
+                              (_) => const <Reaction>[],
+                              (rows) => rows,
+                            ) ??
+                            const <Reaction>[];
+                        // Grouped once per emission rather than per bubble:
+                        // a long conversation stays O(messages + reactions).
+                        final byMessage = <String, List<Reaction>>{};
+                        for (final r in reactions) {
+                          byMessage.putIfAbsent(r.messageId, () => []).add(r);
+                        }
+                        return ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 12),
@@ -422,7 +515,10 @@ class _VaultChatPageState extends State<VaultChatPage> {
                             next.senderId != m.senderId ||
                             next.createdAt.difference(m.createdAt) >=
                                 kChatRunWindow;
+                        final quoted =
+                            _findMessage(messages, m.replyToMessageId);
                         return Column(
+                          key: _rowKey(m.id),
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -435,18 +531,40 @@ class _VaultChatPageState extends State<VaultChatPage> {
                               mine: mine,
                               opensRun: opensRun,
                               closesRun: closesRun,
-                              onEdit: mine && !m.isDeleted
+                              peerName: widget.conversation.title,
+                              quoted: quoted,
+                              highlighted: _highlightedId == m.id,
+                              pills: summarizeReactions(
+                                (byMessage[m.id] ?? const <Reaction>[])
+                                    .map((r) => (
+                                          userId: r.userId,
+                                          reaction: r.reaction,
+                                        )),
+                                localUserId: LocalIdentity.id,
+                              ),
+                              onReply: () => _startReply(m),
+                              onJumpToOriginal: m.replyToMessageId == null
+                                  ? null
+                                  : () => _jumpToOriginal(m.replyToMessageId!),
+                              onReact: (reaction) => _react(m.id, reaction),
+                              // The menu offers Edit only inside the
+                              // window; the repository enforces the same
+                              // rule, so a stale menu cannot slip past.
+                              onEdit: mine &&
+                                      !m.isDeleted &&
+                                      withinMessageEditWindow(m.createdAt)
                                   ? (id) => _beginEdit(id, m.body)
                                   : null,
                               onDelete: mine && !m.isDeleted
-                                  ? () => _rewindDelete(m.id)
+                                  ? () => _confirmDelete(m)
                                   : null,
-                              onReact: () => _react(m.id),
                               onPinToWall:
                                   m.isDeleted ? null : () => _pinToWall(m),
                             ),
                           ],
                         );
+                      },
+                    );
                       },
                     );
                   },
@@ -476,6 +594,18 @@ class _VaultChatPageState extends State<VaultChatPage> {
                   )
                 : const SizedBox.shrink(key: ValueKey('idle')),
           ),
+          if (_replyTo != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: ReplyBanner(
+                senderName: _replyTo!.isMine
+                    ? 'You'
+                    : widget.conversation.title,
+                text: replyExcerpt(
+                    _replyTo!.body, _replyTo!.attachment),
+                onCancel: () => setState(() => _replyTo = null),
+              ),
+            ),
           InkChatComposer(
             controller: _composer,
             enabled: !_sending,
@@ -503,6 +633,12 @@ class _MessageBubble extends StatelessWidget {
     required this.mine,
     required this.opensRun,
     required this.closesRun,
+    required this.peerName,
+    required this.pills,
+    required this.onReply,
+    this.quoted,
+    this.highlighted = false,
+    this.onJumpToOriginal,
     this.onEdit,
     this.onDelete,
     this.onReact,
@@ -517,9 +653,22 @@ class _MessageBubble extends StatelessWidget {
 
   /// Last message of the run: carries the timestamp and the tail corner.
   final bool closesRun;
+
+  /// Who "they" are, for quoting their messages back.
+  final String peerName;
+
+  /// The message this one quotes, resolved from the loaded page. Null when
+  /// the id points at something purged or not loaded yet.
+  final Message? quoted;
+
+  /// Tint the bubble for a moment after a jump landed on it.
+  final bool highlighted;
+  final VoidCallback? onJumpToOriginal;
+  final List<ReactionPillData> pills;
+  final VoidCallback onReply;
   final ValueChanged<String>? onEdit;
   final VoidCallback? onDelete;
-  final VoidCallback? onReact;
+  final ValueChanged<String>? onReact;
 
   /// Pin this message to the keepsake wall; null hides the action.
   final VoidCallback? onPinToWall;
@@ -535,6 +684,22 @@ class _MessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          if (message.replyToMessageId != null) ...[
+            QuotedMessageBlock(
+              senderName: quoted == null
+                  ? 'Message'
+                  : (quoted!.isMine ? 'You' : peerName),
+              text: quoted == null
+                  ? ''
+                  : replyExcerpt(quoted!.body, quoted!.attachment),
+              isMine: mine,
+              // A tombstoned original counts as missing: quoting it would
+              // show its blanked-out body as if that were what was said.
+              unavailable: quoted == null || quoted!.isDeleted,
+              onTap: onJumpToOriginal,
+            ),
+            const SizedBox(height: 6),
+          ],
           if (message.attachment != null) ...[
             AttachmentMediaView(
               attachment: message.attachment!,
@@ -605,88 +770,88 @@ class _MessageBubble extends StatelessWidget {
           child: child,
         );
 
+    // Tombstone: a deleted message keeps its row (and its place in the
+    // conversation, and any reply that points at it) but says only this.
     if (message.isDeleted) {
       return withRunGap(Align(
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: ChatBubbleFrame(
-          isMine: false,
-          closesRun: true,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SketchIcon(
-                kind: SketchIconKind.rewindSpiral,
-                size: 14,
-                color: theme.colorScheme.onSurfaceVariant,
-                seed: 13,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                mine ? 'You rewound this message' : 'Rewound',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+        child: Semantics(
+          label: 'Message deleted',
+          child: Text(
+            'Message deleted',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontStyle: FontStyle.italic,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ));
     }
 
-    final actionable =
-        (mine && onEdit != null || onPinToWall != null) && !message.isDeleted;
+    // Swipe toward the middle of the screen quotes the bubble; the
+    // long-press menu offers the same Reply for anyone who never finds
+    // the gesture.
+    final interactive = SwipeToReply(
+      isMine: mine,
+      onReply: onReply,
+      child: GestureDetector(
+        onLongPress: () => _showActions(context),
+        onDoubleTap: onReact == null ? null : () => onReact!('heart'),
+        child: Semantics(
+          button: true,
+          label: mine ? 'Your message' : 'Message from $peerName',
+          child: BubbleWithReactions(
+            bubble: bubble,
+            pills: pills,
+            isMine: mine,
+            onPillTap: (reaction) => onReact?.call(reaction),
+          ),
+        ),
+      ),
+    );
+
     return withRunGap(Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: actionable ? () => _showActions(context) : null,
-        onDoubleTap: message.isDeleted ? null : onReact,
-        // The bubble is a raw GestureDetector: give screen readers a
-        // button role so the long-press actions are discoverable.
-        child: Semantics(
-          button: actionable,
-          child: bubble,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: highlighted
+              ? theme.colorScheme.primary.withValues(alpha: 0.16)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
         ),
+        child: interactive,
       ),
     ));
   }
 
   Future<void> _showActions(BuildContext context) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (mine && onEdit != null)
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Edit message'),
-                onTap: () => Navigator.pop(sheetContext, 'edit'),
-              ),
-            if (onPinToWall != null)
-              ListTile(
-                leading: const Icon(Icons.push_pin_outlined),
-                title: const Text('Pin to keepsake wall'),
-                onTap: () => Navigator.pop(sheetContext, 'pin'),
-              ),
-            if (mine && onDelete != null)
-              ListTile(
-                leading: Icon(Icons.delete_outline,
-                    color: Theme.of(sheetContext).colorScheme.error),
-                title: Text('Delete for everyone',
-                    style: TextStyle(
-                        color: Theme.of(sheetContext).colorScheme.error)),
-                onTap: () => Navigator.pop(sheetContext, 'delete'),
-              ),
-          ],
-        ),
-      ),
+    final result = await showMessageMenu(
+      context,
+      canReply: true,
+      canEdit: mine && onEdit != null,
+      canPin: onPinToWall != null,
+      canDelete: mine && onDelete != null,
     );
-    if (action == 'edit') onEdit?.call(message.id);
-    if (action == 'delete') onDelete?.call();
-    if (action == 'pin') onPinToWall?.call();
+    if (result == null) return;
+    final reaction = result.reaction;
+    if (reaction != null) {
+      onReact?.call(reaction);
+      return;
+    }
+    switch (result.action) {
+      case MessageMenuAction.reply:
+        onReply();
+      case MessageMenuAction.edit:
+        onEdit?.call(message.id);
+      case MessageMenuAction.delete:
+        onDelete?.call();
+      case MessageMenuAction.pin:
+        onPinToWall?.call();
+      case null:
+        break;
+    }
   }
 
   String _clock(DateTime at) =>

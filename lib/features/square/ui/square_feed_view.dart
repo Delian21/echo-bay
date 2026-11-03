@@ -12,6 +12,7 @@ import '../../../core/design_system/hand_date.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/sketch_refresh_indicator.dart';
 import '../../../core/design_system/staggered_entrance.dart';
+import '../../../core/design_system/tear_out_confirm.dart';
 import '../../../core/atmosphere/atmosphere_controller.dart';
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/auth/local_identity.dart';
@@ -26,6 +27,7 @@ import '../../social/ui/comments_sheet.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/entities/post.dart';
 import '../domain/repositories/feed_repository.dart';
+import 'post_composer.dart';
 import 'post_share_sheet.dart';
 import 'square_card.dart';
 import 'square_post_model.dart';
@@ -189,12 +191,31 @@ class _SquareFeedViewState extends State<SquareFeedView> {
     );
   }
 
-  /// Delete own post — the action behind the card's "rewind this
-  /// moment" long-press. The repository rejects foreign posts; the
-  /// failure surfaces as a snackbar. Success shows a rewind-styled
-  /// confirmation with a real undo (re-inserts the exact post) for a
-  /// few seconds — undoing the undo, in the app's voice.
+  /// Rewrite an own post: the compose sheet opens pre-filled, media stays
+  /// exactly as it was (only the words are editable).
+  Future<void> _editPost(Post post) async {
+    await showPostComposer(
+      context,
+      repository: widget.repository,
+      authorName: post.authorName,
+      editing: post,
+    );
+  }
+
+  /// Delete own post — behind the card menu's Delete and the long-press.
+  /// The repository rejects foreign posts; the failure surfaces as a
+  /// snackbar. Success shows a rewind-styled confirmation with a real
+  /// undo (re-inserts the exact post) for a few seconds — undoing the
+  /// undo, in the app's voice. Notes and wall pins came off with the
+  /// delete itself, so the undo restores the page, not its notes.
   Future<void> _deletePost(Post post) async {
+    final confirmed = await confirmTearOut(
+      context,
+      title: 'Tear out this page?',
+      message: 'Its notes come off with it, and any pin on the keepsake '
+          'wall is lifted.',
+    );
+    if (!confirmed || !mounted) return;
     final result = await widget.repository.deletePost(postId: post.id);
     if (!mounted) return;
     result.fold(
@@ -471,6 +492,9 @@ class _SquareFeedViewState extends State<SquareFeedView> {
                 onDelete: LocalIdentity.owns(_posts[postIndex].authorId)
                     ? () => _deletePost(_posts[postIndex])
                     : null,
+                onEdit: LocalIdentity.owns(_posts[postIndex].authorId)
+                    ? () => _editPost(_posts[postIndex])
+                    : null,
                 onShare: () => sharePost(context, _posts[postIndex]),
                 onComment: () => CommentsSheet.show(
                   context,
@@ -508,6 +532,7 @@ class _SquareFeedViewState extends State<SquareFeedView> {
         likesCount: p.likesCount,
         isLiked: p.isLiked,
         expiresAt: p.expiresAt,
+        editedAt: p.editedAt,
       );
 }
 

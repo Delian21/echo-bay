@@ -255,6 +255,51 @@ class _InkChatComposerState extends State<InkChatComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Editing rides a slim bar above the field — the writer can
+            // see at a glance that Send will rewrite, not append, and
+            // gets a second, labelled way out besides the trailing X.
+            if (widget.editing)
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.primary,
+                      width: 3,
+                    ),
+                  ),
+                ),
+                padding:
+                    const EdgeInsets.only(left: 10, top: 2, bottom: 2, right: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Editing message',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel edit',
+                      onPressed: widget.onCancelEdit,
+                      icon: const SketchIcon(
+                        kind: SketchIconKind.closeX,
+                        size: 16,
+                      ),
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (pendingChip != null)
               Align(
                 alignment: Alignment.centerLeft,

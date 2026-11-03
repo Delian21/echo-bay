@@ -16,6 +16,7 @@ class SquarePost {
     required this.likesCount,
     required this.isLiked,
     this.expiresAt,
+    this.editedAt,
     this.clock,
   });
 
@@ -35,6 +36,10 @@ class SquarePost {
 
   /// Ephemeral expiry ("fades in 24h"); null = permanent.
   final DateTime? expiresAt;
+
+  /// Last body edit, or null when never edited — the card prints a small
+  /// muted "edited" beside the timestamp when this is set.
+  final DateTime? editedAt;
 
   /// Injectable clock for fade math; production passes DateTime.now.
   final DateTime Function()? clock;
@@ -74,6 +79,7 @@ class SquarePost {
         likesCount: likesCount ?? this.likesCount,
         isLiked: isLiked ?? this.isLiked,
         expiresAt: expiresAt,
+        editedAt: editedAt,
         clock: clock,
       );
 

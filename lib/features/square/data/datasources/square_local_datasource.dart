@@ -21,6 +21,7 @@ extension PostRowMapper on PostRow {
         mediaUrl: mediaUrl,
         blurhash: blurhash,
         createdAt: createdAt,
+        editedAt: editedAt,
         deletedAt: deletedAt,
         expiresAt: expiresAt,
         isLiked: isLiked,
@@ -72,6 +73,14 @@ abstract class SquareLocalDatasource {
   /// next emission but stays restorable until purged. Own-post
   /// enforcement is the repository's job; the datasource is mechanics.
   Future<void> deletePost(String postId);
+
+  /// Rewrite the body and stamp [Post.editedAt]. Author enforcement is
+  /// the repository's job.
+  Future<void> updatePostBody({
+    required String postId,
+    required String body,
+    required DateTime editedAt,
+  });
 
   /// Clears the tombstone — the undo path.
   Future<void> restorePost(String postId);
@@ -394,6 +403,20 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   }
 
   @override
+  Future<void> updatePostBody({
+    required String postId,
+    required String body,
+    required DateTime editedAt,
+  }) async {
+    _assertWritable();
+    await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
+        .write(PostsCompanion(
+      body: Value(body),
+      editedAt: Value(editedAt),
+    ));
+  }
+
+  @override
   Future<void> restorePost(String postId) async {
     _assertWritable();
     await (_db.update(_db.posts)..where((tbl) => tbl.id.equals(postId)))
@@ -411,6 +434,9 @@ class DriftSquareLocalDatasource implements SquareLocalDatasource {
   Future<void> purgePost(String postId) async {
     _assertWritable();
     await (_db.delete(_db.postLikes)
+          ..where((tbl) => tbl.postId.equals(postId)))
+        .go();
+    await (_db.delete(_db.postComments)
           ..where((tbl) => tbl.postId.equals(postId)))
         .go();
     await (_db.delete(_db.posts)..where((tbl) => tbl.id.equals(postId)))

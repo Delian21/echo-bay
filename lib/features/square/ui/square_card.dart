@@ -32,6 +32,7 @@ class SquareFeedCard extends StatelessWidget {
     this.onComment,
     this.onShare,
     this.onDelete,
+    this.onEdit,
     this.onKeep,
     this.onPinToWall,
     this.commentCount = 0,
@@ -50,6 +51,10 @@ class SquareFeedCard extends StatelessWidget {
   /// rewind effect — removing a post is the purest "undo a moment".
   final VoidCallback? onDelete;
 
+  /// Edit own post; null hides the affordance (only the author's own
+  /// words are theirs to rewrite).
+  final VoidCallback? onEdit;
+
   /// "Keep it": converts an ephemeral post to permanent; null hides
   /// the affordance (only the author's own ephemeral posts offer it).
   final VoidCallback? onKeep;
@@ -62,6 +67,7 @@ class SquareFeedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final golden = GoldenHourExtension.of(context);
     final deletable = onDelete != null;
+    final editable = onEdit != null;
     final body = Material(
       color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(18),
@@ -80,7 +86,7 @@ class SquareFeedCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _CardHeader(post: post),
+              _CardHeader(post: post, onEdit: onEdit, onDelete: onDelete),
               if (post.hasMedia && _isVideoPath(post.mediaUrl!))
                 // Video keeps its poster tile: a moving picture is not a
                 // print, and playback has its own affordance.
@@ -126,101 +132,74 @@ class SquareFeedCard extends StatelessWidget {
       ),
     );
 
-    Widget content = Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: RewindScope(child: body),
-    );
-
-    if (deletable) {
-      // Own post: long-press offers "rewind this moment" — the delete
-      // rides the signature rewind effect instead of a bare snackbar.
-      content = GestureDetector(
-        onLongPress: () => _confirmRewindPost(context),
-        child: content,
-      );
-    }
-
+    // Two visual shells share one interaction shell below: the stock
+    // plain card and the Golden Hour print. They used to be two separate
+    // early returns, and the Golden Hour branch rebuilt the tree from
+    // `body` — dropping the long-press wrapper entirely. That is why an
+    // own post could not be deleted in the app's default theme: the
+    // gesture never reached a handler. Build the visual first, wrap once.
+    final Widget styled;
     if (!golden.enabled) {
-      return content;
-    }
+      styled = Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: RewindScope(child: body),
+      );
+    } else {
+      // Ephemeral posts fade like a print left in the sun: full ink for
+      // the first half of their life, then the polaroid washes out toward
+      // expiry (floor of 0.2 — a ghost, not an invisible post; the row
+      // vanishes entirely once the clock passes the expiry, query-side).
+      final fade = post.fadeFactor();
+      final opacity = post.expiresAt == null
+          ? 1.0
+          : (0.2 + 2.0 * fade).clamp(0.2, 1.0);
 
-    // Ephemeral posts fade like a print left in the sun: full ink for
-    // the first half of their life, then the polaroid washes out toward
-    // expiry (floor of 0.2 — a ghost, not an invisible post; the row
-    // vanishes entirely once the clock passes the expiry, query-side).
-    final fade = post.fadeFactor();
-    final opacity = post.expiresAt == null
-        ? 1.0
-        : (0.2 + 2.0 * fade).clamp(0.2, 1.0);
-
-    // Golden Hour: the card body rides inside a polaroid — warm paper
-    // frame, thicker bottom lip, soft print shadow, and a slight
-    // per-card tilt. Live-tuned after first render: tilt halved (≤0.6°)
-    // so the column reads as a tidy stack of prints, shadow lighter and
-    // tighter (a print on a desk, not a poster on a wall).
-    final tilt =
-        ((post.id.hashCode % 100) / 100 - 0.5) * 2 * _maxTiltRadians;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Transform.rotate(
-        angle: tilt,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: golden.polaroidShadow.withValues(alpha: 0.45),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: SketchBox(
-            seed: post.id.hashCode & 0x7FFFFFFF,
-            radius: 6,
-            strokeWidth: 2,
-            // The wobbly stroke is the theme token (cream @ 40% in dark).
-            fill: golden.polaroidPaper,
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
-            child: Opacity(
-              opacity: opacity,
-              child: RewindScope(
-                child: body,
+      // Golden Hour: the card body rides inside a polaroid — warm paper
+      // frame, thicker bottom lip, soft print shadow, and a slight
+      // per-card tilt. Live-tuned after first render: tilt halved (≤0.6°)
+      // so the column reads as a tidy stack of prints, shadow lighter and
+      // tighter (a print on a desk, not a poster on a wall).
+      final tilt =
+          ((post.id.hashCode % 100) / 100 - 0.5) * 2 * _maxTiltRadians;
+      styled = Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        child: Transform.rotate(
+          angle: tilt,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: golden.polaroidShadow.withValues(alpha: 0.45),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: SketchBox(
+              seed: post.id.hashCode & 0x7FFFFFFF,
+              radius: 6,
+              strokeWidth: 2,
+              // The wobbly stroke is the theme token (cream @ 40% in dark).
+              fill: golden.polaroidPaper,
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
+              child: Opacity(
+                opacity: opacity,
+                child: RewindScope(child: body),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  /// Long-press confirmation for deleting own post. Frame it in the
-  /// app's voice: rewinding a moment, not "deleting content".
-  Future<void> _confirmRewindPost(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Rewind this moment?'),
-        content: const Text(
-          'Your post leaves the Square as if it never happened.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Keep it'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Rewind'),
-          ),
-        ],
-      ),
-    );
-    // The card itself never unmounts across the dialog gap (the feed
-    // keeps its slot), but the guard keeps the analyzer honest.
-    if (confirmed == true && context.mounted) {
-      RewindScope.rewind(context, onDelete!);
+      );
     }
+
+    if (!deletable && !editable) return styled;
+    // Own post: long-press offers the same delete as the menu — the
+    // delete rides the signature rewind effect once confirmed upstream.
+    return GestureDetector(
+      onLongPress: deletable ? onDelete : onEdit,
+      child: styled,
+    );
   }
 
   static const _maxTiltRadians = 0.6 * math.pi / 180;
@@ -229,9 +208,11 @@ class SquareFeedCard extends StatelessWidget {
 // -- header -------------------------------------------------------------------
 
 class _CardHeader extends StatelessWidget {
-  const _CardHeader({required this.post});
+  const _CardHeader({required this.post, this.onEdit, this.onDelete});
 
   final SquarePost post;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -262,8 +243,68 @@ class _CardHeader extends StatelessWidget {
             style: theme.textTheme.labelMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
+          if (post.editedAt != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                '· edited',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+          if (onEdit != null || onDelete != null)
+            _PostMenu(onEdit: onEdit, onDelete: onDelete),
         ],
       ),
+    );
+  }
+}
+
+/// The three-dot menu on an own post: Edit and Delete, nothing else. It
+/// only exists when at least one of the two applies, so nobody ever sees
+/// a menu on someone else's page.
+class _PostMenu extends StatelessWidget {
+  const _PostMenu({this.onEdit, this.onDelete});
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      tooltip: 'Post actions',
+      icon: const SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(Icons.more_horiz, size: 20),
+      ),
+      onSelected: (value) {
+        if (value == 'edit') onEdit?.call();
+        if (value == 'delete') onDelete?.call();
+      },
+      itemBuilder: (context) => [
+        if (onEdit != null)
+          const PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined, size: 20),
+              title: Text('Edit'),
+            ),
+          ),
+        if (onDelete != null)
+          PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_outline, size: 20, color: scheme.error),
+              title: Text('Delete', style: TextStyle(color: scheme.error)),
+            ),
+          ),
+      ],
     );
   }
 }

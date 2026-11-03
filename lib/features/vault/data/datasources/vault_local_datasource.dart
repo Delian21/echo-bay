@@ -21,6 +21,7 @@ extension MessageRowMapper on MessageRow {
         deletedAt: deletedAt,
         attachment: _attachmentFromDb(
             attachmentKind, attachmentPath, attachmentDurationMs),
+        replyToMessageId: replyToMessageId,
       );
 
   static MessageAttachment? _attachmentFromDb(
@@ -121,6 +122,13 @@ abstract class VaultLocalDatasource {
 
   /// Reactions on one message, all users.
   Future<List<MessageReactionRow>> reactionsFor(String messageId);
+
+  /// Every reaction on every message in [conversationId], live. One
+  /// query for the whole page: a per-bubble watcher would be one
+  /// subscription per visible row.
+  Stream<List<MessageReactionRow>> watchConversationReactions({
+    required String conversationId,
+  });
 
   /// Toggle the local user's [reaction] on [messageId]: insert or remove.
   /// Returns true when the reaction now exists. The row carries its own
@@ -343,6 +351,28 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
           .get();
 
   @override
+  Stream<List<MessageReactionRow>> watchConversationReactions({
+    required String conversationId,
+  }) {
+    // Inner join so a reaction whose message was purged stops showing
+    // instead of leaking a pill with nothing under it.
+    final query = _db.select(_db.messageReactions).join([
+      innerJoin(
+        _db.messages,
+        _db.messages.id.equalsExp(_db.messageReactions.messageId),
+      ),
+    ])
+      ..where(_db.messages.conversationId.equals(conversationId));
+    return query.watch().map((rows) => rows
+        .map((row) => row.readTable(_db.messageReactions))
+        .toList());
+  }
+
+  /// One reaction per person per message: re-picking the same emoji
+  /// removes it, picking a different one replaces it in place. Without
+  /// the replace branch a person could stack four pills on one message,
+  /// which is not what a reaction means.
+  @override
   Future<bool> toggleReaction({
     required String messageId,
     required String userId,
@@ -350,16 +380,26 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
   }) async {
     final existing = await (_db.select(_db.messageReactions)
           ..where((tbl) =>
-              tbl.messageId.equals(messageId) &
-              tbl.userId.equals(userId) &
-              tbl.reaction.equals(reaction)))
+              tbl.messageId.equals(messageId) & tbl.userId.equals(userId)))
         .getSingleOrNull();
 
     if (existing != null) {
-      await (_db.delete(_db.messageReactions)
+      if (existing.reaction == reaction) {
+        await (_db.delete(_db.messageReactions)
+              ..where((tbl) => tbl.id.equals(existing.id)))
+            .go();
+        return false;
+      }
+      // Replaced, not added: the row keeps its id so the outbox flush
+      // updates the same record instead of orphaning a pending insert.
+      await (_db.update(_db.messageReactions)
             ..where((tbl) => tbl.id.equals(existing.id)))
-          .go();
-      return false;
+          .write(MessageReactionsCompanion(
+        reaction: Value(reaction),
+        syncStatus: const Value(ReactionSyncStatus.pending),
+        createdAt: Value(DateTime.now()),
+      ));
+      return true;
     }
     await _db.into(_db.messageReactions).insert(MessageReactionsCompanion.insert(
           id: const Uuid().v4(),

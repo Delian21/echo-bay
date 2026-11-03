@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/auth/local_identity.dart';
 import '../../../../core/design_system/sketch_kit.dart';
+import '../../../../core/design_system/tear_out_confirm.dart';
 import '../../../../core/people/person_sheet.dart';
 import '../../../../core/settings/draft_store.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -116,6 +117,30 @@ class _CommentsSheetState extends State<CommentsSheet> {
     await widget.repository.addComment(postId: widget.postId, body: body);
   }
 
+  /// Remove an own note. Same two-button confirmation as every other
+  /// destructive action in the app.
+  Future<void> _deleteComment(PostComment comment) async {
+    final confirmed = await confirmTearOut(
+      context,
+      title: 'Tear out this note?',
+      message: 'It comes off this square for good.',
+    );
+    if (!confirmed || !mounted) return;
+    final result = await widget.repository.deleteComment(
+      commentId: comment.id,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ?? "That note won't budge."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final golden = GoldenHourExtension.of(context);
@@ -155,8 +180,17 @@ class _CommentsSheetState extends State<CommentsSheet> {
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: comments.length,
-                    itemBuilder: (context, index) =>
-                        _CommentBubble(comment: comments[index]),
+                    itemBuilder: (context, index) {
+                      final comment = comments[index];
+                      return _CommentBubble(
+                        comment: comment,
+                        // Delete is offered only on your own notes; the
+                        // repository refuses foreign ids anyway.
+                        onDelete: LocalIdentity.owns(comment.authorId)
+                            ? () => _deleteComment(comment)
+                            : null,
+                      );
+                    },
                   );
                 },
               ),
@@ -222,9 +256,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
 }
 
 class _CommentBubble extends StatelessWidget {
-  const _CommentBubble({required this.comment});
+  const _CommentBubble({required this.comment, this.onDelete});
 
   final PostComment comment;
+
+  /// Delete this note; null on other people's notes.
+  final VoidCallback? onDelete;
 
   bool get _mine => LocalIdentity.owns(comment.authorId);
 
@@ -237,7 +274,9 @@ class _CommentBubble extends StatelessWidget {
       child: Align(
         alignment:
             _mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: SketchBox(
+        child: GestureDetector(
+          onLongPress: onDelete,
+          child: SketchBox(
           seed: comment.id.hashCode & 0x7FFFFFFF,
           radius: 10,
           fill: _mine
@@ -249,15 +288,54 @@ class _CommentBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: () => openPerson(context, name: comment.authorName),
-                  child: Text(
-                    comment.authorName,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurfaceVariant,
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            openPerson(context, name: comment.authorName),
+                        child: Text(
+                          comment.authorName,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    if (onDelete != null)
+                      Semantics(
+                        label: 'Note actions',
+                        button: true,
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Note actions',
+                          onSelected: (value) {
+                            if (value == 'delete') onDelete?.call();
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete_outline,
+                                      size: 18,
+                                      color: theme.colorScheme.error),
+                                  const SizedBox(width: 8),
+                                  Text('Delete',
+                                      style: TextStyle(
+                                          color: theme.colorScheme.error)),
+                                ],
+                              ),
+                            ),
+                          ],
+                          child: const SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Icon(Icons.more_horiz, size: 16),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 Text(
                   comment.body,
@@ -268,6 +346,7 @@ class _CommentBubble extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

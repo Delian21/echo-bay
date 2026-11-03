@@ -13,6 +13,7 @@ import '../../../core/prompt/prompt.dart';
 import '../../../core/prompt/prompt_repository.dart';
 import '../../../injection.dart';
 import '../../social/domain/repositories/social_repository.dart';
+import '../domain/entities/post.dart';
 import '../domain/repositories/feed_repository.dart';
 
 /// Per-shape composer hint, mirroring the Daily Square prompt rotation
@@ -41,20 +42,39 @@ Future<void> showPostComposer(
   String? promptShape,
   Prompt? prompt,
   PromptRepository? promptRepository,
-}) {
-  return showModalBottomSheet<void>(
+  Post? editing,
+}) async {
+  await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     builder: (sheetContext) => _PostComposer(
       repository: repository,
       authorName: authorName,
-      hint: prompt != null
-          ? prompt.body
-          : promptShape == null
-              ? null
-              : promptShapeHint(promptShape),
+      hint: editing != null
+          ? 'Rewrite this page.'
+          : prompt != null
+              ? prompt.body
+              : promptShape == null
+                  ? null
+                  : promptShapeHint(promptShape),
       prompt: prompt,
       promptRepository: promptRepository,
+      editing: editing,
+    ),
+  );
+  // Closed without publishing: if a draft survived, say so where the
+  // person is looking, not only in a small tag on the next open.
+  if (!context.mounted || !sl.isRegistered<DraftStore>()) return;
+  final key = editing == null
+      ? DraftStore.squareKey
+      : DraftStore.squareEdit(editing.id);
+  final draft = await sl<DraftStore>().read(key);
+  if (draft == null || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Draft saved — pick it up where you left off.'),
+      behavior: SnackBarBehavior.floating,
+      duration: Duration(seconds: 2),
     ),
   );
 }
@@ -66,6 +86,7 @@ class _PostComposer extends StatefulWidget {
     this.hint,
     this.prompt,
     this.promptRepository,
+    this.editing,
   });
 
   final FeedRepository repository;
@@ -80,6 +101,9 @@ class _PostComposer extends StatefulWidget {
   /// field with the prompt copy and retires the prompt on publish.
   final Prompt? prompt;
   final PromptRepository? promptRepository;
+
+  /// The post being rewritten, or null when composing a new page.
+  final Post? editing;
 
   @override
   State<_PostComposer> createState() => _PostComposerState();
@@ -109,15 +133,24 @@ class _PostComposerState extends State<_PostComposer> {
 
   final _picker = ImagePicker();
 
+  /// New posts and edits keep separate drafts: opening the composer to
+  /// write something new must never throw away an unsaved rewrite.
+  String get _draftKey => widget.editing == null
+      ? DraftStore.squareKey
+      : DraftStore.squareEdit(widget.editing!.id);
+
+  bool get _isEditing => widget.editing != null;
+
   @override
   void initState() {
     super.initState();
+    if (_isEditing) _controller.text = widget.editing!.body;
     _restoreDraft();
   }
 
   Future<void> _restoreDraft() async {
     if (!sl.isRegistered<DraftStore>()) return;
-    final text = await sl<DraftStore>().read(DraftStore.squareKey);
+    final text = await sl<DraftStore>().read(_draftKey);
     if (!mounted || text == null) return;
     setState(() {
       _controller.text = text;
@@ -131,7 +164,7 @@ class _PostComposerState extends State<_PostComposer> {
     _draftSave ??= DraftDebouncer();
     _hasDraft = text.trim().isNotEmpty;
     _draftSave!.run(() {
-      sl<DraftStore>().write(DraftStore.squareKey, text);
+      sl<DraftStore>().write(_draftKey, text);
     });
   }
 
@@ -139,7 +172,7 @@ class _PostComposerState extends State<_PostComposer> {
     _draftSave?.dispose();
     _draftSave = null;
     if (!sl.isRegistered<DraftStore>()) return;
-    await sl<DraftStore>().clear(DraftStore.squareKey);
+    await sl<DraftStore>().clear(_draftKey);
   }
 
   @override
@@ -150,7 +183,7 @@ class _PostComposerState extends State<_PostComposer> {
     if (save != null) {
       save.dispose();
       if (sl.isRegistered<DraftStore>()) {
-        sl<DraftStore>().write(DraftStore.squareKey, _controller.text);
+        sl<DraftStore>().write(_draftKey, _controller.text);
       }
     }
     _controller.dispose();
@@ -224,12 +257,18 @@ class _PostComposerState extends State<_PostComposer> {
     if (!_canPublish) return;
     setState(() => _sending = true);
 
-    final result = await widget.repository.createPost(
-      body: _controller.text.trim(),
-      authorName: widget.authorName,
-      mediaUrl: _media?.path,
-      ephemeral: _ephemeral,
-    );
+    final editing = widget.editing;
+    final result = editing != null
+        ? await widget.repository.editPost(
+            postId: editing.id,
+            body: _controller.text.trim(),
+          )
+        : await widget.repository.createPost(
+            body: _controller.text.trim(),
+            authorName: widget.authorName,
+            mediaUrl: _media?.path,
+            ephemeral: _ephemeral,
+          );
     if (!mounted) return;
 
     await result.fold(
@@ -243,14 +282,15 @@ class _PostComposerState extends State<_PostComposer> {
         );
       },
       (post) async {
-        // Mock-peer choreography: the Square's regulars may drop a note
-        // or a reaction after a realistic delay. Capped and spaced by
-        // the social layer — never more than two events per post.
-        try {
-          sl<SocialRepository>()
-              .onOwnPostPublished(postId: post.id, body: post.body);
-        } on Object {
-          // DI unavailable (tests): no peer chatter, post still lands.
+        // Peer choreography only for a new page: an edit does not invite
+        // a fresh round of comments and notifications.
+        if (editing == null) {
+          try {
+            sl<SocialRepository>()
+                .onOwnPostPublished(postId: post.id, body: post.body);
+          } on Object {
+            // DI unavailable (tests): no peer chatter, post still lands.
+          }
         }
         // Prompt E2E: answering retires the prompt (§6c rule 2). Best
         // effort — a bookkeeping failure never blocks the post.
@@ -263,7 +303,7 @@ class _PostComposerState extends State<_PostComposer> {
         }
         final prompt = widget.prompt;
         final prompts = widget.promptRepository;
-        if (prompt != null && prompts != null) {
+        if (editing == null && prompt != null && prompts != null) {
           await prompts.recordPosted(
             promptId: prompt.id,
             postId: post.id,
@@ -297,7 +337,7 @@ class _PostComposerState extends State<_PostComposer> {
           Builder(builder: (context) {
             final useInk = GoldenHourExtension.of(context).enabled;
             final title = Text(
-              'New post',
+              _isEditing ? 'Edit post' : 'New post',
               style: useInk
                   ? kHandwrittenTextStyle.copyWith(
                       fontSize: 24,
@@ -334,7 +374,18 @@ class _PostComposerState extends State<_PostComposer> {
               hintText: widget.hint ?? "What's happening on the Square?",
             ),
           ),
-          if (_media != null) ...[
+          if (_isEditing && widget.editing!.hasMedia)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'The photo stays as it is — only the words change.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          if (_media != null && !_isEditing) ...[
             const SizedBox(height: 12),
             // Attached media rides in a wobbly notebook frame — the
             // sketch language follows content everywhere it goes.
@@ -360,54 +411,59 @@ class _PostComposerState extends State<_PostComposer> {
           // "Fades in 24h": hand-drawn toggle row. The post prints like a
           // polaroid left in the sun — gone by tomorrow unless kept. The
           // label states the current choice, not just the switch's name.
-          Row(
-            children: [
-              const SketchIcon(
-                kind: SketchIconKind.clockTick,
-                size: 20,
-                seed: 71,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _ephemeral ? 'Fades in 24h' : 'Stays on your Square',
+          // Editing changes words, not lifespan, so the toggle stays out
+          // of the edit sheet.
+          if (!_isEditing)
+            Row(
+              children: [
+                const SketchIcon(
+                  kind: SketchIconKind.clockTick,
+                  size: 20,
+                  seed: 71,
                 ),
-              ),
-              Switch.adaptive(
-                value: _ephemeral,
-                onChanged: _sending ? null : (v) => setState(() => _ephemeral = v),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _ephemeral ? 'Fades in 24h' : 'Stays on your Square',
+                  ),
+                ),
+                Switch.adaptive(
+                  value: _ephemeral,
+                  onChanged:
+                      _sending ? null : (v) => setState(() => _ephemeral = v),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Row(
             children: [
               // Media attachment: photo + video pickers, desktop-friendly
               // (file dialogs on Windows). Attach without text — the
-              // publish gate accepts caption-or-media.
-              // Attachment buttons wear the app's accent (primary), not
-              // the tonal yellow container: accent == the thing you press.
-              IconButton.filled(
-                tooltip: 'Attach photo',
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
+              // publish gate accepts caption-or-media. Editing never
+              // attaches: the media on a page is immutable.
+              if (!_isEditing) ...[
+                IconButton.filled(
+                  tooltip: 'Attach photo',
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
+                  onPressed: _sending ? null : _pickImage,
+                  icon: const SketchIcon(
+                      kind: SketchIconKind.photoFrame, size: 22, seed: 47),
                 ),
-                onPressed: _sending ? null : _pickImage,
-                icon: const SketchIcon(
-                    kind: SketchIconKind.photoFrame, size: 22, seed: 47),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Attach video',
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'Attach video',
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
+                  onPressed: _sending ? null : _pickVideo,
+                  icon: const SketchIcon(
+                      kind: SketchIconKind.videoCam, size: 22, seed: 53),
                 ),
-                onPressed: _sending ? null : _pickVideo,
-                icon: const SketchIcon(
-                    kind: SketchIconKind.videoCam, size: 22, seed: 53),
-              ),
+              ],
               const Spacer(),
               TextButton(
                 onPressed: _sending
@@ -428,7 +484,7 @@ class _PostComposerState extends State<_PostComposer> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Publish'),
+                    : Text(_isEditing ? 'Save' : 'Publish'),
               ),
             ],
           ),

@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/attachments/attachment.dart';
 import '../../../../core/database/app_database.dart';
@@ -59,6 +60,7 @@ extension GroupMessageRowMapper on GroupMessageRow {
         },
         attachment: _attachmentFromDb(
             attachmentKind, attachmentPath, attachmentDurationMs),
+        replyToMessageId: replyToMessageId,
       );
 
   static MessageAttachment? _attachmentFromDb(
@@ -127,6 +129,38 @@ abstract class NexusLocalDatasource {
   Future<NexusGroup?> findGroup(String id);
   Future<void> insertGroup(NexusGroupsCompanion entry);
   Future<void> insertGroupMessage(GroupMessagesCompanion entry);
+  Future<GroupMessage?> findGroupMessage(String messageId);
+
+  /// Rewrite a message body and stamp its edit instant. Authorization
+  /// (author + 15-minute window) is the repository's job.
+  Future<void> updateGroupMessageBody({
+    required String messageId,
+    required String body,
+    required DateTime editedAt,
+  });
+
+  /// Tombstone one message. The row stays so conversation flow and reply
+  /// pointers keep working; the UI renders "Message deleted".
+  Future<void> markGroupMessageDeleted({
+    required String messageId,
+    required DateTime deletedAt,
+  });
+
+  // reactions (shared message_reactions table, targetModule 'nexus_group')
+
+  /// Every reaction on every message in one group, live — the chat page
+  /// subscribes once rather than once per bubble.
+  Stream<List<MessageReactionRow>> watchGroupReactions({
+    required String groupId,
+  });
+
+  /// One reaction per person per message: same emoji removes it, a
+  /// different emoji replaces it. Returns true when a reaction remains.
+  Future<bool> toggleGroupReaction({
+    required String messageId,
+    required String userId,
+    required String reaction,
+  });
   Future<void> setRole({
     required String groupId,
     required String userId,
@@ -276,6 +310,99 @@ class DriftNexusLocalDatasource implements NexusLocalDatasource {
   @override
   Future<void> insertGroupMessage(GroupMessagesCompanion entry) =>
       _db.into(_db.groupMessages).insertOnConflictUpdate(entry);
+
+  @override
+  Future<GroupMessage?> findGroupMessage(String messageId) async {
+    final row = await (_db.select(_db.groupMessages)
+          ..where((tbl) => tbl.id.equals(messageId)))
+        .getSingleOrNull();
+    return row?.toEntity();
+  }
+
+  @override
+  Future<void> updateGroupMessageBody({
+    required String messageId,
+    required String body,
+    required DateTime editedAt,
+  }) async {
+    await (_db.update(_db.groupMessages)
+          ..where((tbl) => tbl.id.equals(messageId)))
+        .write(GroupMessagesCompanion(
+      body: Value(body),
+      editedAt: Value(editedAt),
+    ));
+  }
+
+  @override
+  Future<void> markGroupMessageDeleted({
+    required String messageId,
+    required DateTime deletedAt,
+  }) async {
+    await (_db.update(_db.groupMessages)
+          ..where((tbl) => tbl.id.equals(messageId)))
+        .write(GroupMessagesCompanion(
+      body: const Value(''),
+      deletedAt: Value(deletedAt),
+    ));
+  }
+
+  @override
+  Stream<List<MessageReactionRow>> watchGroupReactions({
+    required String groupId,
+  }) {
+    final query = _db.select(_db.messageReactions).join([
+      innerJoin(
+        _db.groupMessages,
+        _db.groupMessages.id.equalsExp(_db.messageReactions.messageId),
+      ),
+    ])
+      ..where(_db.groupMessages.groupId.equals(groupId));
+    return query.watch().map((rows) => rows
+        .map((row) => row.readTable(_db.messageReactions))
+        .toList());
+  }
+
+  @override
+  Future<bool> toggleGroupReaction({
+    required String messageId,
+    required String userId,
+    required String reaction,
+  }) async {
+    final existing = await (_db.select(_db.messageReactions)
+          ..where((tbl) =>
+              tbl.messageId.equals(messageId) & tbl.userId.equals(userId)))
+        .getSingleOrNull();
+
+    if (existing != null) {
+      if (existing.reaction == reaction) {
+        await (_db.delete(_db.messageReactions)
+              ..where((tbl) => tbl.id.equals(existing.id)))
+            .go();
+        return false;
+      }
+      await (_db.update(_db.messageReactions)
+            ..where((tbl) => tbl.id.equals(existing.id)))
+          .write(MessageReactionsCompanion(
+        reaction: Value(reaction),
+        syncStatus: const Value(ReactionSyncStatus.pending),
+        createdAt: Value(DateTime.now()),
+      ));
+      return true;
+    }
+
+    await _db.into(_db.messageReactions).insert(
+          MessageReactionsCompanion.insert(
+            id: const Uuid().v4(),
+            messageId: messageId,
+            targetModule: 'nexus_group',
+            userId: userId,
+            reaction: reaction,
+            syncStatus: ReactionSyncStatus.pending,
+            createdAt: DateTime.now(),
+          ),
+        );
+    return true;
+  }
 
   /// Seed-stage convenience: writes an already-synced membership row so
   /// seeded groups don't queue phantom join operations.

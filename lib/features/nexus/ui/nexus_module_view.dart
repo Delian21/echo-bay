@@ -6,7 +6,12 @@ import 'package:fpdart/fpdart.dart' hide State;
 import '../../../core/attachments/attachment.dart';
 import '../../../core/attachments/attachment_media_view.dart';
 import '../../../core/design_system/chat_bubble_layout.dart';
+import '../../../core/design_system/chat_reply_widgets.dart';
 import '../../../core/design_system/ink_chat_composer.dart';
+import '../../../core/design_system/message_menu.dart';
+import '../../../core/design_system/message_reactions.dart';
+import '../../../core/design_system/reaction_pills.dart';
+import '../../../core/design_system/swipe_to_reply.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/design_system/staggered_entrance.dart';
@@ -15,6 +20,8 @@ import '../../../core/attachments/post_navigation.dart';
 import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/auth/local_identity.dart';
+import '../../../core/chat/message_edit.dart';
+import '../../../core/design_system/tear_out_confirm.dart';
 import '../../../injection.dart';
 import '../domain/entities/nexus.dart';
 import '../domain/repositories/nexus_repository.dart';
@@ -697,6 +704,20 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
   final _scroll = ScrollController();
   bool _sending = false;
 
+  /// The message being quoted by the draft in the composer, if any.
+  GroupMessage? _replyTo;
+
+  /// The message being rewritten in the composer, if any.
+  String? _editingMessageId;
+
+  /// Briefly tints the bubble a jump-to-original landed on.
+  String? _highlightedId;
+  Timer? _highlightTimer;
+
+  /// One key per rendered row so a quoted block can bring its original
+  /// into view. Lazily created, never rebuilt.
+  final Map<String, GlobalKey> _rowKeys = {};
+
   /// Draft autosave, keyed per group — same contract as the Vault chat
   /// page: restore on open, debounced save on change, clear on send.
   DraftDebouncer? _draftSave;
@@ -732,6 +753,13 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
   late final Stream<Either<Failure, List<GroupMessage>>> _messages =
       widget.repository.watchGroupMessages(groupId: widget.group.id);
 
+  /// One subscription for the whole group, not one watcher per bubble.
+  late final Stream<Either<Failure, List<GroupReaction>>> _reactions =
+      widget.repository.watchGroupReactions(groupId: widget.group.id);
+
+  GlobalKey _rowKey(String id) =>
+      _rowKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'gmsg-$id'));
+
   @override
   void initState() {
     super.initState();
@@ -750,23 +778,87 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
         sl<DraftStore>().write(_draftKey, _composer.text);
       }
     }
+    _highlightTimer?.cancel();
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   Future<void> _send() async {
+    final editingId = _editingMessageId;
+    if (editingId != null) {
+      await _commitEdit(editingId);
+      return;
+    }
     final body = _composer.text.trim();
     if (body.isEmpty || _sending) return;
     _sending = true;
     _composer.clear();
     unawaited(_clearDraft());
     if (mounted) setState(() {});
+    final replyToId = _replyTo?.id;
+    if (replyToId != null) setState(() => _replyTo = null);
     final result = await widget.repository.sendGroupMessage(
       groupId: widget.group.id,
       body: body,
+      replyToMessageId: replyToId,
     );
     _finishSend(result);
+  }
+
+  void _beginEdit(GroupMessage message) {
+    setState(() {
+      _replyTo = null;
+      _editingMessageId = message.id;
+      _composer.text = message.body;
+    });
+  }
+
+  Future<void> _commitEdit(String messageId) async {
+    final body = _composer.text.trim();
+    if (body.isEmpty) return;
+    setState(() {
+      _editingMessageId = null;
+      _composer.clear();
+    });
+    final result = await widget.repository.editGroupMessage(
+      messageId: messageId,
+      newBody: body,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ?? "Couldn't save that edit"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
+    );
+  }
+
+  /// Delete an own group message after the shared confirmation. The row
+  /// stays as a tombstone so the conversation keeps its shape.
+  Future<void> _confirmDelete(GroupMessage message) async {
+    final confirmed = await confirmTearOut(
+      context,
+      title: 'Tear out this message?',
+      message: 'It stays as a deleted line, but the words are gone.',
+    );
+    if (!confirmed || !mounted) return;
+    final result = await widget.repository.deleteGroupMessage(
+      messageId: message.id,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(failure.message ?? "Couldn't delete that message"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+      (_) {},
+    );
   }
 
   /// Send with an attachment (text optional — a photo alone is a
@@ -778,12 +870,52 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
     final body = _composer.text.trim();
     _composer.clear();
     unawaited(_clearDraft());
+    final replyToId = _replyTo?.id;
+    if (replyToId != null) setState(() => _replyTo = null);
     final result = await widget.repository.sendGroupMessage(
       groupId: widget.group.id,
       body: body,
       attachment: attachment,
+      replyToMessageId: replyToId,
     );
     _finishSend(result);
+  }
+
+  Future<void> _toggleReaction(String messageId, String reaction) async {
+    await widget.repository.toggleGroupReaction(
+      messageId: messageId,
+      reaction: reaction,
+    );
+  }
+
+  void _startReply(GroupMessage m) {
+    setState(() => _replyTo = m);
+  }
+
+  /// Bring the quoted message into view and flash it. A row that is not
+  /// currently built simply leaves the tap inert.
+  void _jumpToOriginal(String messageId) {
+    final ctx = _rowKeys[messageId]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+      alignment: 0.4,
+    );
+    _highlightTimer?.cancel();
+    setState(() => _highlightedId = messageId);
+    _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _highlightedId = null);
+    });
+  }
+
+  static GroupMessage? _findMessage(List<GroupMessage> messages, String? id) {
+    if (id == null) return null;
+    for (final m in messages) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   void _finishSend(Either<Failure, GroupMessage> result) {
@@ -864,7 +996,19 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
                         ),
                       );
                     }
-                    return ListView.builder(
+                    return StreamBuilder<Either<Failure, List<GroupReaction>>>(
+                      stream: _reactions,
+                      builder: (context, reactionSnapshot) {
+                        final reactions = reactionSnapshot.data?.fold(
+                              (_) => const <GroupReaction>[],
+                              (rows) => rows,
+                            ) ??
+                            const <GroupReaction>[];
+                        final byMessage = <String, List<GroupReaction>>{};
+                        for (final r in reactions) {
+                          byMessage.putIfAbsent(r.messageId, () => []).add(r);
+                        }
+                        return ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 12),
@@ -891,6 +1035,7 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
                             next.createdAt.difference(m.createdAt) >=
                                 kChatRunWindow;
                         return Column(
+                          key: _rowKey(m.id),
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -902,9 +1047,36 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
                               message: m,
                               opensRun: opensRun,
                               closesRun: closesRun,
+                              quoted: _findMessage(
+                                  messages, m.replyToMessageId),
+                              highlighted: _highlightedId == m.id,
+                              pills: summarizeReactions(
+                                (byMessage[m.id] ?? const <GroupReaction>[])
+                                    .map((r) => (
+                                          userId: r.userId,
+                                          reaction: r.reaction,
+                                        )),
+                                localUserId: LocalIdentity.id,
+                              ),
+                              onReply: () => _startReply(m),
+                              onJumpToOriginal: m.replyToMessageId == null
+                                  ? null
+                                  : () => _jumpToOriginal(m.replyToMessageId!),
+                              onReact: (reaction) =>
+                                  _toggleReaction(m.id, reaction),
+                              onEdit: m.isMine &&
+                                      !m.isDeleted &&
+                                      withinMessageEditWindow(m.createdAt)
+                                  ? () => _beginEdit(m)
+                                  : null,
+                              onDelete: m.isMine && !m.isDeleted
+                                  ? () => _confirmDelete(m)
+                                  : null,
                             ),
                           ],
                         );
+                      },
+                    );
                       },
                     );
                   },
@@ -912,11 +1084,30 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
               },
             ),
           ),
+          if (_replyTo != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: ReplyBanner(
+                senderName:
+                    _replyTo!.isMine ? 'You' : _replyTo!.senderId,
+                text: replyExcerpt(
+                    _replyTo!.body, _replyTo!.attachment),
+                onCancel: () => setState(() => _replyTo = null),
+              ),
+            ),
           InkChatComposer(
             controller: _composer,
             enabled: !_sending,
             hintText: 'Message the dorm',
-            onSendWithAttachment: _sendWithAttachment,
+            editing: _editingMessageId != null,
+            onCancelEdit: _editingMessageId == null
+                ? null
+                : () => setState(() {
+                      _editingMessageId = null;
+                      _composer.clear();
+                    }),
+            onSendWithAttachment:
+                _editingMessageId == null ? _sendWithAttachment : null,
             onSendText: _send,
           ),
         ],
@@ -930,9 +1121,33 @@ class _GroupBubble extends StatelessWidget {
     required this.message,
     required this.opensRun,
     required this.closesRun,
+    required this.pills,
+    required this.onReply,
+    this.quoted,
+    this.highlighted = false,
+    this.onJumpToOriginal,
+    this.onReact,
+    this.onEdit,
+    this.onDelete,
   });
 
   final GroupMessage message;
+
+  /// The message this one quotes, resolved from the loaded page. Null when
+  /// the original was purged or is not loaded.
+  final GroupMessage? quoted;
+
+  /// Tint for a moment after a jump landed here.
+  final bool highlighted;
+  final VoidCallback? onJumpToOriginal;
+  final List<ReactionPillData> pills;
+  final VoidCallback onReply;
+  final ValueChanged<String>? onReact;
+
+  /// Rewrite / tombstone this message; both null on other people's
+  /// messages and outside the edit window (Edit only).
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   /// True when this message starts a sender's run — it carries the
   /// sender's name and sits below the previous speaker; the rest of
@@ -951,10 +1166,49 @@ class _GroupBubble extends StatelessWidget {
     final metaColor = chatBubbleMetaForeground(context, isMine: mine);
     final seed = message.id.hashCode & 0x7FFFFFFF;
 
+    if (message.isDeleted) {
+      // Tombstone: keep the row's place in the conversation, say only
+      // this, and offer nothing to press.
+      return Padding(
+        padding: EdgeInsets.only(
+          top: opensRun ? kChatRunGap : kChatRunTightGap,
+        ),
+        child: Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: Semantics(
+            label: 'Message deleted',
+            child: Text(
+              'Message deleted',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontStyle: FontStyle.italic,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (message.replyToMessageId != null) ...[
+          QuotedMessageBlock(
+            senderName: quoted == null
+                ? 'Message'
+                : (quoted!.isMine ? 'You' : quoted!.senderId),
+            text: quoted == null
+                ? ''
+                : replyExcerpt(quoted!.body, quoted!.attachment),
+            isMine: mine,
+            // A tombstoned original counts as missing: quoting it would
+            // show its blanked-out body as if that were what was said.
+            unavailable: quoted == null || quoted!.isDeleted,
+            onTap: onJumpToOriginal,
+          ),
+          const SizedBox(height: 6),
+        ],
         if (!mine && opensRun)
           Align(
             alignment: Alignment.centerLeft,
@@ -1018,6 +1272,25 @@ class _GroupBubble extends StatelessWidget {
       child: content,
     );
 
+    final interactive = SwipeToReply(
+      isMine: mine,
+      onReply: onReply,
+      child: GestureDetector(
+        onLongPress: () => _showActions(context),
+        onDoubleTap: onReact == null ? null : () => onReact!('heart'),
+        child: Semantics(
+          button: true,
+          label: mine ? 'Your message' : 'Message from ${message.senderId}',
+          child: BubbleWithReactions(
+            bubble: bubble,
+            pills: pills,
+            isMine: mine,
+            onPillTap: (reaction) => onReact?.call(reaction),
+          ),
+        ),
+      ),
+    );
+
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
@@ -1026,9 +1299,48 @@ class _GroupBubble extends StatelessWidget {
         padding: EdgeInsets.only(
           top: opensRun ? kChatRunGap : kChatRunTightGap,
         ),
-        child: bubble,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: highlighted
+                ? theme.colorScheme.primary.withValues(alpha: 0.16)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: interactive,
+        ),
       ),
     );
+  }
+
+  Future<void> _showActions(BuildContext context) async {
+    final result = await showMessageMenu(
+      context,
+      canReply: true,
+      canEdit: onEdit != null,
+      // Pin keeps its reserved slot: the Nexus has no wall handler yet,
+      // and a dead action is worse than a missing one.
+      canPin: false,
+      canDelete: onDelete != null,
+    );
+    if (result == null) return;
+    final reaction = result.reaction;
+    if (reaction != null) {
+      onReact?.call(reaction);
+      return;
+    }
+    switch (result.action) {
+      case MessageMenuAction.reply:
+        onReply();
+      case MessageMenuAction.edit:
+        onEdit?.call();
+      case MessageMenuAction.delete:
+        onDelete?.call();
+      case MessageMenuAction.pin:
+      case null:
+        break;
+    }
   }
 }
 
