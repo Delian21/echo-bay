@@ -193,15 +193,20 @@ class GroupMessage extends Equatable {
   bool get isDeleted => deletedAt != null;
   bool get isEdited => editedAt != null;
 
-  GroupMessage copyWith({OutboxStatus? status, String? replyToMessageId}) =>
+  GroupMessage copyWith({
+    String? body,
+    OutboxStatus? status,
+    DateTime? editedAt,
+    String? replyToMessageId,
+  }) =>
       GroupMessage(
         id: id,
         groupId: groupId,
         senderId: senderId,
-        body: body,
+        body: body ?? this.body,
         createdAt: createdAt,
         status: status ?? this.status,
-        editedAt: editedAt,
+        editedAt: editedAt ?? this.editedAt,
         deletedAt: deletedAt,
         attachment: attachment,
         replyToMessageId: replyToMessageId ?? this.replyToMessageId,

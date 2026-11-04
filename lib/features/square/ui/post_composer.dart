@@ -44,12 +44,18 @@ Future<void> showPostComposer(
   PromptRepository? promptRepository,
   Post? editing,
 }) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  // The sheet mirrors its field here on every keystroke. Reading this
+  // after the sheet closes is synchronous and cannot race the draft's
+  // fire-and-forget database write the way a store read does.
+  final liveText = ValueNotifier<String>('');
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     builder: (sheetContext) => _PostComposer(
       repository: repository,
       authorName: authorName,
+      liveText: liveText,
       hint: editing != null
           ? 'Rewrite this page.'
           : prompt != null
@@ -62,15 +68,13 @@ Future<void> showPostComposer(
       editing: editing,
     ),
   );
-  // Closed without publishing: if a draft survived, say so where the
-  // person is looking, not only in a small tag on the next open.
-  if (!context.mounted || !sl.isRegistered<DraftStore>()) return;
-  final key = editing == null
-      ? DraftStore.squareKey
-      : DraftStore.squareEdit(editing.id);
-  final draft = await sl<DraftStore>().read(key);
-  if (draft == null || !context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
+  // Closed without publishing and with words still in the field: the
+  // draft survives, so say so where the person is looking. Cancel and
+  // Publish both blank this mirror, so neither keeps a ghost draft.
+  final kept = liveText.value.trim().isNotEmpty;
+  liveText.dispose();
+  if (!context.mounted || !kept) return;
+  messenger?.showSnackBar(
     const SnackBar(
       content: Text('Draft saved — pick it up where you left off.'),
       behavior: SnackBarBehavior.floating,
@@ -87,6 +91,7 @@ class _PostComposer extends StatefulWidget {
     this.prompt,
     this.promptRepository,
     this.editing,
+    this.liveText,
   });
 
   final FeedRepository repository;
@@ -104,6 +109,9 @@ class _PostComposer extends StatefulWidget {
 
   /// The post being rewritten, or null when composing a new page.
   final Post? editing;
+
+  /// Mirror of the field, for the caller's "draft saved" hint.
+  final ValueNotifier<String>? liveText;
 
   @override
   State<_PostComposer> createState() => _PostComposerState();
@@ -159,6 +167,7 @@ class _PostComposerState extends State<_PostComposer> {
   }
 
   void _onCaptionChanged(String text) {
+    widget.liveText?.value = text;
     setState(() {});
     if (!sl.isRegistered<DraftStore>()) return;
     _draftSave ??= DraftDebouncer();
@@ -183,7 +192,12 @@ class _PostComposerState extends State<_PostComposer> {
     if (save != null) {
       save.dispose();
       if (sl.isRegistered<DraftStore>()) {
-        sl<DraftStore>().write(_draftKey, _controller.text);
+        // An edit left exactly as it was is not a draft: saving it would
+        // put an unchanged copy on the shelf and make "Discard" the only
+        // way to get rid of it.
+        final unchanged = _isEditing &&
+            _controller.text.trim() == widget.editing!.body.trim();
+        sl<DraftStore>().write(_draftKey, unchanged ? '' : _controller.text);
       }
     }
     _controller.dispose();
@@ -310,6 +324,7 @@ class _PostComposerState extends State<_PostComposer> {
           );
         }
         // Published: the draft has become a post — clear it.
+        widget.liveText?.value = '';
         await _clearDraft();
         if (mounted) Navigator.of(context).pop();
       },
@@ -470,6 +485,7 @@ class _PostComposerState extends State<_PostComposer> {
                     ? null
                     : () async {
                         // Deliberate discard: the draft dies here.
+                        widget.liveText?.value = '';
                         await _clearDraft();
                         if (context.mounted) Navigator.of(context).pop();
                       },

@@ -119,6 +119,10 @@ class _VaultChatPageState extends State<VaultChatPage> {
   String get _draftKey => DraftStore.vault(widget.conversation.id);
 
   void _onDraftChanged(String text) {
+    // Rewriting a message is not new text for this conversation: saving
+    // it as a draft would clobber the words already waiting there (and
+    // leave an abandoned edit as the "draft" after a cancel).
+    if (_editingMessageId != null) return;
     if (!sl.isRegistered<DraftStore>()) return;
     _draftSave ??= DraftDebouncer();
     _draftSave!.run(() {
@@ -148,7 +152,8 @@ class _VaultChatPageState extends State<VaultChatPage> {
     final save = _draftSave;
     if (save != null) {
       save.dispose();
-      if (sl.isRegistered<DraftStore>()) {
+      // Leaving mid-edit must not save the edited body as a new draft.
+      if (_editingMessageId == null && sl.isRegistered<DraftStore>()) {
         sl<DraftStore>().write(_draftKey, _composer.text);
       }
     }
@@ -229,10 +234,10 @@ class _VaultChatPageState extends State<VaultChatPage> {
     final id = _editingMessageId;
     final body = _composer.text.trim();
     if (id == null || body.isEmpty) return;
-    setState(() {
-      _editingMessageId = null;
-      _composer.clear();
-    });
+    // Clear while the edit flag is still set, so the draft listener does
+    // not treat the cleared field as "the person deleted their draft".
+    _composer.clear();
+    setState(() => _editingMessageId = null);
     await widget.repository.editMessage(messageId: id, newBody: body);
   }
 

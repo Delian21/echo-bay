@@ -726,6 +726,9 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
   String get _draftKey => DraftStore.dorm(widget.group.id);
 
   void _onDraftChanged(String text) {
+    // Same rule as the Vault: an edit in progress never overwrites the
+    // conversation's real draft.
+    if (_editingMessageId != null) return;
     if (!sl.isRegistered<DraftStore>()) return;
     _draftSave ??= DraftDebouncer();
     _draftSave!.run(() {
@@ -774,7 +777,8 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
     final save = _draftSave;
     if (save != null) {
       save.dispose();
-      if (sl.isRegistered<DraftStore>()) {
+      // Leaving mid-edit must not save the edited body as a new draft.
+      if (_editingMessageId == null && sl.isRegistered<DraftStore>()) {
         sl<DraftStore>().write(_draftKey, _composer.text);
       }
     }
@@ -817,10 +821,10 @@ class _NexusGroupChatPageState extends State<NexusGroupChatPage> {
   Future<void> _commitEdit(String messageId) async {
     final body = _composer.text.trim();
     if (body.isEmpty) return;
-    setState(() {
-      _editingMessageId = null;
-      _composer.clear();
-    });
+    // Clear before dropping the flag: the draft listener ignores writes
+    // while an edit is active, so the real draft survives.
+    _composer.clear();
+    setState(() => _editingMessageId = null);
     final result = await widget.repository.editGroupMessage(
       messageId: messageId,
       newBody: body,
@@ -1256,6 +1260,18 @@ class _GroupBubble extends StatelessWidget {
                   color: metaColor,
                 ),
               ),
+              // Same "edited" mark as the Vault: small, muted, beside
+              // the clock, only when an edit actually happened.
+              if (message.isEdited) ...[
+                const SizedBox(width: 4),
+                Text(
+                  'edited',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: metaColor,
+                  ),
+                ),
+              ],
               if (mine) ...[
                 const SizedBox(width: 4),
                 _OutboxTick(status: message.status, onAccent: true),

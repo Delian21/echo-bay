@@ -86,18 +86,11 @@ class _SquareFeedViewState extends State<SquareFeedView> {
   /// Index of the keyboard-focused card; -1 means nothing focused yet.
   int _focusedIndex = -1;
 
-  /// The local user's id — gates the keep-it action to the author's own
-  /// ephemeral posts. Resolved once from the auth seam.
-  String _localUserId = 'local-user';
-
   final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    SquareFeedView.resolveLocalUserId().then((id) {
-      if (mounted) setState(() => _localUserId = id);
-    });
     _stream = widget.repository.watchFeed().map(
           (either) => _FeedSnapshot(posts: either.fold((f) => null, (l) => l), failure: either.fold((f) => f, (_) => null)),
         );
@@ -501,10 +494,14 @@ class _SquareFeedViewState extends State<SquareFeedView> {
                   repository: sl<SocialRepository>(),
                   postId: _posts[postIndex].id,
                 ),
-                onPinToWall: _posts[postIndex].authorId == _localUserId
+                // Ownership everywhere is LocalIdentity.owns — the same
+                // predicate the repository writes with, so the buttons
+                // never disagree with the data layer about whose page it
+                // is (legacy 'local-user' rows included).
+                onPinToWall: LocalIdentity.owns(_posts[postIndex].authorId)
                     ? () => _pinToWall(_posts[postIndex])
                     : null,
-                onKeep: _posts[postIndex].authorId == _localUserId &&
+                onKeep: LocalIdentity.owns(_posts[postIndex].authorId) &&
                         _posts[postIndex].expiresAt != null
                     ? () => _keepPost(_posts[postIndex])
                     : null,
