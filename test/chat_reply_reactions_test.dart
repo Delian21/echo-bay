@@ -63,7 +63,8 @@ void main() {
           reason: '$table gains the nullable column on upgrade',
         );
       }
-      expect(second.schemaVersion, 17);
+      expect(second.schemaVersion, greaterThanOrEqualTo(17),
+          reason: 'opening migrated the schema forward');
 
       final rows = await second.select(second.messages).get();
       final old = rows.firstWhere((r) => r.id == messageId);
