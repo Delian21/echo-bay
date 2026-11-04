@@ -21,6 +21,14 @@ class PeerDirectory {
     'Mira': 'Bakes bread on rainy days. Sells none of it.',
   };
 
+  /// A couple of the cast keep a status line, so the "other people's
+  /// profile" surface has something honest to show in the mock stage.
+  /// These never fade (no expiry) — a peer's line is theirs to change.
+  static const _statuses = {
+    'Rune': 'On the roof, chasing a signal.',
+    'Mila': 'Chasing the last light.',
+  };
+
   /// Handle assignment for the cast. Built once from [names], so the
   /// name ↔ handle mapping is identical on every launch and on every
   /// device without any stored state. Two cast members that slugify
@@ -74,5 +82,6 @@ class PeerDirectory {
         name: name,
         bio: _bios[name] ?? 'Here, mostly.',
         avatarSeed: name.hashCode & 0x7FFFFFFF,
+        statusText: _statuses[name],
       );
 }

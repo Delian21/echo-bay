@@ -9,6 +9,7 @@ import '../../../core/design_system/sketch_kit.dart';
 import '../../../core/io/platform_io.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/people/person_sheet.dart';
+import '../../../core/people/person_status.dart';
 import '../../../core/motion/rewind_scope.dart';
 import '../../../core/theme/app_theme.dart';
 import 'square_post_model.dart';
@@ -221,9 +222,16 @@ class _CardHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => openPerson(context, name: post.username),
-            child: _StoryRingAvatar(url: post.userAvatarUrl),
+          // No status line in the header — it already holds the avatar,
+          // name, time, an "edited" marker and the menu, so a fourth line
+          // of text would crowd it. The avatar carries it as a tooltip
+          // instead: hover on web, long-press on touch, zero layout cost.
+          _StatusTooltip(
+            name: post.username,
+            child: GestureDetector(
+              onTap: () => openPerson(context, name: post.username),
+              child: _StoryRingAvatar(url: post.userAvatarUrl),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -256,6 +264,27 @@ class _CardHeader extends StatelessWidget {
             _PostMenu(onEdit: onEdit, onDelete: onDelete),
         ],
       ),
+    );
+  }
+}
+
+/// The author avatar, with their status line as a tooltip when they have
+/// one that has not lapsed. With no status it is a pass-through: no
+/// wrapper, no reserved space, no empty gap.
+class _StatusTooltip extends StatelessWidget {
+  const _StatusTooltip({required this.name, required this.child});
+
+  final String name;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = statusForPerson(name);
+    if (status == null) return child;
+    return Tooltip(
+      message: status.text,
+      waitDuration: const Duration(milliseconds: 350),
+      child: child,
     );
   }
 }

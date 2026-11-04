@@ -19,6 +19,8 @@ class AppSettingsStore {
   static const _profileBioKey = 'profile_bio';
   static const _profileAvatarKey = 'profile_avatar';
   static const _profileAccentKey = 'profile_accent';
+  static const _profileStatusTextKey = 'profile_status_text';
+  static const _profileStatusExpiresKey = 'profile_status_expires';
 
   /// Recent search queries, stored as a JSON array (search page).
   static const searchRecentsKey = 'search_recents';
@@ -82,6 +84,8 @@ class AppSettingsStore {
     final bio = await _read(_profileBioKey);
     final avatar = await _read(_profileAvatarKey);
     final accent = await _read(_profileAccentKey);
+    final statusText = await _read(_profileStatusTextKey);
+    final statusExpires = await _read(_profileStatusExpiresKey);
     Color? accentColor;
     if (accent != null) {
       final parsed = int.tryParse(accent.replaceFirst('#', ''), radix: 16);
@@ -93,6 +97,12 @@ class AppSettingsStore {
       bio: (bio == null || bio.isEmpty) ? null : bio,
       avatarPath: avatar,
       accentColor: accentColor ?? const UserProfile().accentColor,
+      statusText: (statusText == null || statusText.isEmpty) ? null : statusText,
+      // A status whose expiry cannot be parsed is treated as never fading
+      // rather than vanishing: losing one line is worse than showing it.
+      statusExpiresAt: statusExpires == null
+          ? null
+          : DateTime.tryParse(statusExpires),
     );
   }
 
@@ -126,6 +136,26 @@ class AppSettingsStore {
     await _write(
         _profileAccentKey,
         '#${profile.accentColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}');
+    await _writeStatus(profile);
+  }
+
+  /// Writes (or clears) the two status keys. Kept separate so the profile
+  /// write stays readable: a cleared status removes both keys, which is
+  /// what makes "no status" survive a restart as null, not a stale line.
+  Future<void> _writeStatus(UserProfile profile) async {
+    final text = profile.statusText?.trim() ?? '';
+    if (text.isEmpty) {
+      await deleteKey(_profileStatusTextKey);
+      await deleteKey(_profileStatusExpiresKey);
+      return;
+    }
+    await _write(_profileStatusTextKey, text);
+    final expiresAt = profile.statusExpiresAt;
+    if (expiresAt == null) {
+      await deleteKey(_profileStatusExpiresKey);
+    } else {
+      await _write(_profileStatusExpiresKey, expiresAt.toIso8601String());
+    }
   }
 
   /// Generic typed KV reads/writes for feature keys (search recents).

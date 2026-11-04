@@ -94,6 +94,8 @@ class PeerProfile extends Equatable {
     required this.name,
     required this.bio,
     required this.avatarSeed,
+    this.statusText,
+    this.statusExpiresAt,
   });
 
   final String name;
@@ -104,6 +106,15 @@ class PeerProfile extends Equatable {
   /// Stable hash seed for deterministic avatar tint per peer.
   final int avatarSeed;
 
+  /// The peer's status line, when the cast has one. Mock stage: supplied
+  /// by [PeerDirectory]; a backend would carry it on the profile record.
+  final String? statusText;
+
+  /// When [statusText] lapses; null = never. Visibility is decided at
+  /// display time, exactly like the local user's status.
+  final DateTime? statusExpiresAt;
+
   @override
-  List<Object?> get props => [name, bio, avatarSeed];
+  List<Object?> get props =>
+      [name, bio, avatarSeed, statusText, statusExpiresAt];
 }

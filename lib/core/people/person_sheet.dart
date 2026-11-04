@@ -5,6 +5,7 @@ import '../../features/social/domain/entities/peer_directory.dart';
 import '../../features/social/domain/entities/social_entities.dart';
 import '../../features/social/domain/repositories/follow_repository.dart';
 import '../../injection.dart';
+import '../design_system/status_line.dart';
 import '../error/failures.dart';
 import '../profile/handles.dart';
 import '../profile/profile_controller.dart';
@@ -172,6 +173,42 @@ class _PersonPageBodyState extends State<_PersonPageBody> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            // Status and bio share one subscription: the repository
+            // hands out a fresh stream per call, so a second builder
+            // would either double-subscribe or race.
+            StreamBuilder<Either<Failure, PeerProfile>>(
+              stream: _peerStream,
+              builder: (context, peerSnap) {
+                final peer = peerSnap.data?.fold((_) => null, (p) => p);
+                final status = peer?.statusText;
+                final bioText = peer?.bio;
+                return Column(
+                  children: [
+                    if (status != null && status.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      StatusLine(
+                        text: status,
+                        expiresAt: peer?.statusExpiresAt,
+                      ),
+                    ],
+                    if (bioText != null) ...[
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                        child: Text(
+                          bioText,
+                          textAlign: TextAlign.center,
+                          style: useInk
+                              ? kHandwrittenTextStyle.copyWith(
+                                  fontSize: 15, height: 1.35)
+                              : theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 2),
             Text(
               'On the Square',
@@ -181,26 +218,6 @@ class _PersonPageBodyState extends State<_PersonPageBody> {
                 letterSpacing: 1.1,
                 fontWeight: FontWeight.w700,
               ),
-            ),
-            const SizedBox(height: 4),
-            StreamBuilder<Either<Failure, PeerProfile>>(
-              stream: _peerStream,
-              builder: (context, peerSnap) {
-                final String? bioText =
-                    peerSnap.data?.fold((_) => null, (p) => p.bio);
-                if (bioText == null) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Text(
-                    bioText,
-                    textAlign: TextAlign.center,
-                    style: useInk
-                        ? kHandwrittenTextStyle.copyWith(
-                            fontSize: 15, height: 1.35)
-                        : theme.textTheme.bodySmall,
-                  ),
-                );
-              },
             ),
             const SizedBox(height: 8),
             Center(child: _KeepCloseButton(name: widget.name)),

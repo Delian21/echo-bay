@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'status.dart';
+
 /// The local user's profile. Stored in the settings key-value table —
-/// three keys, no schema migration needed for a new field (bump only if
-/// a field needs indexing, which a profile never does).
+/// one key per field, no schema migration needed for a new field (bump
+/// only if a field needs indexing, which a profile never does).
 @immutable
 class UserProfile {
   const UserProfile({
@@ -11,6 +13,8 @@ class UserProfile {
     this.bio,
     this.avatarPath,
     this.accentColor = const Color(0xFFD98324),
+    this.statusText,
+    this.statusExpiresAt,
   });
 
   final String displayName;
@@ -34,6 +38,48 @@ class UserProfile {
   /// App accent color — replaces the theme's primary role.
   final Color accentColor;
 
+  /// The short status line ("one sentence") shown under the name on the
+  /// profile, on other people's pages that read this profile, in DM
+  /// headers and as a tooltip on feed avatars. Null = never set.
+  ///
+  /// Visibility is computed at display time from [statusExpiresAt]; a
+  /// lapsed status is hidden without any background job.
+  final String? statusText;
+
+  /// When [statusText] stops showing. Null = it never fades ("Never").
+  final DateTime? statusExpiresAt;
+
+  /// The status line as it should be shown at [now], or null when absent
+  /// or already faded.
+  String? activeStatusTextAt(DateTime now) =>
+      statusIsActive(statusText, statusExpiresAt, now)
+          ? statusText!.trim()
+          : null;
+
+  /// Sets (or clears, with a null [text]) the status line as one edit, so
+  /// "Never" can drop a previous expiry instead of keeping it.
+  UserProfile withStatus(String? text, DateTime? expiresAt) {
+    final trimmed = text?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return UserProfile(
+        displayName: displayName,
+        handle: handle,
+        bio: bio,
+        avatarPath: avatarPath,
+        accentColor: accentColor,
+      );
+    }
+    return UserProfile(
+      displayName: displayName,
+      handle: handle,
+      bio: bio,
+      avatarPath: avatarPath,
+      accentColor: accentColor,
+      statusText: trimmed,
+      statusExpiresAt: expiresAt,
+    );
+  }
+
   /// Up-to-two-letter initials for the fallback avatar.
   String initials() {
     final words = displayName
@@ -53,6 +99,9 @@ class UserProfile {
     Color? accentColor,
     bool clearAvatar = false,
     bool clearBio = false,
+    String? statusText,
+    DateTime? statusExpiresAt,
+    bool clearStatus = false,
   }) =>
       UserProfile(
         displayName: displayName ?? this.displayName,
@@ -60,6 +109,9 @@ class UserProfile {
         bio: clearBio ? null : (bio ?? this.bio),
         avatarPath: clearAvatar ? null : (avatarPath ?? this.avatarPath),
         accentColor: accentColor ?? this.accentColor,
+        statusText: clearStatus ? null : (statusText ?? this.statusText),
+        statusExpiresAt:
+            clearStatus ? null : (statusExpiresAt ?? this.statusExpiresAt),
       );
 
   @override
@@ -69,11 +121,13 @@ class UserProfile {
       other.handle == handle &&
       other.bio == bio &&
       other.avatarPath == avatarPath &&
-      other.accentColor.toARGB32() == accentColor.toARGB32();
+      other.accentColor.toARGB32() == accentColor.toARGB32() &&
+      other.statusText == statusText &&
+      other.statusExpiresAt == statusExpiresAt;
 
   @override
-  int get hashCode =>
-      Object.hash(displayName, handle, bio, avatarPath, accentColor.toARGB32());
+  int get hashCode => Object.hash(displayName, handle, bio, avatarPath,
+      accentColor.toARGB32(), statusText, statusExpiresAt);
 }
 
 /// Preset accent palette for the profile editor — the ink pots. Curated

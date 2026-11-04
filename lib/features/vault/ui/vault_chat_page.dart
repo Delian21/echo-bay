@@ -19,10 +19,12 @@ import '../../../core/design_system/reaction_pills.dart';
 import '../../../core/design_system/swipe_to_reply.dart';
 import '../../../core/design_system/loading_skeletons.dart';
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/design_system/status_line.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/attachments/post_navigation.dart';
 import '../../../core/motion/motion_scope.dart';
 import '../../../core/motion/rewind_scope.dart';
+import '../../../core/profile/status.dart';
 import '../../../core/settings/draft_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../injection.dart';
@@ -30,6 +32,7 @@ import '../../calls/data/repositories/mock_calls_repository.dart';
 import '../../calls/domain/repositories/calls_repository.dart';
 import '../../calls/ui/calls_module_view.dart' show placeCallToPeer;
 import '../../keepsake/domain/repositories/keepsake_repository.dart';
+import '../../social/domain/entities/peer_directory.dart';
 import '../data/repositories/mock_chat_repository.dart';
 import '../domain/entities/message.dart';
 import '../domain/entities/reaction.dart';
@@ -373,6 +376,11 @@ class _VaultChatPageState extends State<VaultChatPage> {
       widget.repository.markConversationRead(
           conversationId: widget.conversation.id);
     });
+    // The peer's status line, when the cast keeps one and it has not
+    // lapsed. Peers live in the mock directory, not the database.
+    final peer = PeerDirectory.bio(widget.conversation.title);
+    final peerStatusActive =
+        statusIsActive(peer.statusText, peer.statusExpiresAt, DateTime.now());
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -406,23 +414,38 @@ class _VaultChatPageState extends State<VaultChatPage> {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  Row(
-                    children: [
-                      SketchIcon(
-                        kind: SketchIconKind.padlock,
-                        size: 12,
-                        color: theme.colorScheme.primary,
-                        seed: 75,
+                  if (peerStatusActive)
+                    // While a peer has a status up it takes the subtitle
+                    // slot. The privacy promise is not lost: the padlock
+                    // carries it as a tooltip, and the plain line returns
+                    // as soon as the status fades.
+                    Tooltip(
+                      message: 'Private · local-first',
+                      child: StatusLine(
+                        text: peer.statusText,
+                        expiresAt: peer.statusExpiresAt,
+                        maxLines: 1,
+                        alignment: Alignment.centerLeft,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Private · local-first',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    )
+                  else
+                    Row(
+                      children: [
+                        SketchIcon(
+                          kind: SketchIconKind.padlock,
+                          size: 12,
+                          color: theme.colorScheme.primary,
+                          seed: 75,
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Private · local-first',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

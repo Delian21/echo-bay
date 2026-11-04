@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../../../core/design_system/sketch_kit.dart';
+import '../../../core/design_system/status_line.dart';
 import '../../../core/io/platform_io.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/profile/handles.dart';
 import '../../../core/profile/profile_controller.dart';
+import '../../../core/profile/status.dart';
 import '../../../core/profile/user_profile.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:fpdart/fpdart.dart' hide State;
@@ -20,6 +22,7 @@ import '../../social/ui/circle_window_page.dart';
 
 import '../../square/domain/entities/post.dart';
 import '../../square/domain/repositories/feed_repository.dart';
+import 'status_sheet.dart';
 
 /// Where a profile can be shared from. The web build knows its own
 /// origin at runtime; native builds (and tests) fall back to the
@@ -71,6 +74,7 @@ class ProfilePage extends StatelessWidget {
       builder: (context, _) => _ProfileView(
         profile: profileController.profile,
         feedRepository: feedRepository,
+        onTapStatus: () => showStatusSheet(context, profileController),
         onEdit: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => ProfileEditPage(
@@ -90,12 +94,17 @@ class _ProfileView extends StatelessWidget {
   const _ProfileView({
     required this.profile,
     required this.onEdit,
+    required this.onTapStatus,
     this.feedRepository,
   });
 
   final UserProfile profile;
   final FeedRepository? feedRepository;
   final VoidCallback onEdit;
+
+  /// Opens the status sheet — the line under the handle is the setting's
+  /// one surface, so it is always tappable (placeholder included).
+  final VoidCallback onTapStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +152,16 @@ class _ProfileView extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                         letterSpacing: 0.3,
                       ),
+                    ),
+                    // The status lives under the name/handle: a handwritten
+                    // tag when there is one, a quiet invitation when not.
+                    // It disappears by itself at statusExpiresAt.
+                    const SizedBox(height: 4),
+                    StatusLine(
+                      text: profile.statusText,
+                      expiresAt: profile.statusExpiresAt,
+                      placeholder: kStatusPlaceholder,
+                      onTap: onTapStatus,
                     ),
                     if (bio.isNotEmpty) ...[
                       const SizedBox(height: 4),
@@ -231,6 +250,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }
 
   void _commit() {
+    final current = widget.profileController.profile;
     widget.profileController.update(UserProfile(
       displayName:
           _name.text.trim().isEmpty ? 'You' : _name.text.trim(),
@@ -239,6 +259,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       bio: _bio.text.trim().isEmpty ? null : _bio.text.trim(),
       avatarPath: _avatarPath,
       accentColor: _accent,
+      // This form does not edit the status, so every keystroke must carry
+      // the existing one through instead of saving a profile without it.
+      statusText: current.statusText,
+      statusExpiresAt: current.statusExpiresAt,
     ));
   }
 
