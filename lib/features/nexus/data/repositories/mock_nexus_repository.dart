@@ -261,14 +261,18 @@ class MockNexusRepository implements NexusRepository {
     }
   }
 
-  /// Copy an attachment into `.attachments/` (same contract as the
+  /// Copy an attachment into the app folder (same contract as the
   /// Vault's mock — duplicated on purpose: features may not import each
-  /// other, and the shared helper would have to live in core data layer).
+  /// other, and the shared helper lives in the IO seam).
   Future<MessageAttachment> _storeAttachment(MessageAttachment a) async {
+    // A shared Square post carries a post id, not a file: nothing to copy.
+    if (a.sharedPostId != null) return a;
+    // Browsers have no file store (blob: URLs): keep the session path.
+    if (!hasFileStore) return a;
     if (!await fileExists(a.path)) {
       throw StateError('attachment source missing: ${a.path}');
     }
-    final dirPath = await dirEnsure(joinPath(currentDirPath, '.attachments'));
+    final dirPath = await attachmentsDirPath();
     final ext = a.path.contains('.') ? a.path.split('.').last : 'bin';
     final dest = joinPath(dirPath, '${_uuid.v4()}.$ext');
     await fileCopy(a.path, dest);

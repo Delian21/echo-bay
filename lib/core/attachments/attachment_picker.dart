@@ -48,8 +48,7 @@ class AttachmentPicker {
       // Haptic acknowledgment — recording started.
       await HapticFeedback.mediumImpact();
       final recorder = AudioRecorder();
-      final dirPath =
-          await dirEnsure(joinPath(currentDirPath, '.attachments'));
+      final dirPath = await attachmentsDirPath();
       final path = joinPath(
           dirPath,
           'voice_${DateTime.now().microsecondsSinceEpoch}.m4a');
@@ -129,6 +128,15 @@ class VoiceRecording {
         await _recorder.dispose();
         // The encoder reports its own path; trust it when present.
         final written = finalPath ?? _path;
+        if (!hasFileStore) {
+          // Browser: the recorder returns a blob: URL that lives for the
+          // session. There is no file to stat — use it as the path.
+          return MessageAttachment(
+            kind: AttachmentKind.voice,
+            path: written,
+            durationMs: durationMs,
+          );
+        }
         if (await fileExists(written) && await fileLength(written) > 0) {
           // Sidecar waveform: real mic peaks as comma-separated values.
           // Chips load it to draw the true speech contour.

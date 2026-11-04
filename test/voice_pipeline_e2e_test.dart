@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_bay/core/attachments/attachment.dart';
 import 'package:echo_bay/core/attachments/voice_note_player.dart';
 import 'package:echo_bay/core/database/app_database.dart';
+import 'package:echo_bay/core/io/platform_io.dart';
 import 'package:echo_bay/features/vault/data/datasources/vault_local_datasource.dart';
 import 'package:echo_bay/features/vault/data/repositories/mock_chat_repository.dart';
 import 'package:echo_bay/features/vault/domain/entities/message.dart';
@@ -82,6 +83,13 @@ void main() {
     expect(withNote.first.attachment!.kind, AttachmentKind.voice);
     expect(withNote.first.attachment!.durationMs, 1500);
     expect(withNote.first.body, 'with a note');
+    // The copy lands in the app's attachment folder. Storing under the
+    // process working directory is what broke sends on a phone.
+    expect(
+      withNote.first.attachment!.path,
+      startsWith(await attachmentsDirPath()),
+      reason: 'attachments live in the app folder, not the process cwd',
+    );
   });
 
   test('photo attachment persists with its kind (media messages generalise)',

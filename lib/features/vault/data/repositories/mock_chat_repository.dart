@@ -562,6 +562,12 @@ class MockChatRepository implements ChatRepository {
   /// no-ops the copy and returns a session-only path — the message and
   /// its metadata still persist through the database.
   Future<MessageAttachment> _storeAttachment(MessageAttachment a) async {
+    // A shared Square post carries a post id, not a file: nothing to copy.
+    if (a.sharedPostId != null) return a;
+    // Browsers have no file store. Keep the session path and persist the
+    // metadata; demanding a copy here is what made every photo, video and
+    // voice send fail with "sendMessage failed" on the web build.
+    if (!hasFileStore) return a;
     if (!await fileExists(a.path)) {
       throw StateError('attachment source missing: ${a.path}');
     }
@@ -576,12 +582,9 @@ class MockChatRepository implements ChatRepository {
     );
   }
 
-  Future<String> _attachmentsDir() async {
-    // No path_provider dependency in the mock stack: store in a
-    // `.attachments` folder under the working directory (desktop mock
-    // stage; the real transport swaps in path_provider later).
-    return dirEnsure(joinPath(currentDirPath, '.attachments'));
-  }
+  /// The app's own attachment folder — never the process working
+  /// directory, which is `/` (and unwritable) on Android and iOS.
+  Future<String> _attachmentsDir() => attachmentsDirPath();
 
   Future<void> _deliverPeerMessage(
     String conversationId,

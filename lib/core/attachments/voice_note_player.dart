@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'attachment.dart';
 
@@ -40,7 +41,14 @@ class VoiceNotePlayer {
     await stop();
 
     try {
-      await _player.play(DeviceFileSource(attachment.path));
+      // The browser stores a voice note as a blob: URL (no file to read),
+      // and audioplayers needs a URL source there. Native plays the copy
+      // from the attachments folder.
+      await _player.play(
+        kIsWeb
+            ? UrlSource(attachment.path)
+            : DeviceFileSource(attachment.path),
+      );
       _current = attachment;
       _posSub = _player.onPositionChanged.listen(_position.add);
       _completeSub = _player.onPlayerComplete.listen((_) async {

@@ -43,4 +43,12 @@ Future<String> dirEnsure(String path) async => path;
 
 String joinPath(String a, String b) => '$a/$b';
 
+/// The browser has no filesystem for attachments: pickers and the
+/// recorder hand out blob:/session URLs, and nothing can be copied, so
+/// callers keep the path as-is instead of pretending the file is missing.
+bool get hasFileStore => false;
+
 String get currentDirPath => '/';
+
+/// Web has no file store: the path is virtual and the copy is a no-op.
+Future<String> attachmentsDirPath() async => '/attachments';
