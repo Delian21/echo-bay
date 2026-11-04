@@ -463,23 +463,32 @@ class DriftVaultLocalDatasource implements VaultLocalDatasource {
     required String userId,
   }) async {
     final cursor = await readCursor(conversationId, userId);
+    // Already-read rows are never unread, with or without a cursor. The
+    // old queries only excluded the local user's own writes, so seeded
+    // and inbound rows stamped `read` (the first-run welcome message
+    // among them) inflated every count — and the badge — until a cursor
+    // existed.
+    final notMine = _db.messages.senderId.equals(userId).not();
+    final notRead = _db.messages.syncStatus.equalsValue(MsgSyncStatus.read).not();
     if (cursor == null) {
-      // No cursor: everything inbound is unread (own writes never count).
+      // No cursor: every inbound row that has not been read counts.
       final count = await (_db.selectOnly(_db.messages)
             ..addColumns([_db.messages.id.count()])
             ..where(_db.messages.conversationId.equals(conversationId) &
-                _db.messages.senderId.equals(userId).not()))
+                notMine &
+                notRead))
           .getSingle();
       return count.read(_db.messages.id.count()) ?? 0;
     }
-    // Count messages newer than the cursor timestamp, excluding the
-    // local user's own writes (they are by definition read).
+    // Past a cursor, still exclude own writes (read by definition) and
+    // rows the sync machinery has already flipped to read.
     final count = await (_db.selectOnly(_db.messages)
           ..addColumns([_db.messages.id.count()])
           ..where(_db.messages.conversationId.equals(conversationId) &
               _db.messages.createdAt
                   .isBiggerThan(Variable.withDateTime(cursor.lastReadAt)) &
-              _db.messages.senderId.equals(userId).not()))
+              notMine &
+              notRead))
         .getSingle();
     return count.read(_db.messages.id.count()) ?? 0;
   }
